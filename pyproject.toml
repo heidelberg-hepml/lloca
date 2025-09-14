@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "setuptools-scm>=8", "wheel>=0.42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lloca"
+dynamic = ["version"] # comes from setuptools-scm
+description = "Lorentz Local Canonicalization"
+requires-python = ">=3.10"
+readme = "README.md"
+authors = [
+  { name = "Jonas Spinner", email = "j.spinner@thphys.uni-heidelberg.de" },
+]
+dependencies = [
+    "torch>=2.0",
+    "torch-geometric>=2.3.0",
+]
+
+[project.optional-dependencies]
+xformers_attention = ["xformers"]
+flex_attention = ["torch>=2.7"]  # experimental in torch 2.5, 2.6
+
+[project.entry-points."lloca.backbone.attention_backends"]
+default_attention = "lloca.backbone.attention_backends.default_attention"
+xformers_attention = "lloca.backbone.attention_backends.xformers_attention"
+flex_attention = "lloca.backbone.attention_backends.flex_attention"
+
+[project.urls]
+homepage = "https://github.com/heidelberg-hepml/lloca"
+repository = "https://github.com/heidelberg-hepml/lloca"
+
+[tool.setuptools]
+packages = { find =  { include = ["lloca", "lloca.*"] } }
+
+[tool.setuptools_scm]
+version_scheme = "post-release"
+local_scheme = "no-local-version"
