@@ -35,7 +35,7 @@ pip install -e .
 
 ## How to use LLoCa
 
-Docs and example notebooks coming soon!
+Please have a look at the [LLoCa documentation](https://heidelberg-hepml.github.io/lloca/) (coming soon) and our example notebook for the [LLoCa-Transformer](examples/demo_transformer.ipynb).
 
 ## Features
 
