@@ -13,7 +13,7 @@
 
 </div>
 
-This repository contains a standalone implementation of **Lorentz Local Canonicalization (LLoCa)** by [Jonas Spinner](mailto:j.spinner@thphys.uni-heidelberg.de), Luigi Favaro, Peter Lippmann, Sebastian Pitz, Gerrit Gerhartz, Huilin Qu, Tilman Plehn, and Fred A. Hamprecht. LLoCa uses equivariantly predicted local reference frames and geometric message passing between these frames to make any architecture Lorentz-equivariant.
+This repository contains a standalone implementation of **Lorentz Local Canonicalization (LLoCa)** by [Jonas Spinner](mailto:j.spinner@thphys.uni-heidelberg.de), [Luigi Favaro](mailto:luigi.favaro@uclouvain.be), Peter Lippmann, Sebastian Pitz, Gerrit Gerhartz, Huilin Qu, Tilman Plehn, and Fred A. Hamprecht. LLoCa uses equivariantly predicted local reference frames and geometric message passing between these frames to make any architecture Lorentz-equivariant.
 You can read more about LLoCa in the following two papers and in the [LLoCa documentation](https://heidelberg-hepml.github.io/lloca/):
 - [Lorentz Local Canonicalization: How to make any Network Lorentz-Equivariant](https://arxiv.org/abs/2505.20280) (ML audience)
 - [Lorentz-Equivariance without Limitations](https://arxiv.org/abs/2508.14898) (HEP audience)
