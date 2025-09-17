@@ -1,8 +1,10 @@
+"""Basic operations in Minkowski space."""
+
 import torch
 
 
 def lorentz_inner(v1, v2):
-    """Lorentz inner product, i.e v1*g*v2
+    """Lorentz inner product, i.e v1^T @ g @ v2
 
     Parameters
     ----------
@@ -20,7 +22,7 @@ def lorentz_inner(v1, v2):
 
 
 def lorentz_squarednorm(v):
-    """Lorentz norm, i.e. v*g*v
+    """Lorentz norm, i.e. v^T @ g @ v
 
     Parameters
     ----------
@@ -42,10 +44,10 @@ def lorentz_eye(dims, device=torch.device("cpu"), dtype=torch.float32):
     Parameters
     ----------
     dims : tuple
-        Dimensions of the output tensor, e.g. (2, 3) for a 2x3 matrix
-    device : torch.device, optional
+        Dimension of the output tensor, e.g. (2, 3) for a 2x3 matrix
+    device : torch.device
         Device to create the tensor on, by default torch.device("cpu")
-    dtype : torch.dtype, optional
+    dtype : torch.dtype
         Data type of the tensor, by default torch.float32
 
     Returns
@@ -65,10 +67,10 @@ def lorentz_metric(dims, device=torch.device("cpu"), dtype=torch.float32):
     Parameters
     ----------
     dims : tuple
-        Dimensions of the output tensor, e.g. (2, 3) for a 2x3 matrix
-    device : torch.device, optional
+        Dimension of the output tensor, e.g. (2, 3) for a 2x3 matrix
+    device : torch.device
         Device to create the tensor on, by default torch.device("cpu")
-    dtype : torch.dtype, optional
+    dtype : torch.dtype
         Data type of the tensor, by default torch.float32
 
     Returns
@@ -84,7 +86,8 @@ def lorentz_metric(dims, device=torch.device("cpu"), dtype=torch.float32):
 
 def lorentz_cross(v1, v2, v3):
     """
-    Compute the cross product in Minkowski space.
+    Compute the cross product in Minkowski space using the Laplace expansion.
+    Note that this cross product takes three inputs vectors.
 
     Parameters
     ----------
