@@ -12,7 +12,7 @@ class TensorRepsTransform(torch.nn.Module):
         reps: TensorReps,
         use_naive=False,
     ):
-        """Initialize tensor representation transformation module.
+        """Tensor representation transformation module.
 
         Parameters
         ----------

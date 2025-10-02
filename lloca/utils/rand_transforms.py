@@ -14,7 +14,7 @@ def get_trafo_type(axis):
     Parameters
     ----------
     axis : torch.Tensor
-        Axis of the transformation, should be of shape (2, *dims)
+        Axis of the transformation, should be of shape (2, ...)
 
     Returns
     -------
@@ -37,17 +37,17 @@ def transform(
     ----------
     axes : List[torch.Tensor]
         List of axes along which the transformations are performed.
-        Each element is a tensor of shape (2, *dims).
+        Each element is a tensor of shape (2, ...).
     angles : List[torch.Tensor]
         List of angles used for the transformations.
-        Each element is a tensor of shape (*dims,).
+        Each element is a tensor of shape (...,).
     use_float64 : bool, optional
         Whether to use float64 for calculations, by default True
 
     Returns
     -------
     final_trafo : torch.Tensor
-        Final transformation matrix of shape (*dims, 4, 4).
+        Final transformation matrix of shape (..., 4, 4).
     """
     assert len(axes) == len(angles)
     dims = angles[0].shape
@@ -109,7 +109,7 @@ def rand_lorentz(
     Returns
     -------
     final_trafo: torch.tensor
-        The resulting Lorentz transformation matrices of shape (*shape, 4, 4).
+        The resulting Lorentz transformation matrices of shape (..., 4, 4).
     """
     assert std_eta > 0
     boost = rand_boost(
@@ -145,7 +145,7 @@ def rand_xyrotation(
     Returns
     -------
     final_trafo: torch.tensor
-        The resulting Lorentz transformation matrices of shape (*shape, 4, 4).
+        The resulting Lorentz transformation matrices of shape (..., 4, 4).
     """
     axis = torch.tensor([1, 2], dtype=torch.long, device=device)
     axis = axis.view(2, *([1] * len(shape))).repeat(1, *shape)
@@ -186,7 +186,7 @@ def rand_ztransform(
     Returns
     -------
     final_trafo: torch.tensor
-        The resulting Lorentz transformation matrices of shape (*shape, 4, 4).
+        The resulting Lorentz transformation matrices of shape (..., 4, 4).
     """
     # rotation around z-axis
     axis1 = torch.tensor([1, 2], dtype=torch.long, device=device)
@@ -234,7 +234,7 @@ def rand_rotation(
     Returns
     -------
     final_trafo: torch.tensor
-        The resulting Lorentz transformation matrices of shape (*shape, 4, 4).
+        The resulting Lorentz transformation matrices of shape (..., 4, 4).
     """
     # generate random quaternions
     u = torch.rand(*shape, 3, device=device, dtype=dtype, generator=generator)
@@ -289,7 +289,7 @@ def rand_boost(
     Returns
     -------
     final_trafo: torch.tensor
-        The resulting Lorentz transformation matrices of shape (*shape, 4, 4).
+        The resulting Lorentz transformation matrices of shape (..., 4, 4).
     """
     shape = list(shape) + [3]
     beta = sample_rapidity(

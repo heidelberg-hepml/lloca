@@ -1,4 +1,4 @@
-"""Construct Lorentz transformations from a boost and a rotation."""
+"""Lorentz transformations from boosts and rotations."""
 
 import torch
 

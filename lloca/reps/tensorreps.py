@@ -91,7 +91,7 @@ class _TensorMulRep(Tuple):
 
 
 class TensorReps(Tuple):
-    """Direct product of potentially different tensor representations"""
+    """Generic tensor representations"""
 
     def __new__(cls, input, simplify=True):
         """Create a tensor representation based on the input.
