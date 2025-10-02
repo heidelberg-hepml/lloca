@@ -49,6 +49,7 @@ Backbone networks
 -----------------
 
 The LLoCa framework can be used to make generic backbone architectures Lorentz-equivariant.
+
 1. Transform the network inputs into their local frames to make them invariant.
 2. For message-passing architectures, transform the messages from the sender frame to the receiver frame using a non-trivial message representation, i.e. not only scalars.
 3. Transform the network outputs back to the global frame to obtain a Lorentz-equivariant output. This step is trivial in the case of Lorentz-invariant outputs.
