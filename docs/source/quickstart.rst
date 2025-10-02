@@ -30,7 +30,7 @@ Building a LLoCa-Transformer
 We now demonstrate how to build a LLoCa-Transformer, the most efficient architecture based on our papers. 
 We build the LLoCa-Transformer in three steps, following the picture above:
 
-1. Construct local frames based on 3 equivariantly predicted vectors
+1. Construct local frames based on three equivariantly predicted vectors
 2. Transform particle features into local frames
 3. Process local particle features with any backbone architecture
 
@@ -52,10 +52,10 @@ Using random numbers, we generate a batch of 128 events with 10 particles each.
    fourmomenta = torch.cat([E, p3], dim=-1) # (128, 10, 4)
    scalars = torch.randn(B, N, num_scalars) # (128, 10, 1)
 
-1. Construct local frames based on 3 equivariantly predicted vectors
+1. Construct local frames based on three equivariantly predicted vectors
 --------------------------------------------------------------------
 
-Based on these particle features, we want to construct a local frame :math:`L` for each particle. 
+Given these particle features, we want to construct a local frame :math:`L` for each particle. 
 The local frames are Lorentz transformations, i.e. they satisfy :math:`L^TgL=g` with :math:`L\in \mathbb{R}^{4\times 4}`. 
 We further design them to satisfy the transformation behavior :math:`L\overset{\Lambda}{\to} L\Lambda^{-1}` under Lorentz transformations :math:`\Lambda`, 
 this ensures that particle features in the local frame are invariant.
@@ -79,10 +79,10 @@ We construct the local frames in two steps. First, we use a simple Lorentz-equiv
    equivectors_test = equivectors_constructor(3)
    vectors = equivectors_test(fourmomenta, scalars) # (128, 10, 3, 4)
 
-This ``equivectors`` network is used in the larger ``framesnet`` class, 
-which also includes the subsequent orthonormalization to construct the local ``frames``. 
-We therefore construct the ``equivectors_constructor`` to the :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames` ``framesnet``, 
-which orthonormalizes the three vectors to construct a Lorentz transformation.
+Next, we define the ``framesnet`` class which calls the ``equivectors`` to predict a set of vectors
+and further performs the orthonormalization to construct the local ``frames``.
+In our minimal example, we use the :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames` ``framesnet`` and
+we pass the constructor as :mod:`equivectors=equivectors_constructor`.
 
 .. code-block:: python
 
@@ -93,9 +93,9 @@ which orthonormalizes the three vectors to construct a Lorentz transformation.
 
 The package implements many alternative ``framesnet`` choices:
 
-- :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames`: Construct learned Lorentz transform from a boost and a rotation, with the rotation constructed using a Gram-Schmidt algorithm in 3-dimensional euclidean space. This is the default Lorentz-equivariant ``framesnet``.
-- :mod:`~lloca.framesnet.equi_frames.LearnedSO13Frames`: Construct learned Lorentz transform directly using a Gram-Schmidt algorithm in Minkowski space. The result is equivalent to ``LearnedPD``, but ``LearnedPD`` has the advantage of providing direct access to the boost, which is useful in some cases.
-- :mod:`~lloca.framesnet.equi_frames.LearnedSO3Frames` and :mod:`~lloca.framesnet.equi_frames.LearnedSO2Frames`: Construct learned :math:`SO(2)` and :math:`SO(3)` transforms, embedded in the Lorentz group. The resulting architectures are :math:`SO(2)`- and :math:`SO(3)`-equivariant, respectively.
+- :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames`: Construct a learned Lorentz transformation from a boost and a rotation, i.e. following a polar decomposition, with the rotation constructed using the Gram-Schmidt algorithm in the 3-dimensional euclidean space. This is the default Lorentz-equivariant ``framesnet``.
+- :mod:`~lloca.framesnet.equi_frames.LearnedSO13Frames`: Construct a learned Lorentz transformation directly using the Gram-Schmidt algorithm in Minkowski space. The result is equivalent to ``LearnedPD``, but ``LearnedPD`` has the advantage of providing direct access to the boost, which is useful in some cases.
+- :mod:`~lloca.framesnet.equi_frames.LearnedSO3Frames` and :mod:`~lloca.framesnet.equi_frames.LearnedSO2Frames`: Construct learned :math:`SO(2)` and :math:`SO(3)` transformations, embedded in the Lorentz group. The resulting architectures are :math:`SO(2)`- and :math:`SO(3)`-equivariant, respectively.
 - :mod:`~lloca.framesnet.nonequi_frames.RandomFrames`: Random global frames, corresponding to data augmentation.
 - :mod:`~lloca.framesnet.nonequi_frames.IdentityFrames`: Frames from identity transforms, corresponding to the baseline non-equivariant architectures.
 
