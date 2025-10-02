@@ -228,9 +228,7 @@ class EquiMLP(EquiVectors):
     def __init__(
         self,
         n_vectors,
-        num_blocks,
         *args,
-        hidden_vectors=1,
         **kwargs,
     ):
         """
@@ -238,18 +236,17 @@ class EquiMLP(EquiVectors):
         ----------
         n_vectors : int
             Number of output vectors per particle.
-        num_blocks : int
-            Number of EquiEdgeConv blocks to use in the network.
-        hidden_vectors : int, optional
-            Number of hidden vectors in each EquiEdgeConv block. Default is 1.
+            Different FramesPredictor's need different n_vectors,
+            so this parameter should be set dynamically.
         *args
         **kwargs
         """
         super().__init__()
 
-        assert num_blocks >= 1
-        in_vectors = [1] + [hidden_vectors] * (num_blocks - 1)
-        out_vectors = [hidden_vectors] * (num_blocks - 1) + [n_vectors]
+        # This code was originally written to support multiple message-passing blocks.
+        # We found that having many blocks degrades numerical stability, so we now only support a single block.
+        in_vectors = [1]
+        out_vectors = [n_vectors]
         self.blocks = nn.ModuleList(
             [
                 EquiEdgeConv(
@@ -258,7 +255,7 @@ class EquiMLP(EquiVectors):
                     *args,
                     **kwargs,
                 )
-                for i in range(num_blocks)
+                for i in range(1)
             ]
         )
 
