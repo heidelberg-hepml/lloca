@@ -9,12 +9,12 @@ def lorentz_inner(v1, v2):
     Parameters
     ----------
     v1, v2 : torch.Tensor
-        Tensors of shape (*dims, 4)
+        Tensors of shape (..., 4)
 
     Returns
     -------
     torch.Tensor
-        Lorentz inner product of shape (*dims, )
+        Lorentz inner product of shape (..., )
     """
     prod = v1 * v2
     prod *= torch.tensor([1, -1, -1, -1], device=v1.device, dtype=v1.dtype)
@@ -27,12 +27,12 @@ def lorentz_squarednorm(v):
     Parameters
     ----------
     v : torch.Tensor
-        Tensor of shape (*dims, 4)
+        Tensor of shape (..., 4)
 
     Returns
     -------
     torch.Tensor
-        Lorentz norm of shape (*dims, )
+        Lorentz norm of shape (..., )
     """
     return lorentz_inner(v, v)
 
@@ -53,7 +53,7 @@ def lorentz_eye(dims, device=torch.device("cpu"), dtype=torch.float32):
     Returns
     -------
     torch.Tensor
-        Identity matrix of shape (*dims, 4, 4)
+        Identity matrix of shape (..., 4, 4)
     """
     eye = torch.eye(4, dtype=dtype, device=device)
     eye = eye.view((1,) * len(dims) + eye.shape).repeat(*dims, 1, 1)
@@ -76,7 +76,7 @@ def lorentz_metric(dims, device=torch.device("cpu"), dtype=torch.float32):
     Returns
     -------
     torch.Tensor
-        Metric tensor of shape (*dims, 4, 4)
+        Metric tensor of shape (..., 4, 4)
     """
     eye = torch.eye(4, device=device, dtype=dtype)
     eye[1:, 1:] *= -1
@@ -92,12 +92,12 @@ def lorentz_cross(v1, v2, v3):
     Parameters
     ----------
     v1, v2, v3 : torch.Tensor
-        Tensors of shape (*dims, 4) representing vectors in Minkowski space.
+        Tensors of shape (..., 4) representing vectors in Minkowski space.
 
     Returns
     -------
     torch.Tensor
-        The cross product of the three vectors, shape (*dims, 4).
+        The cross product of the three vectors, shape (..., 4).
     """
     assert v1.shape[-1] == 4
     assert v1.shape == v2.shape and v1.shape == v3.shape
