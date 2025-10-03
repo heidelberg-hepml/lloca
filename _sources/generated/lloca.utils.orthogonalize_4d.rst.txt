@@ -1,0 +1,19 @@
+﻿lloca.utils.orthogonalize\_4d
+=============================
+
+.. automodule:: lloca.utils.orthogonalize_4d
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      normalize_4d
+      orthogonalize_4d
+      orthogonalize_cross
+      orthogonalize_gramschmidt
+      orthogonalize_wrapper_4d
+      regularize_coplanar
+      regularize_lightlike
+      timelike_first
+   

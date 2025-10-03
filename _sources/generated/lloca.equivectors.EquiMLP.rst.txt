@@ -1,0 +1,8 @@
+﻿lloca.equivectors.EquiMLP
+=========================
+
+.. autoclass:: lloca.equivectors.EquiMLP
+   :members:
+   :inherited-members: False
+   :undoc-members:
+   :show-inheritance:
