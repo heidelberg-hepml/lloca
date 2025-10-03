@@ -8,8 +8,8 @@
 [![pytorch](https://img.shields.io/badge/PyTorch_2.0+-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/get-started/locally/)
 [![black](https://img.shields.io/badge/Code%20Style-Black-black.svg?labelColor=gray)](https://black.readthedocs.io/en/stable/)
 
-[![LGATr-CS](http://img.shields.io/badge/paper-arxiv.2505.20280-B31B1B.svg)](https://arxiv.org/abs/2505.20280)
-[![LGATr-HEP](http://img.shields.io/badge/paper-arxiv.2508.14898-B31B1B.svg)](https://arxiv.org/abs/2508.14898)
+[![LLoCa-CS](http://img.shields.io/badge/paper-arxiv.2505.20280-B31B1B.svg)](https://arxiv.org/abs/2505.20280)
+[![LLoCa-HEP](http://img.shields.io/badge/paper-arxiv.2508.14898-B31B1B.svg)](https://arxiv.org/abs/2508.14898)
 
 </div>
 
@@ -35,7 +35,7 @@ pip install -e .
 
 ## How to use LLoCa
 
-Please have a look at the [LLoCa documentation](https://heidelberg-hepml.github.io/lloca/) (coming soon) and our example notebook for the [LLoCa-Transformer](examples/demo_transformer.ipynb).
+Please have a look at the [LLoCa documentation](https://heidelberg-hepml.github.io/lloca/) (WIP) and our example notebook for the [LLoCa-Transformer](examples/demo_transformer.ipynb).
 
 ## Features
 
