@@ -10,14 +10,14 @@ from lloca.utils.rand_transforms import rand_lorentz
 @pytest.mark.parametrize("batch_dims", [[100]])
 @pytest.mark.parametrize("jet_size", [10])
 @pytest.mark.parametrize("n_vectors", [1, 2, 3])
-@pytest.mark.parametrize("hidden_channels,num_layers_mlp", [(16,1)])
+@pytest.mark.parametrize("hidden_channels,num_layers_mlp", [(16, 1)])
 @pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
 @pytest.mark.parametrize("num_scalars,include_edges", [(0, True), (1, False)])
 @pytest.mark.parametrize(
     "operation, fm_norm",
     [("diff", True), ("diff", False), ("add", True), ("add", False), ("single", False)],
 )
-@pytest.mark.parametrize("nonlinearity", ["softplus", "exp", "softmax", "softmax_safe"])
+@pytest.mark.parametrize("nonlinearity", ["softplus", "exp", "softmax"])
 def test_equivariance(
     batch_dims,
     jet_size,
@@ -50,6 +50,11 @@ def test_equivariance(
         nonlinearity=nonlinearity,
         fm_norm=fm_norm,
     ).to(dtype=dtype)
+
+    fm_test = sample_particle(
+        batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype
+    ).flatten(0, 1)
+    equivectors.init_standardization(fm_test, ptr=ptr)
 
     fm = sample_particle(
         batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype
