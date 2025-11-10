@@ -60,14 +60,14 @@ The local frames are Lorentz transformations, i.e. they satisfy :math:`L^TgL=g` 
 We further design them to satisfy the transformation behavior :math:`L\overset{\Lambda}{\to} L\Lambda^{-1}` under Lorentz transformations :math:`\Lambda`,
 this ensures that particle features in the local frame are invariant.
 
-We construct the local frames in two steps. First, we use a simple Lorentz-equivariant ``equivectors`` network, :mod:`~lloca.equivectors.EquiMLP`, to construct 3 vectors.
+We construct the local frames in two steps. First, we use a simple Lorentz-equivariant ``equivectors`` network, :mod:`~lloca.equivectors.MLPVectors`, to construct 3 vectors.
 
 .. code-block:: python
 
-   from lloca.equivectors.equimlp import EquiMLP
+   from lloca.equivectors.mlp import MLPVectors
 
    def equivectors_constructor(n_vectors):
-      return EquiMLP(
+      return MLPVectors(
          n_vectors=n_vectors,
          num_blocks=2,
          num_scalars=num_scalars,

@@ -11,7 +11,9 @@ We currently have only one option for this ``equivectors`` network, but we plan 
    :toctree: generated/
    :recursive:
 
-   lloca.equivectors.EquiMLP
+   lloca.equivectors.mlp
+   lloca.equivectors.lgatr
+   lloca.equivectors.pelican
 
 Frames-Net
 ----------
@@ -28,6 +30,7 @@ In addition, we implement non-equivariant networks as identity frames and data a
    lloca.framesnet.equi_frames.LearnedSO13Frames
    lloca.framesnet.equi_frames.LearnedRestFrames
    lloca.framesnet.equi_frames.LearnedSO3Frames
+   lloca.framesnet.equi_frames.LearnedZFrames
    lloca.framesnet.equi_frames.LearnedSO2Frames
    lloca.framesnet.nonequi_frames.IdentityFrames
    lloca.framesnet.nonequi_frames.RandomFrames
