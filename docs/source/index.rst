@@ -5,7 +5,7 @@ LLoCa documentation
    :align: center
    :width: 100%
 
-This documentation describes the ``lloca`` package, 
+This documentation describes the ``lloca`` package,
 available under https://github.com/heidelberg-hepml/lloca.
 
 * :doc:`quickstart`
@@ -57,4 +57,3 @@ If you find this package useful, please cite our papers:
    :hidden:
 
    api
-

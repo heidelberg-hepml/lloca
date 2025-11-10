@@ -1,7 +1,6 @@
 """Random Lorentz transformations."""
 
 import torch
-from typing import List
 
 from .lorentz import lorentz_eye
 from .polar_decomposition import restframe_boost
@@ -25,8 +24,8 @@ def get_trafo_type(axis):
 
 
 def transform(
-    axes: List[int],
-    angles: List[torch.Tensor],
+    axes: list[int],
+    angles: list[torch.Tensor],
     use_float64=True,
 ):
     """Recursively build transformation matrices based on given lists of axes and angles.
@@ -35,10 +34,10 @@ def transform(
 
     Parameters
     ----------
-    axes : List[torch.Tensor]
+    axes : list[int]
         List of axes along which the transformations are performed.
         Each element is a tensor of shape (2, ...).
-    angles : List[torch.Tensor]
+    angles : list[torch.Tensor]
         List of angles used for the transformations.
         Each element is a tensor of shape (...,).
     use_float64 : bool, optional
@@ -60,7 +59,7 @@ def transform(
     angles = [a.to(dtype=dtype) for a in angles]
 
     final_trafo = lorentz_eye(dims, angles[0].device, angles[0].dtype)
-    for axis, angle in zip(axes, angles):
+    for axis, angle in zip(axes, angles, strict=False):
         trafo = lorentz_eye(dims, angle.device, angle.dtype)
         trafo_type = get_trafo_type(axis)
 

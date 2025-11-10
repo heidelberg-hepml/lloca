@@ -1,11 +1,11 @@
 import pytest
 import torch
-from tests.constants import TOLERANCES, BATCH_DIMS
 
-from lloca.utils.rand_transforms import rand_lorentz
 from lloca.framesnet.frames import Frames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
+from lloca.utils.rand_transforms import rand_lorentz
+from tests.constants import BATCH_DIMS, TOLERANCES
 
 
 @pytest.mark.parametrize("use_naive", [True, False])
@@ -32,9 +32,7 @@ def test_tensorreps(batch_dim, use_naive):
     coeffs = torch.randn(batch_dim + [rep.dim])
     tensor_reps_transform = TensorRepsTransform(rep)
     transformed_coeffs = tensor_reps_transform(coeffs.clone(), frames)
-    torch.testing.assert_close(
-        transformed_coeffs, coeffs * frames.det[..., None], **TOLERANCES
-    )
+    torch.testing.assert_close(transformed_coeffs, coeffs * frames.det[..., None], **TOLERANCES)
 
     # 1n test
     rep = TensorReps("5x1n")
@@ -116,6 +114,4 @@ def test_tensorreps(batch_dim, use_naive):
         naive_trafo,
         **TOLERANCES,
     )
-    torch.testing.assert_close(
-        coeffs[..., :1], transformed_coeffs[..., :1], **TOLERANCES
-    )
+    torch.testing.assert_close(coeffs[..., :1], transformed_coeffs[..., :1], **TOLERANCES)

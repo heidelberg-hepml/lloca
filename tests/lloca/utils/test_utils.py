@@ -1,5 +1,5 @@
-import torch
 import pytest
+import torch
 
 from lloca.utils.utils import get_edge_index_from_ptr, get_edge_index_from_shape
 

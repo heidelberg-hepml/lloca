@@ -1,14 +1,14 @@
-import torch
 import pytest
-from tests.constants import TOLERANCES, BATCH_DIMS, LOGM2_MEAN_STD
-from tests.helpers import sample_particle, lorentz_test
+import torch
 
-from lloca.utils.polar_decomposition import (
-    restframe_boost,
-    polar_decomposition,
-)
 from lloca.utils.lorentz import lorentz_squarednorm
+from lloca.utils.polar_decomposition import (
+    polar_decomposition,
+    restframe_boost,
+)
 from lloca.utils.rand_transforms import rand_lorentz, rand_rotation
+from tests.constants import BATCH_DIMS, LOGM2_MEAN_STD, TOLERANCES
+from tests.helpers import lorentz_test, sample_particle
 
 
 @pytest.mark.parametrize("batch_dims", BATCH_DIMS)
@@ -25,10 +25,7 @@ def test_restframe(batch_dims, restframe_transform, logm2_std, logm2_mean):
     kwargs = {}
     if restframe_transform == polar_decomposition:
         kwargs["references"] = torch.stack(
-            [
-                sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype)
-                for _ in range(2)
-            ],
+            [sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype) for _ in range(2)],
             dim=-2,
         )
         kwargs["return_reg"] = False
@@ -39,12 +36,8 @@ def test_restframe(batch_dims, restframe_transform, logm2_std, logm2_mean):
 
     # check that the transformed fourmomenta are in the rest frame,
     # i.e. their spatial components vanish and the temporal component is the mass
-    torch.testing.assert_close(
-        fm_rest[..., 1:], torch.zeros_like(fm[..., 1:]), **TOLERANCES
-    )
-    torch.testing.assert_close(
-        fm_rest[..., 0] ** 2, lorentz_squarednorm(fm), **TOLERANCES
-    )
+    torch.testing.assert_close(fm_rest[..., 1:], torch.zeros_like(fm[..., 1:]), **TOLERANCES)
+    torch.testing.assert_close(fm_rest[..., 0] ** 2, lorentz_squarednorm(fm), **TOLERANCES)
 
     lorentz_test(rest_trafo, **TOLERANCES)
 
@@ -58,10 +51,7 @@ def test_restframe_transformation(batch_dims, random_transform, logm2_std, logm2
     # sample Lorentz vectors
     fm = sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype)
     references = torch.stack(
-        [
-            sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype)
-            for _ in range(2)
-        ],
+        [sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype) for _ in range(2)],
         dim=-2,
     )
 

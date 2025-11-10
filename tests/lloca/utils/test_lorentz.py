@@ -1,8 +1,8 @@
-import torch
 import pytest
-from tests.constants import TOLERANCES, BATCH_DIMS
+import torch
 
 from lloca.utils.lorentz import lorentz_cross, lorentz_inner
+from tests.constants import BATCH_DIMS, TOLERANCES
 
 
 @pytest.mark.parametrize("batch_dims", BATCH_DIMS)

@@ -1,20 +1,22 @@
 """Edge convolution with a simple MLP."""
-import torch
-import math
-from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import softmax, segment
 
-from .base import EquiVectors
+import math
+
+import torch
+from torch_geometric.nn import MessagePassing
+from torch_geometric.utils import segment
+
 from ..backbone.mlp import MLP
 from ..utils.lorentz import lorentz_squarednorm
 from ..utils.utils import (
-    get_edge_index_from_shape,
-    get_edge_index_from_ptr,
-    get_edge_attr,
-    get_ptr_from_batch,
-    get_node_to_edge_ptr_fully_connected,
     get_batch_from_ptr,
+    get_edge_attr,
+    get_edge_index_from_ptr,
+    get_edge_index_from_shape,
+    get_node_to_edge_ptr_fully_connected,
+    get_ptr_from_batch,
 )
+from .base import EquiVectors
 
 
 class EquiEdgeConv(MessagePassing):
@@ -56,7 +58,7 @@ class EquiEdgeConv(MessagePassing):
         operation : str
             Operation to perform on the fourmomenta. Options are "add", "diff", or "single". Default is "add".
         nonlinearity : str
-            Nonlinearity to apply to the output of the MLP. Options are None, "exp", "softplus", and "softmax"". Default is "softmax".
+            Nonlinearity to apply to the output of the MLP. Options are "exp", "softplus", and "softmax". Default is "softmax".
         fm_norm : bool
             Whether to normalize the relative fourmomentum. Default is True.
         layer_norm : bool
@@ -152,9 +154,7 @@ class EquiEdgeConv(MessagePassing):
             vecs = vecs / norm.abs().sqrt().clamp(min=1e-5)
         return vecs
 
-    def message(
-        self, edge_index, s_i, s_j, fm_i, fm_j, node_ptr, node_batch, edge_attr=None
-    ):
+    def message(self, edge_index, s_i, s_j, fm_i, fm_j, node_ptr, node_batch, edge_attr=None):
         """
         Parameters
         ----------
@@ -200,7 +200,7 @@ class EquiEdgeConv(MessagePassing):
         return out
 
 
-class EquiMLP(EquiVectors):
+class MLPVectors(EquiVectors):
     """Edge convolution with a simple MLP."""
 
     def __init__(
@@ -226,9 +226,9 @@ class EquiMLP(EquiVectors):
         in_vectors = 1
         out_vectors = n_vectors
         self.block = EquiEdgeConv(
+            *args,
             in_vectors=in_vectors,
             out_vectors=out_vectors,
-            *args,
             **kwargs,
         )
 
@@ -236,7 +236,7 @@ class EquiMLP(EquiVectors):
         edge_index, _, _ = get_edge_index_and_batch(fourmomenta, ptr)
         self.block.init_standardization(fourmomenta, edge_index)
 
-    def forward(self, fourmomenta, scalars=None, ptr=None):
+    def forward(self, fourmomenta, scalars=None, ptr=None, **kwargs):
         """
         Parameters
         ----------
@@ -322,26 +322,23 @@ def get_operation(operation):
     elif operation == "single":
         return lambda fm_i, fm_j: fm_j
     else:
-        raise ValueError(
-            f"Invalid operation {operation}. Options are (add, diff, single)."
-        )
+        raise ValueError(f"Invalid operation {operation}. Options are (add, diff, single).")
 
 
 def get_nonlinearity(nonlinearity):
     """
     Parameters
     ----------
-    nonlinearity : str or None
-        Nonlinearity to apply to the output of the MLP. Options are None, "exp", "softplus", "softmax".
+    nonlinearity : str
+        Nonlinearity to apply to the output of the MLP. Options are "exp", "softplus", "softmax".
+        We enforce the prediction of timelike vectors.
 
     Returns
     -------
     callable
         A function that applies the specified nonlinearity to the input tensor.
     """
-    if nonlinearity == None:
-        return lambda x, *args, **kwargs: x
-    elif nonlinearity == "exp":
+    if nonlinearity == "exp":
         return lambda x, *args, **kwargs: torch.clamp(x, min=-10, max=10).exp()
     elif nonlinearity == "softplus":
         return lambda x, *args, **kwargs: torch.nn.functional.softplus(x)
@@ -360,7 +357,7 @@ def get_nonlinearity(nonlinearity):
         return func
     else:
         raise ValueError(
-            f"Invalid nonlinearity {nonlinearity}. Options are (None, exp, softplus, softmax)."
+            f"Invalid nonlinearity {nonlinearity}. Options are (exp, softplus, softmax)."
         )
 
 

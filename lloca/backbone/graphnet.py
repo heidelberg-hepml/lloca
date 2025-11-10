@@ -1,11 +1,12 @@
 """Baseline LLoCa-GNN."""
+
 import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
+from ..reps.tensorreps import TensorReps
 from .lloca_message_passing import LLoCaMessagePassing
 from .mlp import MLP
-from ..reps.tensorreps import TensorReps
 
 
 class EdgeConv(LLoCaMessagePassing):
@@ -176,6 +177,7 @@ class GraphNet(nn.Module):
                     edge_index=edge_index,
                     batch=batch,
                     edge_attr=edge_attr,
+                    use_reentrant=False,
                 )
             else:
                 x = block(

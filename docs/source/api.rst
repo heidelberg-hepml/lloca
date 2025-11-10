@@ -4,7 +4,7 @@ API Reference
 Equivariant vector prediction
 -----------------------------
 
-The Frames-Net uses a small Lorentz-equivariant network to predict a list of vectors. 
+The Frames-Net uses a small Lorentz-equivariant network to predict a list of vectors.
 We currently have only one option for this ``equivectors`` network, but we plan to add more options in the future.
 
 .. autosummary::
@@ -32,7 +32,7 @@ In addition, we implement non-equivariant networks as identity frames and data a
    lloca.framesnet.nonequi_frames.IdentityFrames
    lloca.framesnet.nonequi_frames.RandomFrames
 
-The resulting frames are stored in the ``Frames`` bookkeeping class. 
+The resulting frames are stored in the ``Frames`` bookkeeping class.
 A range of derived class can be used for efficient access in the backbone architecture.
 
 .. autosummary::
@@ -57,13 +57,13 @@ The LLoCa framework can be used to make generic backbone architectures Lorentz-e
 The ``MLP`` does not require any modifications to be used in the LLoCa framework.
 For message-passing architectures, we provide the ``LLoCaMessagePassing`` class to conveniently adapt graph networks based on the ``torch_geometric.nn.conv.MessagePassing`` class to the LLoCa framework.
 For transformers, we provide the ``LLoCaAttention`` class as a drop-in replacement for ``torch.nn.functional.scaled_dot_product_attention`` and other attention backends.
-We demonstrate how to use these tools with a baseline LLoCa-GNN and a LLoCa-Transformer. 
+We demonstrate how to use these tools with a baseline LLoCa-GNN and a LLoCa-Transformer.
 For ``ParticleNet`` and ``ParticleTransformer``, we demonstrate how to use LLoCa with established architectures.
 
 .. autosummary::
     :toctree: generated/
     :recursive:
-    
+
     lloca.backbone.mlp.MLP
     lloca.backbone.lloca_message_passing.LLoCaMessagePassing
     lloca.backbone.attention.LLoCaAttention

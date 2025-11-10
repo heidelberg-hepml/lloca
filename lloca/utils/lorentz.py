@@ -37,7 +37,7 @@ def lorentz_squarednorm(v):
     return lorentz_inner(v, v)
 
 
-def lorentz_eye(dims, device=torch.device("cpu"), dtype=torch.float32):
+def lorentz_eye(dims, device=None, dtype=torch.float32):
     """
     Create a identity matrix of given shape
 
@@ -55,12 +55,14 @@ def lorentz_eye(dims, device=torch.device("cpu"), dtype=torch.float32):
     torch.Tensor
         Identity matrix of shape (..., 4, 4)
     """
+    if device is None:
+        device = torch.device("cpu")
     base_eye = torch.eye(4, dtype=dtype, device=device)
     eye = base_eye.view((1,) * len(dims) + (4, 4)).expand(*dims, 4, 4)
     return eye
 
 
-def lorentz_metric(dims, device=torch.device("cpu"), dtype=torch.float32):
+def lorentz_metric(dims, device=None, dtype=torch.float32):
     """
     Create a metric tensor of given shape
 
@@ -78,6 +80,8 @@ def lorentz_metric(dims, device=torch.device("cpu"), dtype=torch.float32):
     torch.Tensor
         Metric tensor of shape (..., 4, 4)
     """
+    if device is None:
+        device = torch.device("cpu")
     diag = torch.tensor((1, -1, -1, -1), device=device, dtype=dtype)
     M = torch.diag_embed(diag)
     M = M.reshape((1,) * len(dims) + (4, 4)).expand(*dims, 4, 4)

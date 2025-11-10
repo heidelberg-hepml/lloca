@@ -1,11 +1,11 @@
-import torch
 import pytest
-from tests.constants import TOLERANCES, REPS
+import torch
 
-from lloca.framesnet.frames import Frames, InverseFrames, ChangeOfFrames
+from lloca.framesnet.frames import ChangeOfFrames, Frames, InverseFrames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.utils.rand_transforms import rand_lorentz
+from tests.constants import REPS, TOLERANCES
 
 
 @pytest.mark.parametrize("batch_dims", [[1000]])

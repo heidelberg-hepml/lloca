@@ -1,14 +1,15 @@
 """Non-equivariant local frames for non-equivariant networks and data augmentation."""
+
 import torch
 
-from .frames import Frames
+from ..utils.polar_decomposition import restframe_boost
 from ..utils.rand_transforms import (
     rand_lorentz,
     rand_rotation,
     rand_xyrotation,
     rand_ztransform,
 )
-from ..utils.polar_decomposition import restframe_boost
+from .frames import Frames
 
 
 class FramesPredictor(torch.nn.Module):
@@ -27,7 +28,7 @@ class IdentityFrames(FramesPredictor):
     def __init__(self):
         super().__init__(is_global=True, is_identity=True)
 
-    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False):
+    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         frames = Frames(
             is_identity=True,
             device=fourmomenta.device,
@@ -94,11 +95,9 @@ class RandomFrames(FramesPredictor):
                 dtype=dtype,
             )
         else:
-            raise ValueError(
-                f"Transformation type {self.transform_type} not implemented"
-            )
+            raise ValueError(f"Transformation type {self.transform_type} not implemented")
 
-    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False):
+    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         if not self.training:
             frames = Frames(
                 is_identity=True,
@@ -108,12 +107,8 @@ class RandomFrames(FramesPredictor):
             )
             return (frames, {}) if return_tracker else frames
 
-        shape = (
-            fourmomenta.shape[:-2] + (1,) if self.is_global else fourmomenta.shape[:-1]
-        )
-        matrix = self.transform(
-            shape, device=fourmomenta.device, dtype=fourmomenta.dtype
-        )
+        shape = fourmomenta.shape[:-2] + (1,) if self.is_global else fourmomenta.shape[:-1]
+        matrix = self.transform(shape, device=fourmomenta.device, dtype=fourmomenta.dtype)
         matrix = matrix.expand(*fourmomenta.shape[:-1], 4, 4)
 
         frames = Frames(
@@ -142,7 +137,7 @@ class COMRandomFrames(RandomFrames):
     the reference frame to the center of mass of the incoming particles.
     """
 
-    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False):
+    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         if not self.training:
             frames = Frames(
                 is_identity=True,
@@ -157,9 +152,7 @@ class COMRandomFrames(RandomFrames):
             if self.is_global
             else torch.Size(*fourmomenta.shape[:-1])
         )
-        matrix = self.transform(
-            shape, device=fourmomenta.device, dtype=fourmomenta.dtype
-        )
+        matrix = self.transform(shape, device=fourmomenta.device, dtype=fourmomenta.dtype)
 
         # hardcoded for amplitudes
         reference_vector = fourmomenta[..., :2, :].sum(dim=-2, keepdims=True)

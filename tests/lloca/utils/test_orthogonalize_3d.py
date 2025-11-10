@@ -1,8 +1,8 @@
-import torch
 import pytest
-from tests.constants import TOLERANCES, BATCH_DIMS
+import torch
 
 from lloca.utils.orthogonalize_3d import orthogonalize_3d
+from tests.constants import BATCH_DIMS, TOLERANCES
 
 
 @pytest.mark.parametrize("batch_dims", BATCH_DIMS)

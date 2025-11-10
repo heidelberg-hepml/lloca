@@ -1,9 +1,7 @@
 """Lorentz group representations."""
 
-from typing import Tuple
 
-
-class TensorRep(Tuple):
+class TensorRep(tuple):
     """Individual tensor representation"""
 
     def __new__(cls, order, parity):
@@ -43,7 +41,7 @@ class TensorRep(Tuple):
         return f"{self.order}{'n' if self.parity == 1 else 'p'}"
 
 
-class _TensorMulRep(Tuple):
+class _TensorMulRep(tuple):
     """Direct product of similar tensor representations"""
 
     def __new__(cls, mul, rep):
@@ -90,7 +88,7 @@ class _TensorMulRep(Tuple):
         return f"{self.mul}x{self.rep}"
 
 
-class TensorReps(Tuple):
+class TensorReps(tuple):
     """Generic tensor representations"""
 
     def __new__(cls, input, simplify=True):
@@ -114,8 +112,8 @@ class TensorReps(Tuple):
         elif isinstance(input, str):
             try:
                 tensor_reps = parse_tensorreps_string(input)
-            except Exception:
-                raise ValueError(f"Invalid tensor_reps string {input}")
+            except ValueError as err:
+                raise ValueError(f"Invalid tensor_reps string {input}") from err
         else:
             raise ValueError(f"Invalid input: {input} is of type {type(input)}")
 
@@ -167,9 +165,7 @@ class TensorReps(Tuple):
         if len(self) <= 1:
             return True
         else:
-            return all(
-                self[i].rep.order <= self[i + 1].rep.order for i in range(len(self) - 1)
-            )
+            return all(self[i].rep.order <= self[i + 1].rep.order for i in range(len(self) - 1))
 
     def __add__(self, tensor_reps, simplify=True):
         """Adds tensor reps to the current tensor reps."""
@@ -201,9 +197,7 @@ class TensorReps(Tuple):
         if not self.is_sorted:
             return False
 
-        return all(
-            self[i].rep.order != self[i + 1].rep.order for i in range(len(self[:-1]))
-        )
+        return all(self[i].rep.order != self[i + 1].rep.order for i in range(len(self[:-1])))
 
 
 def parse_tensorreps_string(input):
@@ -222,7 +216,7 @@ def parse_tensorreps_string(input):
     out = []
     input = input.replace(" ", "")  # remove whitespace
     input_list = input.split("+")  # split into single _TensorMulRep
-    for i, rep in enumerate(input_list):
+    for rep in input_list:
         if rep[-1] == "n":
             parity = 1
             rep = rep[:-1]

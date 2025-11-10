@@ -1,4 +1,5 @@
 """Bookkeeping classes to access local frames."""
+
 import torch
 
 from ..utils.lorentz import lorentz_eye
@@ -164,9 +165,7 @@ class Frames:
     def metric(self):
         diag = self.matrices.new_tensor((1, -1, -1, -1))
         base = torch.diag_embed(diag)
-        return base.reshape(*(1,) * (self.matrices.ndim - 2), 4, 4).expand(
-            *self.shape[:-2], 4, 4
-        )
+        return base.reshape(*(1,) * (self.matrices.ndim - 2), 4, 4).expand(*self.shape[:-2], 4, 4)
 
     @property
     def device(self):

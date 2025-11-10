@@ -25,9 +25,7 @@ class TensorRepsTransform(torch.nn.Module):
         """
         super().__init__()
         self.reps = reps
-        self.transform = (
-            self._transform_naive if use_naive else self._transform_efficient
-        )
+        self.transform = self._transform_naive if use_naive else self._transform_efficient
 
         # cache idx_start and idx_end for each rep
         self.start_end_idx = []
@@ -63,6 +61,7 @@ class TensorRepsTransform(torch.nn.Module):
 
         self.has_higher_orders = self.reps.max_rep.rep.order > 0
 
+    @torch.autocast("cuda", enabled=False)
     def forward(self, tensor: torch.Tensor, frames: Frames):
         """Apply a transformation to a tensor of a given representation.
 
@@ -89,9 +88,7 @@ class TensorRepsTransform(torch.nn.Module):
             tensor.shape[0] == frames.shape[0]
         ), f"Batch dimension is {tensor.shape[0]} for tensor, but {frames.shape[0]} for frames."
 
-        tensor_transformed = (
-            self.transform(tensor, frames) if self.has_higher_orders else tensor
-        )
+        tensor_transformed = self.transform(tensor, frames) if self.has_higher_orders else tensor
         tensor_transformed = self.transform_parity(tensor_transformed, frames)
 
         tensor_transformed = tensor_transformed.view(*in_shape)
@@ -114,7 +111,7 @@ class TensorRepsTransform(torch.nn.Module):
         """
         output = tensor.clone()
         frames = frames.matrices.clone().to(tensor.dtype)
-        for mul_rep, [idx_start, idx_end] in zip(self.reps, self.start_end_idx):
+        for mul_rep, [idx_start, idx_end] in zip(self.reps, self.start_end_idx, strict=False):
             mul, rep = mul_rep
             if mul == 0 or rep.order == 0:
                 continue
@@ -225,9 +222,7 @@ class TensorRepsTransform(torch.nn.Module):
         if self.no_parity_odd:
             return tensor
         else:
-            return torch.where(
-                self.parity_odd, frames.det.sign().unsqueeze(-1) * tensor, tensor
-            )
+            return torch.where(self.parity_odd, frames.det.sign().unsqueeze(-1) * tensor, tensor)
 
 
 def get_einsum_string(order):

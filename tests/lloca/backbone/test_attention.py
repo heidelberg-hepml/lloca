@@ -1,14 +1,14 @@
-import torch
 import pytest
+import torch
 from torch.nn import Linear
-from tests.constants import TOLERANCES, LOGM2_MEAN_STD, REPS, FRAMES_PREDICTOR
-from tests.helpers import sample_particle, equivectors_builder
 
-from lloca.reps.tensorreps import TensorReps
-from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.backbone.attention import LLoCaAttention
 from lloca.framesnet.frames import InverseFrames
+from lloca.reps.tensorreps import TensorReps
+from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.utils.rand_transforms import rand_lorentz
+from tests.constants import FRAMES_PREDICTOR, LOGM2_MEAN_STD, REPS, TOLERANCES
+from tests.helpers import equivectors_builder, sample_particle
 
 
 @pytest.mark.parametrize("FramesPredictor", FRAMES_PREDICTOR)
@@ -28,7 +28,9 @@ def test_invariance_equivariance(
     assert len(batch_dims) == 1
     equivectors = equivectors_builder()
     predictor = FramesPredictor(equivectors=equivectors).to(dtype=dtype)
-    call_predictor = lambda fm: predictor(fm)
+
+    def call_predictor(fm):
+        return predictor(fm)
 
     fm_test = sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype)
     predictor.equivectors.init_standardization(fm_test)

@@ -1,5 +1,7 @@
 """LLoCa attention module."""
+
 from math import prod
+
 import torch
 from torch import Tensor
 
@@ -42,9 +44,7 @@ class LLoCaAttention(torch.nn.Module):
         self.frames = frames
         if not self.frames.is_global:
             # insert frames head dimension
-            self.frames = self.frames.reshape(
-                *frames.shape[:-3], 1, frames.shape[-3], 4, 4
-            )
+            self.frames = self.frames.reshape(*frames.shape[:-3], 1, frames.shape[-3], 4, 4)
             self.frames = self.frames.expand(
                 *frames.shape[:-3], self.num_heads, frames.shape[-3], 4, 4
             )
@@ -66,12 +66,8 @@ class LLoCaAttention(torch.nn.Module):
                 ),
                 is_identity=inv_frames.is_identity,
                 is_global=inv_frames.is_global,
-                det=torch.cat(
-                    [inv_frames.det, lower_inv_frames.det, inv_frames.det], dim=0
-                ),
-                inv=torch.cat(
-                    [inv_frames.inv, lower_inv_frames.inv, inv_frames.inv], dim=0
-                ),
+                det=torch.cat([inv_frames.det, lower_inv_frames.det, inv_frames.det], dim=0),
+                inv=torch.cat([inv_frames.inv, lower_inv_frames.inv, inv_frames.inv], dim=0),
             )
 
             # flatten frames (preparation for tensorreps_transform)

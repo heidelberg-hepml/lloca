@@ -1,14 +1,14 @@
-import torch
 import pytest
-from tests.constants import TOLERANCES, LOGM2_MEAN_STD
-from tests.helpers import sample_particle
+import torch
 
-from lloca.reps.tensorreps import TensorReps
-from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.framesnet.nonequi_frames import (
     IdentityFrames,
     RandomFrames,
 )
+from lloca.reps.tensorreps import TensorReps
+from lloca.reps.tensorreps_transform import TensorRepsTransform
+from tests.constants import LOGM2_MEAN_STD, TOLERANCES
+from tests.helpers import sample_particle
 
 
 @pytest.mark.parametrize(
@@ -43,9 +43,9 @@ def test_vectors(FramesPredictor, transform_type, batch_dims, logm2_mean, logm2_
     if FramesPredictor == IdentityFrames:
         # fourmomenta should not change
         torch.testing.assert_close(fm_local, fm, **TOLERANCES)
-    elif type == "rotation":
+    elif transform_type == "rotation":
         # energy and pz should not change
         torch.testing.assert_close(fm_local[..., [0]], fm[..., [0]], **TOLERANCES)
-    elif type == "xyrotation":
+    elif transform_type == "xyrotation":
         # energy and pz should not change
         torch.testing.assert_close(fm_local[..., [0, 3]], fm[..., [0, 3]], **TOLERANCES)

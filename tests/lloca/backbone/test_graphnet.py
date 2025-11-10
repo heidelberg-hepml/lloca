@@ -1,14 +1,14 @@
-import torch
 import pytest
-from tests.constants import TOLERANCES, LOGM2_MEAN_STD, REPS, FRAMES_PREDICTOR
-from tests.helpers import sample_particle, equivectors_builder
+import torch
 from torch_geometric.utils import dense_to_sparse
 
 from lloca.backbone.graphnet import EdgeConv, GraphNet
+from lloca.framesnet.frames import InverseFrames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.utils.rand_transforms import rand_lorentz
-from lloca.framesnet.frames import InverseFrames
+from tests.constants import FRAMES_PREDICTOR, LOGM2_MEAN_STD, REPS, TOLERANCES
+from tests.helpers import equivectors_builder, sample_particle
 
 
 @pytest.mark.parametrize("FramesPredictor", FRAMES_PREDICTOR)
@@ -33,7 +33,6 @@ def test_edgeconv_invariance_equivariance(
     assert len(batch_dims) == 1
     equivectors = equivectors_builder()
     predictor = FramesPredictor(equivectors=equivectors).to(dtype=dtype)
-    call_predictor = lambda fm: predictor(fm)
 
     fm_test = sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype)
     predictor.equivectors.init_standardization(fm_test)
@@ -52,12 +51,12 @@ def test_edgeconv_invariance_equivariance(
 
     # sample Lorentz vectors
     fm = sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype)
-    frames = call_predictor(fm)
+    frames = predictor(fm)
     fm_local = trafo(fm, frames)
 
     # global - edgeconv
     fm_transformed = torch.einsum("...ij,...j->...i", random, fm)
-    frames_transformed = call_predictor(fm_transformed)
+    frames_transformed = predictor(fm_transformed)
     fm_tr_local = trafo(fm_transformed, frames_transformed)
     x_tr_local = linear_in(fm_tr_local)
     x_tr_prime_local = edgeconv(x_tr_local, frames_transformed, edge_index)
@@ -107,7 +106,6 @@ def test_graphnet_invariance_equivariance(
     assert len(batch_dims) == 1
     equivectors = equivectors_builder()
     predictor = FramesPredictor(equivectors=equivectors).to(dtype=dtype)
-    call_predictor = lambda fm: predictor(fm)
 
     fm_test = sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype)
     predictor.equivectors.init_standardization(fm_test)
@@ -130,12 +128,12 @@ def test_graphnet_invariance_equivariance(
 
     # sample Lorentz vectors
     fm = sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype)
-    frames = call_predictor(fm)
+    frames = predictor(fm)
     fm_local = trafo(fm, frames)
 
     # global - edgeconv
     fm_transformed = torch.einsum("...ij,...j->...i", random, fm)
-    frames_transformed = call_predictor(fm_transformed)
+    frames_transformed = predictor(fm_transformed)
     fm_tr_local = trafo(fm_transformed, frames_transformed)
     fm_tr_prime_local = graphnet(fm_tr_local, frames_transformed, edge_index)
     # back to global frame

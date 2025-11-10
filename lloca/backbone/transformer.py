@@ -1,12 +1,13 @@
 """Baseline LLoCa-Transformer."""
+
 from functools import partial
 
 import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
-from .attention import LLoCaAttention
 from ..reps.tensorreps import TensorReps
+from .attention import LLoCaAttention
 
 
 class BaselineLayerNorm(nn.Module):
@@ -26,9 +27,7 @@ class BaselineLayerNorm(nn.Module):
         outputs : Tensor
             Normalized inputs.
         """
-        return torch.nn.functional.layer_norm(
-            inputs, normalized_shape=inputs.shape[-1:]
-        )
+        return torch.nn.functional.layer_norm(inputs, normalized_shape=inputs.shape[-1:])
 
 
 class MultiHeadQKVLinear(nn.Module):
@@ -115,9 +114,7 @@ class MultiQueryQKVLinear(nn.Module):
         q = q.reshape(*leading, items, self.num_heads, hidden_channels)
         q = q.movedim(-2, -3)
 
-        k = self.k_linear(inputs)[
-            ..., None, :, :
-        ]  # (..., head=1, item, hidden_channels)
+        k = self.k_linear(inputs)[..., None, :, :]  # (..., head=1, item, hidden_channels)
         v = self.v_linear(inputs)[..., None, :, :]
         return q, k, v
 
@@ -184,9 +181,7 @@ class BaselineSelfAttention(nn.Module):
         outputs : Tensor
             Outputs
         """
-        q, k, v = self.qkv_linear(
-            inputs
-        )  # each: (..., num_heads, num_items, num_channels)
+        q, k, v = self.qkv_linear(inputs)  # each: (..., num_heads, num_items, num_channels)
 
         # Attention layer
         h = self.attention(
@@ -386,7 +381,7 @@ class Transformer(nn.Module):
         for block in self.blocks:
             if self.checkpoint_blocks:
                 fn = partial(block, **attn_kwargs)
-                h = checkpoint(fn, h)
+                h = checkpoint(fn, h, use_reentrant=False)
             else:
                 h = block(h, **attn_kwargs)
         outputs = self.linear_out(h)
