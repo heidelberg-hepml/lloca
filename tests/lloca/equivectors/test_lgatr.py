@@ -2,10 +2,14 @@ import pytest
 import torch
 from lgatr.nets import LGATr
 
+from lloca.backbone.attention_backends import _REGISTRY
 from lloca.equivectors.lgatr import LGATrVectors
 from lloca.utils.rand_transforms import rand_lorentz
 from tests.constants import LOGM2_MEAN_STD, TOLERANCES
 from tests.helpers import sample_particle
+
+# lgatr sparse mode relies on xformers attention backend
+_xformers_available = "xformers_attention" in _REGISTRY
 
 
 @pytest.mark.parametrize("batch_dims", [[100]])
@@ -16,6 +20,7 @@ from tests.helpers import sample_particle
 @pytest.mark.parametrize("lgatr_norm", [True, False])
 @pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
 @pytest.mark.parametrize("num_scalars", [0, 1])
+@pytest.mark.parametrize("sparse_mode", [True, False] if _xformers_available else [False])
 def test_equivariance(
     batch_dims,
     jet_size,
@@ -28,6 +33,7 @@ def test_equivariance(
     logm2_std,
     logm2_mean,
     num_scalars,
+    sparse_mode,
 ):
     assert len(batch_dims) == 1
     dtype = torch.float64
@@ -46,7 +52,7 @@ def test_equivariance(
         )
 
     # construct sparse tensors containing a set of equal-multiplicity jets
-    ptr = torch.arange(0, (batch_dims[0] + 1) * jet_size, jet_size)
+    ptr = torch.arange(0, (batch_dims[0] + 1) * jet_size, jet_size) if sparse_mode else None
 
     # input to mlp: only edge attributes
     def calc_node_attr(fm):
@@ -62,12 +68,14 @@ def test_equivariance(
         lgatr_norm=lgatr_norm,
     ).to(dtype=dtype)
 
-    fm_test = sample_particle(batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype).flatten(
-        0, 1
-    )
+    fm_test = sample_particle(batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype)
+    if sparse_mode:
+        fm_test = fm_test.flatten(0, 1)
     equivectors.init_standardization(fm_test, ptr=ptr)
 
-    fm = sample_particle(batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype).flatten(0, 1)
+    fm = sample_particle(batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype)
+    if sparse_mode:
+        fm = fm.flatten(0, 1)
 
     # careful: same global transformation for each jet
     random = rand_lorentz(batch_dims, dtype=dtype)

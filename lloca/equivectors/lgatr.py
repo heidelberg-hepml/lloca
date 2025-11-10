@@ -1,3 +1,5 @@
+"""Edge convolution with L-GATr."""
+
 import math
 
 import torch
@@ -7,10 +9,7 @@ from lgatr.layers import EquiLayerNorm
 from lgatr.primitives.invariants import _load_inner_product_factors
 from torch_geometric.nn import MessagePassing
 
-from lloca.backbone.attention_backends.xformers_attention import (
-    get_xformers_attention_mask,
-)
-
+from ..backbone.attention_backends import get_sparse_attention_mask
 from ..utils.lorentz import lorentz_squarednorm
 from ..utils.utils import get_batch_from_ptr
 from .base import EquiVectors
@@ -61,7 +60,7 @@ class LGATrVectors(EquiVectors, MessagePassing):
         if ptr is not None:
             batch = get_batch_from_ptr(ptr)
             on_cpu = fourmomenta.device == torch.device("cpu")
-            mask = get_xformers_attention_mask(batch, materialize=on_cpu, dtype=scalars.dtype)
+            mask = get_sparse_attention_mask(batch, materialize=on_cpu, dtype=scalars.dtype)
             attn_kwargs["attn_mask" if on_cpu else "attn_bias"] = mask
         edge_index, batch, ptr = get_edge_index_and_batch(fourmomenta, ptr, remove_self_loops=False)
 

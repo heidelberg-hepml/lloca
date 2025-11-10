@@ -30,6 +30,19 @@ for ep in metadata.entry_points(group="lloca.backbone.attention_backends"):
     _REGISTRY[ep.name] = module
 
 
+def get_sparse_attention_mask(*args, **kwargs):
+    """
+    Wrapper function to access xformers attention mask function if available.
+    """
+    try:
+        return _REGISTRY["xformers_attention"].get_xformers_attention_mask(*args, **kwargs)
+    except KeyError as err:
+        raise RuntimeError(
+            "Sparse attention masks currently only supported using xformers. "
+            "Run 'pip install lloca[xformers_attention]'."
+        ) from err
+
+
 def get_attention_backend(**kwargs):
     """
     Dynamically determine the attention backend based on the extra keyword arguments.

@@ -53,7 +53,7 @@ Using random numbers, we generate a batch of 128 events with 10 particles each.
    scalars = torch.randn(B, N, num_scalars) # (128, 10, 1)
 
 1. Construct local frames based on three equivariantly predicted vectors
---------------------------------------------------------------------
+------------------------------------------------------------------------
 
 Given these particle features, we want to construct a local frame :math:`L` for each particle.
 The local frames are Lorentz transformations, i.e. they satisfy :math:`L^TgL=g` with :math:`L\in \mathbb{R}^{4\times 4}`.

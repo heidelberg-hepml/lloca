@@ -18,6 +18,7 @@ from tests.helpers import sample_particle
     [("diff", True), ("diff", False), ("add", True), ("add", False), ("single", False)],
 )
 @pytest.mark.parametrize("nonlinearity", ["softplus", "exp", "softmax"])
+@pytest.mark.parametrize("sparse_mode", [True, False])
 def test_equivariance(
     batch_dims,
     jet_size,
@@ -31,12 +32,13 @@ def test_equivariance(
     operation,
     nonlinearity,
     fm_norm,
+    sparse_mode,
 ):
     assert len(batch_dims) == 1
     dtype = torch.float64
 
     # construct sparse tensors containing a set of equal-multiplicity jets
-    ptr = torch.arange(0, (batch_dims[0] + 1) * jet_size, jet_size)
+    ptr = torch.arange(0, (batch_dims[0] + 1) * jet_size, jet_size) if sparse_mode else None
 
     # input to mlp: only edge attributes
     def calc_node_attr(fm):
@@ -53,12 +55,14 @@ def test_equivariance(
         fm_norm=fm_norm,
     ).to(dtype=dtype)
 
-    fm_test = sample_particle(batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype).flatten(
-        0, 1
-    )
+    fm_test = sample_particle(batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype)
+    if sparse_mode:
+        fm_test = fm_test.flatten(0, 1)
     equivectors.init_standardization(fm_test, ptr=ptr)
 
-    fm = sample_particle(batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype).flatten(0, 1)
+    fm = sample_particle(batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype)
+    if sparse_mode:
+        fm = fm.flatten(0, 1)
 
     # careful: same global transformation for each jet
     random = rand_lorentz(batch_dims, dtype=dtype)

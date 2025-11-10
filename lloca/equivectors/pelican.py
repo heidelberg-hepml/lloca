@@ -1,3 +1,5 @@
+"""Edge convolution with PELICAN."""
+
 import math
 
 import torch
