@@ -6,38 +6,40 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-import os, sys
-sys.path.insert(0, os.path.abspath('../..'))
+import os
+import sys
 
-project = 'LLoCa'
-copyright = '2025, Jonas Spinner'
-author = 'Jonas Spinner'
+sys.path.insert(0, os.path.abspath("../.."))
+
+project = "LLoCa"
+copyright = "2025, Jonas Spinner"
+author = "Jonas Spinner"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.autosummary',
-    'sphinx_autodoc_typehints',
+    "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.autosummary",
+    "sphinx_autodoc_typehints",
 ]
 autosummary_generate = True
 autoclass_content = "both"
 autodoc_class_signature = "mixed"
 
 autodoc_default_options = {
-    'members': True,
-    'inherited-members': False,
+    "members": True,
+    "inherited-members": False,
 }
-templates_path = ['_templates']
+templates_path = ["_templates"]
 napoleon_custom_sections = [
-    ('Parameters auto-set by LLoCa', 'params_style'),
+    ("Parameters auto-set by LLoCa", "params_style"),
 ]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+html_theme = "sphinx_rtd_theme"
+html_static_path = ["_static"]

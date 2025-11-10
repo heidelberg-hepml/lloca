@@ -1,2 +1,5 @@
 """"Equivariant vector prodictors"""
-from .equimlp import EquiMLP
+
+from .lgatr import LGATrVectors
+from .mlp import MLPVectors
+from .pelican import PELICANVectors

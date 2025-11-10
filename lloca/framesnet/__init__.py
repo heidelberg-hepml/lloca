@@ -1,15 +1,15 @@
-from .frames import (
-    Frames,
-    InverseFrames,
-    IndexSelectFrames,
-    ChangeOfFrames,
-    LowerIndicesFrames,
-)
 from .equi_frames import (
     LearnedPDFrames,
-    LearnedSO13Frames,
     LearnedRestFrames,
-    LearnedSO3Frames,
     LearnedSO2Frames,
+    LearnedSO3Frames,
+    LearnedSO13Frames,
 )
-from .nonequi_frames import IdentityFrames, RandomFrames, COMRandomFrames
+from .frames import (
+    ChangeOfFrames,
+    Frames,
+    IndexSelectFrames,
+    InverseFrames,
+    LowerIndicesFrames,
+)
+from .nonequi_frames import COMRandomFrames, IdentityFrames, RandomFrames

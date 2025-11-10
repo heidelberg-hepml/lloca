@@ -6,7 +6,6 @@
 [![codecov](https://codecov.io/gh/heidelberg-hepml/lloca/branch/main/graph/badge.svg)](https://codecov.io/gh/heidelberg-hepml/lloca)
 [![PyPI version](https://img.shields.io/pypi/v/lloca.svg)](https://pypi.org/project/lloca)
 [![pytorch](https://img.shields.io/badge/PyTorch_2.0+-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/get-started/locally/)
-[![black](https://img.shields.io/badge/Code%20Style-Black-black.svg?labelColor=gray)](https://black.readthedocs.io/en/stable/)
 
 [![LLoCa-CS](http://img.shields.io/badge/paper-arxiv.2505.20280-B31B1B.svg)](https://arxiv.org/abs/2505.20280)
 [![LLoCa-HEP](http://img.shields.io/badge/paper-arxiv.2508.14898-B31B1B.svg)](https://arxiv.org/abs/2508.14898)
@@ -31,6 +30,7 @@ or clone the repository and install the package in dev mode
 git clone https://github.com/heidelberg-hepml/lloca.git
 cd lloca
 pip install -e .
+pre-commit install
 ```
 
 ## How to use LLoCa
@@ -42,19 +42,19 @@ Please have a look at the [LLoCa documentation](https://heidelberg-hepml.github.
 - Backbone architectures in `lloca/backbone`: `Transformer`, `ParticleTransformer`, `ParticleNet`, `GraphNet`, `MLP`
 - The `Transformer` backbone supports several attention kernels that can be installed optionally with e.g. `pip install lloca[xformers_attention]`
 - `LLoCaMessagePassing` as blueprint for generic `LLoCa` graph network backbones
-- Equivariant vector predictors in `lloca/equivectors`: `EquiMLP`
-- Local frames for equivariant architectures on several symmetry groups: $SO(1,3)$ (`LearnedPDFrames`, `LearnedSO13Frames`, `LearnedRestFrames`), $SO(3)$ (`LearnedSO3Frames`) and $SO(2)$ (`LearnedSO2Frames`); as well as the corresponding random global frames for data augmentation
+- Equivariant vector predictors in `lloca/equivectors`: `MLPVectors`, `LGATrVectors`, `PELICANVectors`
+- Local frames for equivariant architectures on several symmetry groups: SO(1,3) (`LearnedPDFrames`, `LearnedSO13Frames`, `LearnedRestFrames`), SO(3) (`LearnedSO3Frames`), SO(1,1)$\times$SO(2) (`LearnedZFrames`) and SO(2) (`LearnedSO2Frames`); as well as the corresponding random global frames for data augmentation
 - Support for arbitrary higher-order representations with the `TensorReps` class
 
 Coming soon:
 
-- More `equivectors` options
 - Parity-odd representations
 - Support for cross-attention
+- More backbone architectures
 
 ## Examples
 
-- https://github.com/heidelberg-hepml/lorentz-frames: Codebase for the original papers; will eventually be based on the `lloca` repository. For now, development takes place in `lorentz-frames` and `lloca` serves as a stable version for others to work with.
+- https://github.com/heidelberg-hepml/lloca-experiments: Codebase for the original papers.
 
 Let us know if you use `lloca`, so we can add your repo to the list!
 
@@ -82,4 +82,3 @@ If you find this code useful in your research, please cite our papers
     year = "2025"
 }
 ```
-

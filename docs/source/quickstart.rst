@@ -27,7 +27,7 @@ Building a LLoCa-Transformer
    :align: center
    :width: 100%
 
-We now demonstrate how to build a LLoCa-Transformer, the most efficient architecture based on our papers. 
+We now demonstrate how to build a LLoCa-Transformer, the most efficient architecture based on our papers.
 We build the LLoCa-Transformer in three steps, following the picture above:
 
 1. Construct local frames based on three equivariantly predicted vectors
@@ -37,8 +37,8 @@ We build the LLoCa-Transformer in three steps, following the picture above:
 0. Generate particle data
 -------------------------
 
-We start by generating toy particle data, for instance for an amplitude regression task. 
-We describe particles by a four-momentum and one scalar feature, for instance the particle type. 
+We start by generating toy particle data, for instance for an amplitude regression task.
+We describe particles by a four-momentum and one scalar feature, for instance the particle type.
 Using random numbers, we generate a batch of 128 events with 10 particles each.
 
 .. code-block:: python
@@ -55,19 +55,19 @@ Using random numbers, we generate a batch of 128 events with 10 particles each.
 1. Construct local frames based on three equivariantly predicted vectors
 --------------------------------------------------------------------
 
-Given these particle features, we want to construct a local frame :math:`L` for each particle. 
-The local frames are Lorentz transformations, i.e. they satisfy :math:`L^TgL=g` with :math:`L\in \mathbb{R}^{4\times 4}`. 
-We further design them to satisfy the transformation behavior :math:`L\overset{\Lambda}{\to} L\Lambda^{-1}` under Lorentz transformations :math:`\Lambda`, 
+Given these particle features, we want to construct a local frame :math:`L` for each particle.
+The local frames are Lorentz transformations, i.e. they satisfy :math:`L^TgL=g` with :math:`L\in \mathbb{R}^{4\times 4}`.
+We further design them to satisfy the transformation behavior :math:`L\overset{\Lambda}{\to} L\Lambda^{-1}` under Lorentz transformations :math:`\Lambda`,
 this ensures that particle features in the local frame are invariant.
 
-We construct the local frames in two steps. First, we use a simple Lorentz-equivariant ``equivectors`` network, :mod:`~lloca.equivectors.EquiMLP`, to construct 3 vectors.
+We construct the local frames in two steps. First, we use a simple Lorentz-equivariant ``equivectors`` network, :mod:`~lloca.equivectors.MLPVectors`, to construct 3 vectors.
 
 .. code-block:: python
 
-   from lloca.equivectors.equimlp import EquiMLP
+   from lloca.equivectors.mlp import MLPVectors
 
    def equivectors_constructor(n_vectors):
-      return EquiMLP(
+      return MLPVectors(
          n_vectors=n_vectors,
          num_blocks=2,
          num_scalars=num_scalars,
@@ -102,7 +102,7 @@ The package implements many alternative ``framesnet`` choices:
 2. Transform particle features into local frames
 ------------------------------------------------
 
-Once the frames are constructed, we have to transform the particle features into their local frames. 
+Once the frames are constructed, we have to transform the particle features into their local frames.
 We use the local frames transformation for the four-momenta, whereas the scalar features are already invariant by definition.
 
 .. code-block:: python
@@ -115,22 +115,22 @@ We use the local frames transformation for the four-momenta, whereas the scalar 
 
    features_local = torch.cat([fourmomenta_local, scalars], dim=-1) # (128, 10, 5)
 
-The ``lloca`` package implements arbitrary Lorentz tensors through the :mod:`~lloca.reps.tensorreps.TensorReps` class, 
-and their transformation behavior with :mod:`~lloca.reps.tensorreps_transform.TensorRepsTransform`. 
-We denote ``0n`` for scalar, ``1n`` for vector, ``2n`` for rank 2 tensor, and so on, 
-where the ``n`` stands for *normal* in contrast to *parity-odd* (not fully supported). 
+The ``lloca`` package implements arbitrary Lorentz tensors through the :mod:`~lloca.reps.tensorreps.TensorReps` class,
+and their transformation behavior with :mod:`~lloca.reps.tensorreps_transform.TensorRepsTransform`.
+We denote ``0n`` for scalar, ``1n`` for vector, ``2n`` for rank 2 tensor, and so on,
+where the ``n`` stands for *normal* in contrast to *parity-odd* (not fully supported).
 General representations can be obtained by linear combinations of these fundamentals, e.g. ``4x0n+8x1n+3x2n+2x3n``.
 
 3. Process local particle features with any backbone architecture
 -----------------------------------------------------------------
 
-Given the particle features in the local frame, we can process them with any backbone architecture without violating Lorentz-equivariance. 
-To obtain an equivariant prediction, we have to finally transform the output features from the local into the global frames, 
+Given the particle features in the local frame, we can process them with any backbone architecture without violating Lorentz-equivariance.
+To obtain an equivariant prediction, we have to finally transform the output features from the local into the global frames,
 however this step is trivial if the output features are scalar.
 
-There is one caveat regarding the backbone architecture: 
-To allow a meaningful message-passing, we have to properly transform particle features when they are communicated between particles. 
-This manifests in a modification of the attention mechanism for transformers, and in the message-passing for graph networks. 
+There is one caveat regarding the backbone architecture:
+To allow a meaningful message-passing, we have to properly transform particle features when they are communicated between particles.
+This manifests in a modification of the attention mechanism for transformers, and in the message-passing for graph networks.
 This aspect is already implemented in the backbones available in ``lloca/backbone/``, and has to be added for new backbone architectures within LLoCa.
 This is already handled internally for the LLoCa :mod:`~lloca.backbone.transformer.Transformer` and other architectures in ``lloca/backbone/``
 
@@ -147,4 +147,3 @@ This is already handled internally for the LLoCa :mod:`~lloca.backbone.transform
    )
 
    out = backbone(features_local, frames) # (128, 10, 1)
-   

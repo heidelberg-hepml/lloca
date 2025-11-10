@@ -1,0 +1,63 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.3.0] - 10.11.2025
+
+### Added
+
+- `LGATrVectors` and `PELICANVectors` as alternatives to `MLPVectors`
+- `ruff` formatting
+- `CHANGELOG.md`
+
+### Changed
+
+- Rename `equivectors.equimlp.EquiMLP` -> `equivectors.mlp.EquiMLP`
+- Turn `checks` in orthonormalization off by default (avoids GPU/CPU sync)
+- Review regularization
+  - Apply `reg_lightlike` also in `polar_decomposition`
+  - Ensure that the final vector is timelike in `reg_lightlike` (constrain noise to have positive components)
+  - Set `eps=None` by default, corresponding to `torch.finfo(dtype).eps`
+
+## [1.2.0] - 27.10.2025
+
+### Added
+
+- `compile` option for `framesnet` orthonormalization
+- `LearnedZFrames`
+
+### Changed
+
+- Overall many efficiency rewrites
+- Add `init_standardization()` method to `EquiVectors` instead of initializing in the first iteration
+
+## [1.1.0] - 03.10.2025
+
+### Added
+
+- `docs/` with gh-pages (still has several 'Coming soon' pages)
+
+### Changed
+
+- Update defaults in `EquiMLP`: `num_blocks=1`, `hidden_vectors=1`, use the most stable setting as default
+- Unify naming convention for `get_edge_index_...` functions and add unit tests for them
+- Small changes in `transformer.py` to improve readability
+- Unify docstrings
+
+### Fixed
+
+- Bug in attention backend selection
+
+## [1.0.1] - 15.09.2025
+
+### Added
+
+- `examples/demo_transformer.ipynb`
+- `__init__.py` files
+
+## [1.0.0] - 13.10.2025
+
+_First release._

@@ -1,13 +1,14 @@
 """Equivariant local frames for various symmetry groups."""
+
 import torch
 from torch_geometric.utils import scatter
 
-from .frames import Frames
-from .nonequi_frames import FramesPredictor
-from ..utils.utils import get_batch_from_ptr
-from ..utils.polar_decomposition import polar_decomposition
 from ..utils.lorentz import lorentz_eye, lorentz_squarednorm
 from ..utils.orthogonalize_4d import orthogonalize_4d
+from ..utils.polar_decomposition import polar_decomposition
+from ..utils.utils import get_batch_from_ptr
+from .frames import Frames
+from .nonequi_frames import FramesPredictor
 
 
 class LearnedFrames(FramesPredictor):
@@ -21,7 +22,7 @@ class LearnedFrames(FramesPredictor):
         is_global=False,
         random=False,
         fix_params=False,
-        ortho_kwargs={},
+        ortho_kwargs=None,
     ):
         """
         Parameters
@@ -41,7 +42,7 @@ class LearnedFrames(FramesPredictor):
             Keyword arguments for orthogonalization
         """
         super().__init__()
-        self.ortho_kwargs = ortho_kwargs
+        self.ortho_kwargs = {} if ortho_kwargs is None else ortho_kwargs
         self.equivectors = equivectors(n_vectors=n_vectors)
         self.is_global = is_global
         self.random = random
@@ -90,7 +91,7 @@ class LearnedPDFrames(LearnedFrames):
         else:
             self.polar_decomposition = polar_decomposition
 
-    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False):
+    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         """
         Parameters
         ----------
@@ -111,24 +112,23 @@ class LearnedPDFrames(LearnedFrames):
             Dictionary containing regularization information, if return_tracker is True
         """
         self.init_weights_or_not()
-        vecs = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr)
+        vecs = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr, **kwargs)
         vecs = self.globalize_vecs_or_not(vecs, ptr)
         boost = vecs[..., 0, :]
         rotation_references = vecs[..., 1:, :]
-        boost = deterministic_boost(
-            boost, ptr, deterministic_boost=self.deterministic_boost
-        )
+        boost = deterministic_boost(boost, ptr, deterministic_boost=self.deterministic_boost)
         boost, reg_gammamax, gamma_mean, gamma_max = clamp_boost(
             boost, gamma_max=self.gamma_max, gamma_hardness=self.gamma_hardness
         )
 
-        trafo, reg_collinear = self.polar_decomposition(
+        trafo, reg_lightlike, reg_collinear = self.polar_decomposition(
             boost,
             rotation_references,
             **self.ortho_kwargs,
             return_reg=True,
         )
         tracker = {
+            "reg_lightlike": reg_lightlike,
             "reg_collinear": reg_collinear,
             "gamma_mean": gamma_mean,
             "gamma_max": gamma_max,
@@ -150,13 +150,11 @@ class LearnedSO13Frames(LearnedFrames):
     ):
         super().__init__(*args, n_vectors=3, **kwargs)
         if compile:
-            self.orthogonalize_4d = torch.compile(
-                orthogonalize_4d, dynamic=True, fullgraph=True
-            )
+            self.orthogonalize_4d = torch.compile(orthogonalize_4d, dynamic=True, fullgraph=True)
         else:
             self.orthogonalize_4d = orthogonalize_4d
 
-    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False):
+    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         """
         Parameters
         ----------
@@ -177,7 +175,7 @@ class LearnedSO13Frames(LearnedFrames):
             Dictionary containing regularization information, if return_tracker is True
         """
         self.init_weights_or_not()
-        vecs = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr)
+        vecs = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr, **kwargs)
         vecs = self.globalize_vecs_or_not(vecs, ptr)
 
         trafo, reg_lightlike, reg_coplanar = self.orthogonalize_4d(
@@ -212,7 +210,7 @@ class LearnedRestFrames(LearnedFrames):
         else:
             self.polar_decomposition = polar_decomposition
 
-    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False):
+    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         """
         Parameters
         ----------
@@ -233,16 +231,16 @@ class LearnedRestFrames(LearnedFrames):
             Dictionary containing regularization information, if return_tracker is True
         """
         self.init_weights_or_not()
-        references = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr)
+        references = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr, **kwargs)
         references = self.globalize_vecs_or_not(references, ptr)
 
-        trafo, reg_collinear = self.polar_decomposition(
+        trafo, reg_lightlike, reg_collinear = self.polar_decomposition(
             fourmomenta,
             references,
             **self.ortho_kwargs,
             return_reg=True,
         )
-        tracker = {"reg_collinear": reg_collinear}
+        tracker = {"reg_lightlike": reg_lightlike, "reg_collinear": reg_collinear}
         frames = Frames(trafo, is_global=self.is_global)
         return (frames, tracker) if return_tracker else frames
 
@@ -272,7 +270,7 @@ class LearnedSO3Frames(LearnedFrames):
         else:
             self.polar_decomposition = polar_decomposition
 
-    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False):
+    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         """
         Parameters
         ----------
@@ -293,7 +291,7 @@ class LearnedSO3Frames(LearnedFrames):
             Dictionary containing regularization information, if return_tracker is True
         """
         self.init_weights_or_not()
-        references = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr)
+        references = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr, **kwargs)
         references = self.globalize_vecs_or_not(references, ptr)
         fourmomenta = lorentz_eye(
             fourmomenta.shape[:-1], device=fourmomenta.device, dtype=fourmomenta.dtype
@@ -301,13 +299,13 @@ class LearnedSO3Frames(LearnedFrames):
             ..., 0
         ]  # only difference compared to LearnedPolarDecompositionFrames
 
-        trafo, reg_collinear = self.polar_decomposition(
+        trafo, reg_lightlike, reg_collinear = self.polar_decomposition(
             fourmomenta,
             references,
             **self.ortho_kwargs,
             return_reg=True,
         )
-        tracker = {"reg_collinear": reg_collinear}
+        tracker = {"reg_lightlike": reg_lightlike, "reg_collinear": reg_collinear}
         frames = Frames(trafo, is_global=self.is_global)
         return (frames, tracker) if return_tracker else frames
 
@@ -339,7 +337,7 @@ class LearnedZFrames(LearnedFrames):
         else:
             self.polar_decomposition = polar_decomposition
 
-    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False):
+    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         """
         Parameters
         ----------
@@ -376,17 +374,16 @@ class LearnedZFrames(LearnedFrames):
         )[
             ..., 3
         ]  # difference 2 compared LearnedPolarDecompositionFrames
-        rotation_references = torch.stack(
-            [rotation_references, spurion_references], dim=-2
-        )
+        rotation_references = torch.stack([rotation_references, spurion_references], dim=-2)
 
-        trafo, reg_collinear = self.polar_decomposition(
+        trafo, reg_lightlike, reg_collinear = self.polar_decomposition(
             boost,
             rotation_references,
             **self.ortho_kwargs,
             return_reg=True,
         )
         tracker = {
+            "reg_lightlike": reg_lightlike,
             "reg_collinear": reg_collinear,
             "gamma_mean": gamma_mean,
             "gamma_max": gamma_max,
@@ -422,7 +419,7 @@ class LearnedSO2Frames(LearnedFrames):
         else:
             self.polar_decomposition = polar_decomposition
 
-    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False):
+    def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         """
         Parameters
         ----------
@@ -443,7 +440,7 @@ class LearnedSO2Frames(LearnedFrames):
             Dictionary containing regularization information, if return_tracker is True
         """
         self.init_weights_or_not()
-        references = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr)
+        references = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr, **kwargs)
         extra_references = self.globalize_vecs_or_not(references, ptr)
         fourmomenta = lorentz_eye(
             fourmomenta.shape[:-1], device=fourmomenta.device, dtype=fourmomenta.dtype
@@ -457,18 +454,16 @@ class LearnedSO2Frames(LearnedFrames):
         )[
             ..., 3
         ]  # difference 2 compared LearnedPolarDecompositionFrames
-        references = torch.stack(
-            [spurion_references, extra_references[..., 0, :]], dim=-2
-        )
+        references = torch.stack([spurion_references, extra_references[..., 0, :]], dim=-2)
 
-        trafo, reg_collinear = self.polar_decomposition(
+        trafo, reg_lightlike, reg_collinear = self.polar_decomposition(
             fourmomenta,
             references,
             **self.ortho_kwargs,
             return_reg=True,
         )
 
-        tracker = {"reg_collinear": reg_collinear}
+        tracker = {"reg_lightlike": reg_lightlike, "reg_collinear": reg_collinear}
         frames = Frames(trafo, is_global=self.is_global)
         return (frames, tracker) if return_tracker else frames
 
@@ -489,9 +484,7 @@ def clamp_boost(x, gamma_max, gamma_hardness):
         reg_gammamax = (gamma > gamma_max).sum().detach()
         gamma_reg = soft_clamp(gamma, min=1, max=gamma_max, hardness=gamma_hardness)
         beta_scaling = (
-            torch.sqrt(
-                torch.clamp(1 - 1 / gamma_reg.clamp(min=1e-10).square(), min=1e-10)
-            )
+            torch.sqrt(torch.clamp(1 - 1 / gamma_reg.clamp(min=1e-10).square(), min=1e-10))
             / (beta**2).sum(dim=-1, keepdim=True).clamp(min=1e-10).sqrt()
         )
         beta_reg = beta * beta_scaling
@@ -515,9 +508,7 @@ def deterministic_boost(boost, ptr, deterministic_boost):
             nparticles = (diff).repeat_interleave(diff).unsqueeze(-1)
         boost = boost_averaged - boost / nparticles
     else:
-        raise ValueError(
-            f"Option deterministic_boost={deterministic_boost} not implemented"
-        )
+        raise ValueError(f"Option deterministic_boost={deterministic_boost} not implemented")
 
     return boost
 

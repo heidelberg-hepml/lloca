@@ -1,5 +1,7 @@
 """Generic LLoCa MessagePassing module."""
-from typing import Any, Dict
+
+from typing import Any
+
 import torch
 from torch_geometric.nn import MessagePassing
 
@@ -10,12 +12,12 @@ from ..reps.tensorreps_transform import TensorRepsTransform
 class LLoCaMessagePassing(MessagePassing):
     """Adaptation of the torch_geometric MessagePassing class using the LLoCa formalism."""
 
-    def __init__(self, params_dict: Dict[str, Dict[str, Any]], aggr="add") -> None:
+    def __init__(self, params_dict: dict[str, dict[str, Any]], aggr="add") -> None:
         """Initializes a new instance of the LLoCaMessagePassing class.
 
         Parameters
         ----------
-        params_dict: Dict[str, Dict[str, Any]]
+        params_dict: dict[str, dict[str, Any]]
             A dictionary containing the parameters for the message passing algorithm and the corresponding representations.
             Each key in the dictionary represents a feature, and the value is another dictionary with keys "type" and "rep".
             The "type" can be either "local" or "global", and "rep" is an instance of TensorRepsTransform that defines how to transform the features.
@@ -42,9 +44,7 @@ class LLoCaMessagePassing(MessagePassing):
         """A hook method called before propagating messages in the message passing algorithm. We
         save the frames in the class variable and remove it from the inputs dictionary.
         """
-        assert (
-            inputs[-1].get("frames") is not None
-        ), "frames are not in the propagate inputs"
+        assert inputs[-1].get("frames") is not None, "frames are not in the propagate inputs"
 
         self._frames = inputs[-1]["frames"]
         self._edge_index = inputs[0]
@@ -75,14 +75,10 @@ class LLoCaMessagePassing(MessagePassing):
             if param_info["type"] == "local":
                 assert param + "_j" in inputs[-1], f"Key {param}_j not in inputs"
                 # transform the features according to the representation
-                inputs[-1][param + "_j"] = self.transform_dict[param](
-                    inputs[-1][param + "_j"], U
-                )
+                inputs[-1][param + "_j"] = self.transform_dict[param](inputs[-1][param + "_j"], U)
             elif param_info["type"] == "global":
                 if inputs[-1].get(param) is not None:
-                    inputs[-1][param] = self.transform_dict[param](
-                        inputs[-1][param], frames_i
-                    )
+                    inputs[-1][param] = self.transform_dict[param](inputs[-1][param], frames_i)
                 if inputs[-1].get(param + "_j") is not None:
                     inputs[-1][param + "_j"] = self.transform_dict[param](
                         inputs[-1][param + "_j"], frames_i

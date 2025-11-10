@@ -13,12 +13,14 @@ We have to do three things to build LLoCa-ParticleNet
 You can use 'git diff --no-index' to compare this file with the original particlenet.py file.
 """
 
+# ruff: noqa
+
 import torch
 import torch.nn as nn
 
+from ..framesnet.frames import ChangeOfFrames, IndexSelectFrames
 from ..reps.tensorreps import TensorReps
 from ..reps.tensorreps_transform import TensorRepsTransform
-from ..framesnet.frames import IndexSelectFrames, ChangeOfFrames
 
 
 def change_local_frame(x_j_framej, idx, frames, trafo):
@@ -50,17 +52,11 @@ def change_local_frame(x_j_framej, idx, frames, trafo):
 
     frames_i = IndexSelectFrames(frames, idx_i)
     frames_j = IndexSelectFrames(frames, idx_j)
-    trafo_j_to_i = ChangeOfFrames(
-        frames_j, frames_i
-    )  # convention: (frames_start, frames_end)
+    trafo_j_to_i = ChangeOfFrames(frames_j, frames_i)  # convention: (frames_start, frames_end)
 
     # reshape and apply trafo
-    x_j_framej_2 = x_j_framej.permute(
-        0, 2, 3, 1
-    )  # (batch_size, num_points, k, num_dims)
-    pre = x_j_framej_2.reshape(
-        -1, x_j_framej_2.shape[-1]
-    )  # (batch_size*num_points*k, num_dims)
+    x_j_framej_2 = x_j_framej.permute(0, 2, 3, 1)  # (batch_size, num_points, k, num_dims)
+    pre = x_j_framej_2.reshape(-1, x_j_framej_2.shape[-1])  # (batch_size*num_points*k, num_dims)
     x_j_framei = trafo(pre, trafo_j_to_i)
     x_j_framei = x_j_framei.view(x_j_framej_2.shape).permute(
         0, 3, 1, 2
@@ -72,9 +68,7 @@ def knn(x, k):
     inner = -2 * torch.matmul(x.transpose(2, 1), x)
     xx = torch.sum(x**2, dim=1, keepdim=True)
     pairwise_distance = -xx - inner - xx.transpose(2, 1)
-    idx = pairwise_distance.topk(k=k + 1, dim=-1)[1][
-        :, :, 1:
-    ]  # (batch_size, num_points, k)
+    idx = pairwise_distance.topk(k=k + 1, dim=-1)[1][:, :, 1:]  # (batch_size, num_points, k)
     return idx
 
 
@@ -154,9 +148,7 @@ class EdgeConvBlock(nn.Module):
         self.batch_norm = batch_norm
         self.activation = activation
         self.num_layers = len(out_feats)
-        self.get_graph_feature = (
-            get_graph_feature_v2 if cpu_mode else get_graph_feature_v1
-        )
+        self.get_graph_feature = get_graph_feature_v2 if cpu_mode else get_graph_feature_v1
         in_feat = in_reps.dim
         self.trafo = TensorRepsTransform(TensorReps(in_reps))
 
@@ -195,7 +187,7 @@ class EdgeConvBlock(nn.Module):
         topk_indices = knn(points, self.k)
         x = self.get_graph_feature(features, self.k, topk_indices, frames, self.trafo)
 
-        for conv, bn, act in zip(self.convs, self.bns, self.acts):
+        for conv, bn, act in zip(self.convs, self.bns, self.acts, strict=False):
             x = conv(x)  # (N, C', P, K)
             if bn:
                 x = bn(x)
@@ -229,7 +221,7 @@ class ParticleNet(nn.Module):
         use_counts=True,
         for_inference=False,
         for_segmentation=False,
-        **kwargs
+        **kwargs,
     ):
         # hidden_reps_list: hidden representation for message-passing at beginning of each layer
         super(ParticleNet, self).__init__(**kwargs)
@@ -248,14 +240,10 @@ class ParticleNet(nn.Module):
             k, channels = layer_param
             in_reps = hidden_reps_list[idx]
             assert (
-                in_reps.dim == conv_params[idx - 1][1][-1]
-                if idx > 0
-                else hidden_reps_list[0].dim
+                in_reps.dim == conv_params[idx - 1][1][-1] if idx > 0 else hidden_reps_list[0].dim
             )
             self.edge_convs.append(
-                EdgeConvBlock(
-                    k=k, in_reps=in_reps, out_feats=channels, cpu_mode=for_inference
-                )
+                EdgeConvBlock(k=k, in_reps=in_reps, out_feats=channels, cpu_mode=for_inference)
             )
 
         self.use_fusion = use_fusion
@@ -288,9 +276,7 @@ class ParticleNet(nn.Module):
                 )
             else:
                 fcs.append(
-                    nn.Sequential(
-                        nn.Linear(in_chn, channels), nn.ReLU(), nn.Dropout(drop_rate)
-                    )
+                    nn.Sequential(nn.Linear(in_chn, channels), nn.ReLU(), nn.Dropout(drop_rate))
                 )
         if self.for_segmentation:
             fcs.append(nn.Conv1d(fc_params[-1][0], num_classes, kernel_size=1))

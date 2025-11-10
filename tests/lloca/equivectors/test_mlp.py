@@ -1,10 +1,10 @@
-import torch
 import pytest
-from tests.constants import TOLERANCES, LOGM2_MEAN_STD
-from tests.helpers import sample_particle
+import torch
 
-from lloca.equivectors.equimlp import EquiMLP
+from lloca.equivectors.mlp import MLPVectors
 from lloca.utils.rand_transforms import rand_lorentz
+from tests.constants import LOGM2_MEAN_STD, TOLERANCES
+from tests.helpers import sample_particle
 
 
 @pytest.mark.parametrize("batch_dims", [[100]])
@@ -39,8 +39,10 @@ def test_equivariance(
     ptr = torch.arange(0, (batch_dims[0] + 1) * jet_size, jet_size)
 
     # input to mlp: only edge attributes
-    calc_node_attr = lambda fm: torch.zeros(*fm.shape[:-1], num_scalars, dtype=dtype)
-    equivectors = EquiMLP(
+    def calc_node_attr(fm):
+        return torch.zeros(*fm.shape[:-1], num_scalars, dtype=dtype)
+
+    equivectors = MLPVectors(
         n_vectors=n_vectors,
         num_scalars=num_scalars,
         hidden_channels=hidden_channels,
@@ -51,14 +53,12 @@ def test_equivariance(
         fm_norm=fm_norm,
     ).to(dtype=dtype)
 
-    fm_test = sample_particle(
-        batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype
-    ).flatten(0, 1)
+    fm_test = sample_particle(batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype).flatten(
+        0, 1
+    )
     equivectors.init_standardization(fm_test, ptr=ptr)
 
-    fm = sample_particle(
-        batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype
-    ).flatten(0, 1)
+    fm = sample_particle(batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype).flatten(0, 1)
 
     # careful: same global transformation for each jet
     random = rand_lorentz(batch_dims, dtype=dtype)

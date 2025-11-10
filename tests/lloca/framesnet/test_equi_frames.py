@@ -1,25 +1,25 @@
-import torch
 import pytest
-from tests.constants import TOLERANCES, LOGM2_MEAN_STD
-from tests.helpers import sample_particle, lorentz_test, equivectors_builder
+import torch
 
+from lloca.framesnet.equi_frames import (
+    LearnedPDFrames,
+    LearnedRestFrames,
+    LearnedSO2Frames,
+    LearnedSO3Frames,
+    LearnedSO13Frames,
+    LearnedZFrames,
+)
+from lloca.framesnet.frames import Frames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.utils.rand_transforms import (
     rand_lorentz,
     rand_rotation,
-    rand_ztransform,
     rand_xyrotation,
+    rand_ztransform,
 )
-from lloca.framesnet.frames import Frames
-from lloca.framesnet.equi_frames import (
-    LearnedSO13Frames,
-    LearnedRestFrames,
-    LearnedPDFrames,
-    LearnedSO3Frames,
-    LearnedZFrames,
-    LearnedSO2Frames,
-)
+from tests.constants import LOGM2_MEAN_STD, TOLERANCES
+from tests.helpers import equivectors_builder, lorentz_test, sample_particle
 
 
 @pytest.mark.parametrize(
@@ -35,16 +35,16 @@ from lloca.framesnet.equi_frames import (
 )
 @pytest.mark.parametrize("batch_dims", [[10]])
 @pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
-def test_frames_transformation(
-    FramesPredictor, rand_trafo, batch_dims, logm2_std, logm2_mean
-):
+def test_frames_transformation(FramesPredictor, rand_trafo, batch_dims, logm2_std, logm2_mean):
     dtype = torch.float64
 
     # preparations
     assert len(batch_dims) == 1
     equivectors = equivectors_builder()
     predictor = FramesPredictor(equivectors=equivectors).to(dtype=dtype)
-    call_predictor = lambda fm: predictor(fm)
+
+    def call_predictor(fm):
+        return predictor(fm)
 
     fm_test = sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype)
     predictor.equivectors.init_standardization(fm_test)
@@ -68,12 +68,8 @@ def test_frames_transformation(
     # check that frames transform correctly
     # expect frames_prime = frames * random^-1
     inv_random = Frames(random).inv
-    frames_prime_expected = torch.einsum(
-        "...ij,...jk->...ik", frames.matrices, inv_random
-    )
-    torch.testing.assert_close(
-        frames_prime_expected, frames_prime.matrices, **TOLERANCES
-    )
+    frames_prime_expected = torch.einsum("...ij,...jk->...ik", frames.matrices, inv_random)
+    torch.testing.assert_close(frames_prime_expected, frames_prime.matrices, **TOLERANCES)
 
 
 @pytest.mark.parametrize(
@@ -89,16 +85,16 @@ def test_frames_transformation(
 )
 @pytest.mark.parametrize("batch_dims", [[10]])
 @pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
-def test_feature_invariance(
-    FramesPredictor, rand_trafo, batch_dims, logm2_std, logm2_mean
-):
+def test_feature_invariance(FramesPredictor, rand_trafo, batch_dims, logm2_std, logm2_mean):
     dtype = torch.float64
 
     # preparations
     assert len(batch_dims) == 1
     equivectors = equivectors_builder()
     predictor = FramesPredictor(equivectors=equivectors).to(dtype=dtype)
-    call_predictor = lambda fm: predictor(fm)
+
+    def call_predictor(fm):
+        return predictor(fm)
 
     fm_test = sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype)
     predictor.equivectors.init_standardization(fm_test)

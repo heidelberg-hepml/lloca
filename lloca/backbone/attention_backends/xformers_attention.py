@@ -1,13 +1,14 @@
 """xformers memory-efficient attention backend."""
+
 import torch
 
 try:
     from xformers.ops import memory_efficient_attention
     from xformers.ops.fmha.attn_bias import BlockDiagonalMask
-except ModuleNotFoundError:
+except ModuleNotFoundError as err:
     raise ImportError(
         "xformers is not installed. Run 'pip install lloca[xformers_attention]'."
-    )
+    ) from err
 
 
 def attention(query, key, value, **kwargs):
@@ -72,7 +73,5 @@ def get_xformers_attention_mask(batch, materialize=False, dtype=torch.float32):
     mask = BlockDiagonalMask.from_seqlens(bincounts)
     if materialize:
         # materialize mask to torch.tensor (only for testing purposes)
-        mask = mask.materialize(shape=(len(batch), len(batch))).to(
-            batch.device, dtype=dtype
-        )
+        mask = mask.materialize(shape=(len(batch), len(batch))).to(batch.device, dtype=dtype)
     return mask

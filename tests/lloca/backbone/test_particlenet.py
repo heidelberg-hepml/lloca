@@ -1,21 +1,21 @@
-import torch
 import pytest
-from tests.constants import (
-    TOLERANCES,
-    MILD_TOLERANCES,
-    LOGM2_MEAN_STD,
-    REPS,
-    FRAMES_PREDICTOR,
-)
-from tests.helpers import sample_particle, equivectors_builder
-from tests.hep import get_tagging_features
+import torch
 
 from lloca.backbone.particlenet import EdgeConvBlock, ParticleNet
+from lloca.framesnet.equi_frames import LearnedPDFrames, LearnedSO13Frames
+from lloca.framesnet.frames import InverseFrames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.utils.rand_transforms import rand_lorentz
-from lloca.framesnet.frames import InverseFrames
-from lloca.framesnet.equi_frames import LearnedSO13Frames, LearnedPDFrames
+from tests.constants import (
+    FRAMES_PREDICTOR,
+    LOGM2_MEAN_STD,
+    MILD_TOLERANCES,
+    REPS,
+    TOLERANCES,
+)
+from tests.helpers import equivectors_builder, sample_particle
+from tests.hep import get_tagging_features
 
 
 @pytest.mark.parametrize("FramesPredictor", FRAMES_PREDICTOR)
@@ -38,7 +38,6 @@ def test_edgeconvblock_invariance_equivariance(
     assert len(batch_dims) == 1
     equivectors = equivectors_builder()
     predictor = FramesPredictor(equivectors=equivectors).to(dtype=dtype)
-    call_predictor = lambda fm: predictor(fm)
 
     fm_test = sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype)
     predictor.equivectors.init_standardization(fm_test)
@@ -67,7 +66,7 @@ def test_edgeconvblock_invariance_equivariance(
 
     # sample Lorentz vectors
     fm = sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype)
-    frames = call_predictor(fm)
+    frames = predictor(fm)
     fm_local = trafo(fm, frames)
 
     # edgeconv - global
@@ -80,7 +79,7 @@ def test_edgeconvblock_invariance_equivariance(
 
     # global - edgeconv
     fm_transformed = torch.einsum("...ij,...j->...i", random, fm)
-    frames_transformed = call_predictor(fm_transformed)
+    frames_transformed = predictor(fm_transformed)
     fm_tr_local = trafo(fm_transformed, frames_transformed)
     x_tr_local = linear_in(fm_tr_local)
     x_tr_prime_local = edgeconvblock_wrapper(x_tr_local, frames_transformed)
@@ -115,7 +114,6 @@ def test_particlenet_invariance(
     assert len(batch_dims) == 1
     equivectors = equivectors_builder()
     predictor = FramesPredictor(equivectors=equivectors).to(dtype=dtype)
-    call_predictor = lambda fm: predictor(fm)
 
     fm_test = sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype)
     predictor.equivectors.init_standardization(fm_test)
@@ -145,7 +143,7 @@ def test_particlenet_invariance(
 
     # sample Lorentz vectors
     fm = sample_particle(batch_dims, logm2_std, logm2_mean, dtype=dtype)
-    frames = call_predictor(fm)
+    frames = predictor(fm)
     fm_local = trafo(fm, frames)
 
     # particlenet
@@ -153,7 +151,7 @@ def test_particlenet_invariance(
 
     # global - particlenet
     fm_transformed = torch.einsum("...ij,...j->...i", random, fm)
-    frames_transformed = call_predictor(fm_transformed)
+    frames_transformed = predictor(fm_transformed)
     fm_tr_local = trafo(fm_transformed, frames_transformed)
     score_tr_prime_local = edgeconvblock_wrapper(fm_tr_local, frames_transformed)
 
@@ -161,6 +159,4 @@ def test_particlenet_invariance(
     torch.testing.assert_close(fm_local, fm_tr_local, **TOLERANCES)
 
     # test equivariance of scores
-    torch.testing.assert_close(
-        score_tr_prime_local, score_prime_local, **MILD_TOLERANCES
-    )
+    torch.testing.assert_close(score_tr_prime_local, score_prime_local, **MILD_TOLERANCES)

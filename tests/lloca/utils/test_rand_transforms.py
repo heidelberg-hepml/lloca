@@ -1,15 +1,15 @@
-import torch
 import pytest
-from tests.constants import TOLERANCES, MILD_TOLERANCES, BATCH_DIMS
-from tests.helpers import lorentz_test
+import torch
 
 from lloca.utils.rand_transforms import (
+    rand_boost,
     rand_lorentz,
     rand_rotation,
     rand_xyrotation,
     rand_ztransform,
-    rand_boost,
 )
+from tests.constants import BATCH_DIMS, MILD_TOLERANCES, TOLERANCES
+from tests.helpers import lorentz_test
 
 
 @pytest.mark.parametrize("batch_dims", BATCH_DIMS)
@@ -41,9 +41,7 @@ def test_rand_lorentz(batch_dims, std_eta, transform_type):
 
     # test specific properties of the transform
     if transform_type in [rand_rotation, rand_xyrotation]:
-        should_zero = torch.cat(
-            [transform[..., 0, 1:].flatten(), transform[..., 1:, 0].flatten()]
-        )
+        should_zero = torch.cat([transform[..., 0, 1:].flatten(), transform[..., 1:, 0].flatten()])
         if transform_type == rand_xyrotation:
             should_zero = torch.cat(
                 [
@@ -52,6 +50,4 @@ def test_rand_lorentz(batch_dims, std_eta, transform_type):
                     transform[..., 1:2, 3].flatten(),
                 ]
             )
-        torch.testing.assert_close(
-            should_zero, torch.zeros_like(should_zero), **TOLERANCES
-        )
+        torch.testing.assert_close(should_zero, torch.zeros_like(should_zero), **TOLERANCES)

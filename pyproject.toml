@@ -10,10 +10,13 @@ requires-python = ">=3.10"
 readme = "README.md"
 authors = [
   { name = "Jonas Spinner", email = "j.spinner@thphys.uni-heidelberg.de" },
+  { name = "Luigi Favaro", email = "luigi.favaro@uclouvain.be" },
 ]
 dependencies = [
     "torch>=2.0",
     "torch-geometric>=2.3.0",
+    "lgatr",
+    "pelican-lite",
 ]
 
 [project.optional-dependencies]
@@ -35,3 +38,16 @@ packages = { find =  { include = ["lloca", "lloca.*"] } }
 [tool.setuptools_scm]
 version_scheme = "post-release"
 local_scheme = "no-local-version"
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["data/", "runs/", "notebooks/"]
+
+[tool.ruff.lint]
+select = ["E","F","I","B","UP"]
+ignore = ["E203", "E501", "F401"]  # black compatibility for slices
