@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Turn `checks` in orthonormalization off by default (avoids GPU/CPU sync)
 - Review regularization
   - Apply `reg_lightlike` also in `polar_decomposition`
-  - Ensure that the final vector is timelike in `reg_lightlike` (constrain noise to have positive energy)
+  - Ensure that the final vector is timelike in `reg_lightlike` (constrain noise to have positive components)
   - Set `eps=None` by default, corresponding to `torch.finfo(dtype).eps`
 
 ## [1.2.0] - 27.10.2025

@@ -43,7 +43,7 @@ Please have a look at the [LLoCa documentation](https://heidelberg-hepml.github.
 - The `Transformer` backbone supports several attention kernels that can be installed optionally with e.g. `pip install lloca[xformers_attention]`
 - `LLoCaMessagePassing` as blueprint for generic `LLoCa` graph network backbones
 - Equivariant vector predictors in `lloca/equivectors`: `MLPVectors`, `LGATrVectors`, `PELICANVectors`
-- Local frames for equivariant architectures on several symmetry groups: $SO(1,3)$ (`LearnedPDFrames`, `LearnedSO13Frames`, `LearnedRestFrames`), $SO(3)$ (`LearnedSO3Frames`), $SO(1,1)\times SO(2)$ (`LearnedZFrames`) and $SO(2)$ (`LearnedSO2Frames`); as well as the corresponding random global frames for data augmentation
+- Local frames for equivariant architectures on several symmetry groups: SO(1,3) (`LearnedPDFrames`, `LearnedSO13Frames`, `LearnedRestFrames`), SO(3) (`LearnedSO3Frames`), SO(1,1)$\times$SO(2) (`LearnedZFrames`) and SO(2) (`LearnedSO2Frames`); as well as the corresponding random global frames for data augmentation
 - Support for arbitrary higher-order representations with the `TensorReps` class
 
 Coming soon:
