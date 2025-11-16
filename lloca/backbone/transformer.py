@@ -46,7 +46,7 @@ class MultiHeadQKVLinear(nn.Module):
     def __init__(self, in_channels, hidden_channels, num_heads):
         super().__init__()
         self.num_heads = num_heads
-        self.linear = nn.Linear(in_channels, 3 * hidden_channels * num_heads)
+        self.linear = nn.Linear(in_channels, 3 * hidden_channels)
 
     def forward(self, inputs):
         """Forward pass.
@@ -60,13 +60,13 @@ class MultiHeadQKVLinear(nn.Module):
         v : Tensor
             Values
         """
-        qkv = self.linear(inputs)  # (..., num_items, 3 * hidden_channels * num_heads)
+        qkv = self.linear(inputs)  # (..., num_items, 3 * hidden_channels)
 
         *leading, items, last = qkv.shape
         hidden_channels = last // (3 * self.num_heads)
         qkv = qkv.view(*leading, items, 3, hidden_channels, self.num_heads)
         qkv = qkv.movedim(-3, 0).movedim(-1, len(leading) + 1)
-        q, k, v = qkv.unbind(dim=0)  # 3x (..., num_heads, num_items, hidden_channels)
+        q, k, v = qkv.unbind(dim=0)  # 3x (..., num_heads, num_items, hidden_channels // num_heads)
         return q, k, v
 
 
@@ -86,9 +86,9 @@ class MultiQueryQKVLinear(nn.Module):
     def __init__(self, in_channels, hidden_channels, num_heads):
         super().__init__()
         self.num_heads = num_heads
-        self.q_linear = nn.Linear(in_channels, hidden_channels * num_heads)
-        self.k_linear = nn.Linear(in_channels, hidden_channels)
-        self.v_linear = nn.Linear(in_channels, hidden_channels)
+        self.q_linear = nn.Linear(in_channels, hidden_channels)
+        self.k_linear = nn.Linear(in_channels, hidden_channels // num_heads)
+        self.v_linear = nn.Linear(in_channels, hidden_channels // num_heads)
 
     def forward(self, inputs):
         """Forward pass.
@@ -109,12 +109,11 @@ class MultiQueryQKVLinear(nn.Module):
         """
         q = self.q_linear(inputs)
 
-        *leading, items, last = q.shape
-        hidden_channels = last // self.num_heads
-        q = q.reshape(*leading, items, self.num_heads, hidden_channels)
+        *leading, items, hidden_channels = q.shape
+        q = q.reshape(*leading, items, self.num_heads, hidden_channels // self.num_heads)
         q = q.movedim(-2, -3)
 
-        k = self.k_linear(inputs)[..., None, :, :]  # (..., head=1, item, hidden_channels)
+        k = self.k_linear(inputs)[..., None, :, :]  # (..., head=1, item, hidden_channels // num_heads)
         v = self.v_linear(inputs)[..., None, :, :]
         return q, k, v
 
@@ -160,7 +159,7 @@ class BaselineSelfAttention(nn.Module):
         # Linear maps
         qkv_class = MultiQueryQKVLinear if multi_query else MultiHeadQKVLinear
         self.qkv_linear = qkv_class(in_channels, hidden_channels, num_heads)
-        self.out_linear = nn.Linear(hidden_channels * num_heads, out_channels)
+        self.out_linear = nn.Linear(hidden_channels, out_channels)
 
         if dropout_prob is not None:
             self.dropout = nn.Dropout(dropout_prob)
@@ -192,9 +191,9 @@ class BaselineSelfAttention(nn.Module):
         )
 
         # Concatenate heads and transform linearly
-        *leading, num_heads, num_items, hidden_channels = h.shape
+        *leading, num_heads, num_items, channels_per_head = h.shape
         h = h.permute(*range(len(leading)), -2, -3, -1)
-        h = h.reshape(*leading, num_items, num_heads * hidden_channels)
+        h = h.reshape(*leading, num_items, num_heads * channels_per_head)
 
         outputs = self.out_linear(h)  # (..., num_items, out_channels)
 
@@ -231,7 +230,7 @@ class BaselineTransformerBlock(nn.Module):
 
     def __init__(
         self,
-        channels,
+        hidden_channels,
         attention,
         num_heads: int = 8,
         attention_factor: int = 1,
@@ -244,12 +243,12 @@ class BaselineTransformerBlock(nn.Module):
         self.norm1 = BaselineLayerNorm()
         self.norm2 = BaselineLayerNorm()
 
-        hidden_channels = channels // num_heads * attention_factor
+        hidden_channels_attn = hidden_channels * attention_factor
 
         self.attention = BaselineSelfAttention(
-            channels,
-            channels,
             hidden_channels,
+            hidden_channels,
+            hidden_channels_attn,
             attention,
             num_heads=num_heads,
             multi_query=multi_query,
@@ -257,10 +256,10 @@ class BaselineTransformerBlock(nn.Module):
         )
 
         self.mlp = nn.Sequential(
-            nn.Linear(channels, mlp_factor * channels),
+            nn.Linear(hidden_channels, mlp_factor * hidden_channels),
             nn.Dropout(dropout_prob) if dropout_prob is not None else nn.Identity(),
             nn.GELU(),
-            nn.Linear(mlp_factor * channels, channels),
+            nn.Linear(mlp_factor * hidden_channels, hidden_channels),
             nn.Dropout(dropout_prob) if dropout_prob is not None else nn.Identity(),
         )
 
