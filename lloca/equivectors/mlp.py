@@ -69,17 +69,17 @@ class EquiEdgeConv(MessagePassing):
             Aggregation method for message passing. Options are "add", "mean", or "max". Default is "sum".
         """
         super().__init__(aggr=aggr, flow="target_to_source")
-        assert (
-            num_scalars > 0 or include_edges
-        ), "Either num_scalars > 0 or include_edges==True, otherwise there are no inputs."
+        assert num_scalars > 0 or include_edges, (
+            "Either num_scalars > 0 or include_edges==True, otherwise there are no inputs."
+        )
         self.include_edges = include_edges
         self.layer_norm = layer_norm
         self.operation = get_operation(operation)
         self.nonlinearity = get_nonlinearity(nonlinearity)
         self.fm_norm = fm_norm
-        assert not (
-            operation == "single" and fm_norm
-        ), "The setup operation=single and fm_norm==True is unstable"
+        assert not (operation == "single" and fm_norm), (
+            "The setup operation=single and fm_norm==True is unstable"
+        )
 
         in_edges = in_vectors if include_edges else 0
         in_channels = 2 * num_scalars + in_edges

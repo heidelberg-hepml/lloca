@@ -113,7 +113,9 @@ class MultiQueryQKVLinear(nn.Module):
         q = q.reshape(*leading, items, self.num_heads, hidden_channels // self.num_heads)
         q = q.movedim(-2, -3)
 
-        k = self.k_linear(inputs)[..., None, :, :]  # (..., head=1, item, hidden_channels // num_heads)
+        k = self.k_linear(inputs)[
+            ..., None, :, :
+        ]  # (..., head=1, item, hidden_channels // num_heads)
         v = self.v_linear(inputs)[..., None, :, :]
         return q, k, v
 

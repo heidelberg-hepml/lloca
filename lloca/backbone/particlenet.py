@@ -45,9 +45,7 @@ def change_local_frame(x_j_framej, idx, frames, trafo):
     # idx_i becomes (0,1,2,3,4,5) -> (0,0,1,1,2,2,3,3,4,4,5,5).
     idx_i = torch.arange(
         x_j_framej.shape[2] * x_j_framej.shape[0], device=x_j_framej.device
-    ).repeat_interleave(
-        x_j_framej.shape[-1]
-    )  # identity (batch, num_points*k)
+    ).repeat_interleave(x_j_framej.shape[-1])  # identity (batch, num_points*k)
     idx_j = idx  # indices from knn (batch, num_points*k)
 
     frames_i = IndexSelectFrames(frames, idx_i)
@@ -183,7 +181,6 @@ class EdgeConvBlock(nn.Module):
             self.sc_act = nn.ReLU()
 
     def forward(self, points, features, frames):
-
         topk_indices = knn(points, self.k)
         x = self.get_graph_feature(features, self.k, topk_indices, frames, self.trafo)
 

@@ -84,9 +84,9 @@ class TensorRepsTransform(torch.nn.Module):
         if len(frames.shape) > 3:
             frames = frames.reshape(-1, 4, 4)
         tensor = tensor.reshape(-1, tensor.shape[-1])
-        assert (
-            tensor.shape[0] == frames.shape[0]
-        ), f"Batch dimension is {tensor.shape[0]} for tensor, but {frames.shape[0]} for frames."
+        assert tensor.shape[0] == frames.shape[0], (
+            f"Batch dimension is {tensor.shape[0]} for tensor, but {frames.shape[0]} for frames."
+        )
 
         tensor_transformed = self.transform(tensor, frames) if self.has_higher_orders else tensor
         tensor_transformed = self.transform_parity(tensor_transformed, frames)
