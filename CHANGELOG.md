@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2]
+
+### Changed
+
+- Make `transformer.py` channels defs more intuitive (thanks canisli)
+- Fully move to ruff as the formatter
+- Make `LLoCaAttention` more modular
+
+### Fixed
+
+- Show correct pip-install-with-extras commands, e.g. `pip install lloca[xformers_attention]` -> `pip install lloca[xformers-attention]` (pypi doesn't support `_`)
+
+### Removed
+
+- `requirements.txt` (already in `pyproject.toml`)
+
 ## [1.3.1] - 10.11.202
 
 _Fix import bugs._
