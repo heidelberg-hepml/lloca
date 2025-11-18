@@ -7,7 +7,7 @@ try:
     from xformers.ops.fmha.attn_bias import BlockDiagonalMask
 except ModuleNotFoundError as err:
     raise ImportError(
-        "xformers is not installed. Run 'pip install lloca[xformers_attention]'."
+        "xformers is not installed. Run 'pip install lloca[xformers-attention]'."
     ) from err
 
 
