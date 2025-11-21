@@ -29,6 +29,7 @@ class LGATrVectors(EquiVectors, MessagePassing):
         aggr="sum",
         layer_norm=False,
         lgatr_norm=True,
+        use_amp=False,
     ):
         # Note: fm_norm option not supported, because it would be unstable with remove_self_loops=False
         super().__init__(aggr=aggr)
@@ -53,6 +54,7 @@ class LGATrVectors(EquiVectors, MessagePassing):
         self.operation = get_operation(operation)
         self.nonlinearity = get_nonlinearity(nonlinearity)
         self.layer_norm = layer_norm
+        self.use_amp = use_amp
 
     def forward(self, fourmomenta, scalars=None, ptr=None, **kwargs):
         attn_kwargs = {}
@@ -69,7 +71,8 @@ class LGATrVectors(EquiVectors, MessagePassing):
 
         # get query and key from LGATr
         mv = embed_vector(fourmomenta).unsqueeze(-2).to(scalars.dtype)
-        qk_mv, qk_s = self.net(mv, scalars, **attn_kwargs)
+        with torch.autocast("cuda", enabled=self.use_amp):
+            qk_mv, qk_s = self.net(mv, scalars, **attn_kwargs)
         if self.lgatr_norm is not None:
             qk_mv, qk_s = self.lgatr_norm(qk_mv, qk_s)
 

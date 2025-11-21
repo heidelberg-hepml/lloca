@@ -493,7 +493,6 @@ def _canonical_mask(
     target_type: Any,
     check_other: bool = True,
 ) -> torch.Tensor | None:
-
     if mask is not None:
         _mask_dtype = mask.dtype
         _mask_is_float = torch.is_floating_point(mask)
@@ -529,9 +528,9 @@ class Attention(torch.nn.Module):
         self.num_heads = num_heads
         self.dropout = dropout
         self.head_dim = embed_dim // num_heads
-        assert (
-            self.head_dim * num_heads == self.embed_dim
-        ), "embed_dim must be divisible by num_heads"
+        assert self.head_dim * num_heads == self.embed_dim, (
+            "embed_dim must be divisible by num_heads"
+        )
 
         self.in_proj = torch.nn.Linear(embed_dim, 3 * embed_dim, bias=bias, **factory_kwargs)
         self.out_proj = torch.nn.Linear(embed_dim, embed_dim, bias=bias, **factory_kwargs)
@@ -547,7 +546,6 @@ class Attention(torch.nn.Module):
         unexpected_keys,
         error_msgs,
     ):
-
         for k in state_dict.keys():
             if k.endswith("in_proj_weight"):
                 state_dict[k.replace("_weight", ".weight")] = state_dict.pop(k)
@@ -572,7 +570,6 @@ class Attention(torch.nn.Module):
         key_padding_mask: torch.Tensor | None = None,
         attn_mask: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
-
         bsz, tgt_len, _ = query.shape
         _, src_len, _ = key.shape
 
@@ -600,7 +597,9 @@ class Attention(torch.nn.Module):
             assert key_padding_mask.shape == (
                 bsz,
                 src_len,
-            ), f"expecting key_padding_mask shape of {(bsz, src_len)}, but got {key_padding_mask.shape}"
+            ), (
+                f"expecting key_padding_mask shape of {(bsz, src_len)}, but got {key_padding_mask.shape}"
+            )
             key_padding_mask = key_padding_mask.view(bsz, 1, 1, src_len).expand(
                 -1, self.num_heads, -1, -1
             )
@@ -612,7 +611,9 @@ class Attention(torch.nn.Module):
                     self.num_heads,
                     tgt_len,
                     src_len,
-                ), f"expecting attn_mask shape of {(bsz, self.num_heads, tgt_len, src_len)}, but got {attn_mask.shape}"
+                ), (
+                    f"expecting attn_mask shape of {(bsz, self.num_heads, tgt_len, src_len)}, but got {attn_mask.shape}"
+                )
                 attn_mask = attn_mask + key_padding_mask
 
         # (bsz, seq_len, num_heads*head_dim)
@@ -690,7 +691,7 @@ class DropPath(nn.Module):
         return drop_path(x, self.drop_prob, self.training, self.scale_by_keep)
 
     def extra_repr(self):
-        return f"drop_prob={round(self.drop_prob,3):0.3f}"
+        return f"drop_prob={round(self.drop_prob, 3):0.3f}"
 
 
 class Block(nn.Module):
@@ -786,9 +787,7 @@ class Block(nn.Module):
                 u,
                 u,
                 key_padding_mask=padding_mask,
-            )[
-                0
-            ]  # (1, batch, embed_dim)
+            )[0]  # (1, batch, embed_dim)
         else:
             if self.c_mask is not None and attn_mask is not None:
                 attn_mask = torch.mul(self.c_mask, attn_mask)

@@ -1,4 +1,4 @@
-""""Equivariant vector prodictors"""
+""" "Equivariant vector prodictors"""
 
 from .lgatr import LGATrVectors
 from .mlp import MLPVectors

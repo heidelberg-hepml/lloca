@@ -32,6 +32,7 @@ class EquiEdgeConv(MessagePassing):
         nonlinearity="softmax",
         fm_norm=True,
         layer_norm=True,
+        use_amp=False,
         dropout_prob=None,
         aggr="sum",
     ):
@@ -63,23 +64,26 @@ class EquiEdgeConv(MessagePassing):
             Whether to normalize the relative fourmomentum. Default is True.
         layer_norm : bool
             Whether to apply Lorentz-equivariant layer normalization to the output vectors. Default is True.
+        use_amp : bool
+            Whether to use automatic mixed precision (AMP) for the MLP. Default is False.
         dropout_prob : float
             Dropout probability for the MLP. If None, no dropout will be applied. Default is None.
         aggr : str
             Aggregation method for message passing. Options are "add", "mean", or "max". Default is "sum".
         """
         super().__init__(aggr=aggr, flow="target_to_source")
-        assert (
-            num_scalars > 0 or include_edges
-        ), "Either num_scalars > 0 or include_edges==True, otherwise there are no inputs."
+        assert num_scalars > 0 or include_edges, (
+            "Either num_scalars > 0 or include_edges==True, otherwise there are no inputs."
+        )
         self.include_edges = include_edges
         self.layer_norm = layer_norm
         self.operation = get_operation(operation)
         self.nonlinearity = get_nonlinearity(nonlinearity)
         self.fm_norm = fm_norm
-        assert not (
-            operation == "single" and fm_norm
-        ), "The setup operation=single and fm_norm==True is unstable"
+        assert not (operation == "single" and fm_norm), (
+            "The setup operation=single and fm_norm==True is unstable"
+        )
+        self.use_amp = use_amp
 
         in_edges = in_vectors if include_edges else 0
         in_channels = 2 * num_scalars + in_edges
@@ -189,7 +193,8 @@ class EquiEdgeConv(MessagePassing):
         prefactor = torch.cat([s_i, s_j], dim=-1)
         if edge_attr is not None:
             prefactor = torch.cat([prefactor, edge_attr], dim=-1)
-        prefactor = self.mlp(prefactor)
+        with torch.autocast("cuda", enabled=self.use_amp):
+            prefactor = self.mlp(prefactor)
         prefactor = self.nonlinearity(
             prefactor, index=edge_index[0], node_ptr=node_ptr, node_batch=node_batch
         )

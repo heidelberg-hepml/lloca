@@ -22,6 +22,7 @@ class PELICANVectors(EquiVectors, MessagePassing):
         aggr="sum",
         fm_norm=False,
         layer_norm=False,
+        use_amp=False,
     ):
         super().__init__(aggr=aggr)
         self.net = net(in_channels_rank1=num_scalars, out_channels=n_vectors)
@@ -34,6 +35,7 @@ class PELICANVectors(EquiVectors, MessagePassing):
         self.nonlinearity = get_nonlinearity(nonlinearity)
         self.fm_norm = fm_norm
         self.layer_norm = layer_norm
+        self.use_amp = use_amp
         assert not (operation == "single" and fm_norm)  # unstable
 
     def init_standardization(self, fourmomenta, ptr=None):
@@ -101,13 +103,14 @@ class PELICANVectors(EquiVectors, MessagePassing):
         fm_rel = (fm_rel / fm_rel_norm)[:, None, :4]
 
         # message-passing
-        prefactor = self.net(
-            in_rank2=edge_attr,
-            in_rank1=s_i,
-            edge_index=edge_index,
-            batch=batch,
-            num_graphs=num_graphs,
-        )
+        with torch.autocast("cuda", enabled=self.use_amp):
+            prefactor = self.net(
+                in_rank2=edge_attr,
+                in_rank1=s_i,
+                edge_index=edge_index,
+                batch=batch,
+                num_graphs=num_graphs,
+            )
         prefactor = self.nonlinearity(
             prefactor,
             index=edge_index[0],

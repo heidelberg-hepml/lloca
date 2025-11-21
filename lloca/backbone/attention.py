@@ -74,6 +74,23 @@ class LLoCaAttention(torch.nn.Module):
             self.frames = self.frames.reshape(-1, 4, 4)
             self.frames_qkv = self.frames_qkv.reshape(-1, 4, 4)
 
+    def _local_to_global(self, q_local, k_local, v_local):
+        # check input shapes
+        assert k_local.shape == v_local.shape == q_local.shape  # has to match perfectly
+        assert 3 * prod(k_local.shape[:-1]) == self.frames_qkv.shape[-3]
+
+        # transform q, k, v into global frame
+        qkv_local = torch.cat([q_local, k_local, v_local], dim=0)
+        qkv_global = self.transform(qkv_local, self.frames_qkv)
+        q_global, k_global, v_global = qkv_global.chunk(3, dim=0)
+
+        return q_global, k_global, v_global
+
+    def _global_to_local(self, out_global):
+        # transform result back into local frame
+        out_local = self.transform(out_global, self.frames)
+        return out_local
+
     def forward(self, q_local, k_local, v_local, **attn_kwargs):
         """Execute LLoCa attention.
 
@@ -111,14 +128,7 @@ class LLoCaAttention(torch.nn.Module):
                 **attn_kwargs,
             )
 
-        # check input shapes
-        assert k_local.shape == v_local.shape == q_local.shape  # has to match perfectly
-        assert 3 * prod(k_local.shape[:-1]) == self.frames_qkv.shape[-3]
-
-        # transform q, k, v into global frame
-        qkv_local = torch.cat([q_local, k_local, v_local], dim=0)
-        qkv_global = self.transform(qkv_local, self.frames_qkv)
-        q_global, k_global, v_global = qkv_global.chunk(3, dim=0)
+        q_global, k_global, v_global = self._local_to_global(q_local, k_local, v_local)
 
         # (B, H, N, C) format required for scaled_dot_product_attention
         shape_q, shape_k = q_global.shape, k_global.shape
@@ -136,8 +146,7 @@ class LLoCaAttention(torch.nn.Module):
 
         out_global = out_global.view(*shape_q)  # (..., H, N, C)
 
-        # transform result back into local frame
-        out_local = self.transform(out_global, self.frames)
+        out_local = self._global_to_local(out_global)
         return out_local
 
 

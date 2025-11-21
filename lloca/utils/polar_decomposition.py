@@ -25,9 +25,9 @@ def restframe_boost(fourmomenta, checks=False):
         that boosts the four-momenta into their rest frame.
     """
     if checks:
-        assert (
-            lorentz_squarednorm(fourmomenta) > 0
-        ).all(), "Trying to boost spacelike vectors into their restframe (not possible). Consider changing the nonlinearity in equivectors."
+        assert (lorentz_squarednorm(fourmomenta) > 0).all(), (
+            "Trying to boost spacelike vectors into their restframe (not possible). Consider changing the nonlinearity in equivectors."
+        )
 
     # compute relevant quantities
     t0 = fourmomenta.narrow(-1, 0, 1)

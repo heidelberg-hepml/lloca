@@ -295,9 +295,7 @@ class LearnedSO3Frames(LearnedFrames):
         references = self.globalize_vecs_or_not(references, ptr)
         fourmomenta = lorentz_eye(
             fourmomenta.shape[:-1], device=fourmomenta.device, dtype=fourmomenta.dtype
-        )[
-            ..., 0
-        ]  # only difference compared to LearnedPolarDecompositionFrames
+        )[..., 0]  # only difference compared to LearnedPolarDecompositionFrames
 
         trafo, reg_lightlike, reg_collinear = self.polar_decomposition(
             fourmomenta,
@@ -371,9 +369,7 @@ class LearnedZFrames(LearnedFrames):
             fourmomenta.shape[:-1],
             device=fourmomenta.device,
             dtype=fourmomenta.dtype,
-        )[
-            ..., 3
-        ]  # difference 2 compared LearnedPolarDecompositionFrames
+        )[..., 3]  # difference 2 compared LearnedPolarDecompositionFrames
         rotation_references = torch.stack([rotation_references, spurion_references], dim=-2)
 
         trafo, reg_lightlike, reg_collinear = self.polar_decomposition(
@@ -444,16 +440,12 @@ class LearnedSO2Frames(LearnedFrames):
         extra_references = self.globalize_vecs_or_not(references, ptr)
         fourmomenta = lorentz_eye(
             fourmomenta.shape[:-1], device=fourmomenta.device, dtype=fourmomenta.dtype
-        )[
-            ..., 0
-        ]  # difference 1 compared LearnedPolarDecompositionFrames
+        )[..., 0]  # difference 1 compared LearnedPolarDecompositionFrames
         spurion_references = lorentz_eye(
             fourmomenta.shape[:-1],
             device=fourmomenta.device,
             dtype=fourmomenta.dtype,
-        )[
-            ..., 3
-        ]  # difference 2 compared LearnedPolarDecompositionFrames
+        )[..., 3]  # difference 2 compared LearnedPolarDecompositionFrames
         references = torch.stack([spurion_references, extra_references[..., 0, :]], dim=-2)
 
         trafo, reg_lightlike, reg_collinear = self.polar_decomposition(

@@ -14,9 +14,9 @@ class TensorRep(tuple):
         parity: int
             The parity of the tensor representation. Can be -1 or 1
         """
-        assert (
-            isinstance(order, int) and order >= 0
-        ), f"order must be a non-negative integer, but got {order}"
+        assert isinstance(order, int) and order >= 0, (
+            f"order must be a non-negative integer, but got {order}"
+        )
         assert parity in [
             -1,
             1,
@@ -56,12 +56,12 @@ class _TensorMulRep(tuple):
             The tensor representation.
         """
 
-        assert (
-            isinstance(mul, int) and mul >= 0
-        ), f"mul must be a non-negative integer, but got {mul}"
-        assert isinstance(
-            rep, TensorRep
-        ), f"rep must be an instance of TensorRep, but got type {type(rep)}"
+        assert isinstance(mul, int) and mul >= 0, (
+            f"mul must be a non-negative integer, but got {mul}"
+        )
+        assert isinstance(rep, TensorRep), (
+            f"rep must be an instance of TensorRep, but got type {type(rep)}"
+        )
 
         return super().__new__(cls, (mul, rep))
 
