@@ -101,13 +101,14 @@ class PELICANVectors(EquiVectors, MessagePassing):
         fm_rel = (fm_rel / fm_rel_norm)[:, None, :4]
 
         # message-passing
-        prefactor = self.net(
-            in_rank2=edge_attr,
-            in_rank1=s_i,
-            edge_index=edge_index,
-            batch=batch,
-            num_graphs=num_graphs,
-        )
+        with torch.autocast("cuda", enabled=self.use_amp):
+            prefactor = self.net(
+                in_rank2=edge_attr,
+                in_rank1=s_i,
+                edge_index=edge_index,
+                batch=batch,
+                num_graphs=num_graphs,
+            )
         prefactor = self.nonlinearity(
             prefactor,
             index=edge_index[0],
