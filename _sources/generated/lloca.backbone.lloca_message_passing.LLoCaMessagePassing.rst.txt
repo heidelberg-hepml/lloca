@@ -1,0 +1,8 @@
+﻿lloca.backbone.lloca_message_passing.LLoCaMessagePassing
+========================================================
+
+.. autoclass:: lloca.backbone.lloca_message_passing.LLoCaMessagePassing
+   :members:
+   :inherited-members: False
+   :undoc-members:
+   :show-inheritance:

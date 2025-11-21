@@ -1,0 +1,8 @@
+﻿lloca.framesnet.frames.Frames
+=============================
+
+.. autoclass:: lloca.framesnet.frames.Frames
+   :members:
+   :inherited-members: False
+   :undoc-members:
+   :show-inheritance:
