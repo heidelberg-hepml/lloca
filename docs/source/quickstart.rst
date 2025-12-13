@@ -69,7 +69,6 @@ We construct the local frames in two steps. First, we use a simple Lorentz-equiv
    def equivectors_constructor(n_vectors):
       return MLPVectors(
          n_vectors=n_vectors,
-         num_blocks=2,
          num_scalars=num_scalars,
          hidden_channels=8,
          num_layers_mlp=2,
@@ -77,6 +76,7 @@ We construct the local frames in two steps. First, we use a simple Lorentz-equiv
 
    # quickly test it
    equivectors_test = equivectors_constructor(3)
+   equivectors_test.init_standardization(fourmomenta)
    vectors = equivectors_test(fourmomenta, scalars) # (128, 10, 3, 4)
 
 Next, we define the ``framesnet`` class which calls the ``equivectors`` to predict a set of vectors
@@ -89,6 +89,7 @@ we pass the constructor as :mod:`equivectors=equivectors_constructor`.
    from lloca.framesnet.equi_frames import LearnedPDFrames
 
    framesnet = LearnedPDFrames(equivectors=equivectors_constructor)
+   framesnet.equivectors.init_standardization(fourmomenta)
    frames = framesnet(fourmomenta, scalars) # (128, 10, 4, 4)
 
 The package implements many alternative ``framesnet`` choices:
