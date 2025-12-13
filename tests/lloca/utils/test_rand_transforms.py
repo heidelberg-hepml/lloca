@@ -24,7 +24,7 @@ from tests.helpers import lorentz_test
         rand_boost,
     ],
 )
-def test_rand_lorentz(batch_dims, std_eta, transform_type):
+def test_rand_transform(batch_dims, std_eta, transform_type):
     dtype = torch.float64
 
     # collect N different kinds of transformations
