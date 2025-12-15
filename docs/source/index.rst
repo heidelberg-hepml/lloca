@@ -10,7 +10,7 @@ available under https://github.com/heidelberg-hepml/lloca.
 
 * :doc:`quickstart`
 * :doc:`lloca-vs-lgatr`
-* :doc:`more-backbones`
+* :doc:`more-backbones/index`
 * :doc:`numerics`
 * :doc:`api`
 
@@ -48,7 +48,7 @@ If you find this package useful, please cite our papers:
 
    quickstart
    lloca-vs-lgatr
-   more-backbones
+   more-backbones/index
    numerics
 
 .. toctree::
