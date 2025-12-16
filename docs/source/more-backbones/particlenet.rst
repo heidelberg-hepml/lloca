@@ -1,6 +1,11 @@
 LLoCa-ParticleNet
 =================
 
+We start with the standard ParticleNet implementation, available at https://github.com/hqucms/weaver-core/blob/main/weaver/nn/model/ParticleNet.py.
+
+We implement LLoCa with the `change_local_frame` function that is applied in each message-passing step
+to transform the features from the sender frame to the receiver frame.
+We now also require the representation structure of the features, which has to be propagated through the architecture.
 
 .. code-block:: diff
 

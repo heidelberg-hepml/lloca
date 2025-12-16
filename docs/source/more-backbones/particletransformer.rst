@@ -1,6 +1,15 @@
 LLoCa-ParticleTransformer
 =========================
 
+We start with the updated ParticleTransformer implementation,
+available at https://github.com/hqucms/weaver-core/blob/dev/custom_train_eval/weaver/nn/model/ParticleTransformer.py,
+and made small changes to improve numerical stability and efficiency.
+
+Similar to :doc:`transformer`, we use :class:`~lloca.backbone.attention.LLoCaAttention`
+to efficiently implement tensorial message-passing.
+ParticleTransformer features two types of attention blocks, particle self-attention as the main workhorse
+and class attention for the final aggregation over the jet. We find that it is sufficient to use
+tensorial message-passing only in the particle self-attention blocks.
 
 .. code-block:: diff
 

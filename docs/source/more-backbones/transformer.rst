@@ -1,6 +1,14 @@
 LLoCa-Transformer
 =================
 
+We start with a vanilla transformer, adapted from https://github.com/Qualcomm-AI-research/geometric-algebra-transformer/blob/main/gatr/baselines/transformer.py.
+
+Tensorial message-passing is implemented conveniently with the :class:`~lloca.backbone.attention.LLoCaAttention` class
+that is initialized globally and then passed to each attention block.
+It first loads the local frames and performs a few preprocessing operations on them.
+In each attention operation, this class is then called to transform queries, keys, and values
+into the global frame, perform attention there, and then transform the features back into the local frames.
+
 .. code-block:: diff
 
     from functools import partial

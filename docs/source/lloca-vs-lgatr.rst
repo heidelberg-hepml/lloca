@@ -19,9 +19,9 @@ first, for instance a vanilla transformer, and move to a Lorentz-equivariant net
 Benefits of L-GATr / specialized layers
 ---------------------------------------
 
-* **Less code overhead**, e.g. `LGATrSlim <https://github.com/heidelberg-hepml/lgatr/blob/main/lgatr/nets/lgatr_slim.py>`_ fits into a single file.
+* **Simpler**, e.g. `LGATrSlim <https://github.com/heidelberg-hepml/lgatr/blob/main/lgatr/nets/lgatr_slim.py>`_ fits into a single file.
   Canonicalization modifies the backbone architecture only slightly, but the Frames-Net and subsequent orthonormalization requires significant extra code.
-* **Training dynamics are typically simpler**, because the interaction between the Frames-Net and backbone in LLoCa can lead to more complex training dynamics.
+* **Training dynamics are typically easier**, because the interaction between the Frames-Net and backbone in LLoCa can lead to more complex training dynamics.
   For instance, we found in some cases that the Frames-Net in LLoCa overfits before the backbone does, even though the Frames-Net has far fewer parameters.
 
 Benefits of LLoCa / canonicalization
@@ -30,7 +30,7 @@ Benefits of LLoCa / canonicalization
 * **Make any backbone architecture Lorentz-equivariant**: We constructed LLoCa-Transformer, LLoCa-GNN, LLoCa-ParticleNet and LLoCa-ParT networks in our publications.
   LLoCa is particularly useful when your non-equivariant architecture already includes many tricks that would be time-consuming to re-implement in a
   Lorentz-equivariance-by-layers architecture like L-GATr, such as dynamic graph convolutions, attention mechanisms, or U-Net layouts.
-  See :doc:`more-backbones` for instructions and code examples for how to extend your favorite architecture with LLoCa.
+  See :doc:`more-backbones/index` for instructions and code examples for how to extend your favorite architecture with LLoCa.
 * **Higher-order representations** are straight-forward to include in LLoCa, as LLoCa builds on generic tensor representations of the Lorentz group through the
   :class:`~lloca.reps.tensorreps.TensorReps` class, e.g. `16x0n+8x1n+2x2n+1x2n` for a direct product of 16 scalar, 8 vector, 2 second-rank tensor, and 1 third-rank tensor representations.
   Arbitrary higher-order representations are implemented, but using them comes at the cost of slower inference because of the additional matrix multiplications.
