@@ -32,7 +32,7 @@ Benefits of LLoCa / canonicalization
   Lorentz-equivariance-by-layers architecture like L-GATr, such as dynamic graph convolutions, attention mechanisms, or U-Net layouts.
   See :doc:`more-backbones/index` for instructions and code examples for how to extend your favorite architecture with LLoCa.
 * **Higher-order representations** are not only straight-forward to include in LLoCa but also easily mixed in equal or unequal fractions. LLoCa builds on generic tensor representations of the Lorentz group through the
-  :class:`~lloca.reps.tensorreps.TensorReps` class, e.g. `16x0n+8x1n+2x2n+1x3n` for a direct product of 16 scalar, 8 vector, 2 second-rank tensor, and 1 third-rank tensor representations.
+  :class:`~lloca.reps.tensorreps.TensorReps` class, e.g. ``16x0n+8x1n+2x2n+1x3n`` for a direct product of 16 scalar, 8 vector, 2 second-rank tensor, and 1 third-rank tensor representations.
   Arbitrary higher-order representations are implemented, but using them comes at the cost of slower inference because of the additional matrix multiplications.
 * **Reduced resource constraints**: For similar network size, we find that LLoCa networks typically require less GPU memory and FLOPs than comparable specialized-layer networks.
   This is because the backbone processes Lorentz-invariant features only, which are typically lower-dimensional and cheaper to process.

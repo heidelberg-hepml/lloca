@@ -95,7 +95,7 @@ we pass the constructor as :mod:`equivectors=equivectors_constructor`.
 The package implements many alternative ``framesnet`` choices:
 
 - :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames`: Construct a learned Lorentz transformation from a boost and a rotation, i.e. following a polar decomposition, with the rotation constructed using the Gram-Schmidt algorithm in the 3-dimensional euclidean space. This is the default Lorentz-equivariant ``framesnet``.
-- :mod:`~lloca.framesnet.equi_frames.LearnedSO13Frames`: Construct a learned Lorentz transformation directly using the Gram-Schmidt algorithm in Minkowski space. The result is equivalent to ``LearnedPD``, but ``LearnedPD`` has the advantage of providing direct access to the boost, which is useful in some cases.
+- :mod:`~lloca.framesnet.equi_frames.LearnedSO13Frames`: Construct a learned Lorentz transformation directly using the Gram-Schmidt algorithm in Minkowski space. The result is equivalent to :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames`, but :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames` has the advantage of providing direct access to the boost, which is useful in some cases.
 - :mod:`~lloca.framesnet.equi_frames.LearnedSO3Frames` and :mod:`~lloca.framesnet.equi_frames.LearnedSO2Frames`: Construct learned :math:`SO(2)` and :math:`SO(3)` transformations, embedded in the Lorentz group. The resulting architectures are :math:`SO(2)`- and :math:`SO(3)`-equivariant, respectively.
 - :mod:`~lloca.framesnet.nonequi_frames.RandomFrames`: Random global frames, corresponding to data augmentation.
 - :mod:`~lloca.framesnet.nonequi_frames.IdentityFrames`: Frames from identity transforms, corresponding to the baseline non-equivariant architectures.

@@ -51,7 +51,7 @@ or only at initialization such that the training remains stable. The application
 fraction of particles in the batch indicates that the numerics of the input should be improved.
 We provide trackers in the Frames-Net implementations to monitor how often these regularizations are applied. Similarly,
 we recommend monitoring the :math:`\gamma` factors of the boosts to detect potential numerical issues.
-The ``framesnet`` class returns the tracker if ``return_trackers=True``.
+The :class:`~lloca.framesnet.equi_frames.LearnedFrames` class returns the tracker if ``return_trackers=True``.
 
 We verify that :math:`v_0` is not lightlike, as this would lead to an ill-defined boost :math:`B`.
 We check that
@@ -76,11 +76,11 @@ In our studies, we use :math:`\epsilon_\text{collinear}=10^{-16}`, and we do not
 occurrences at initialization, validating the numerical stability of our orthogonalization method.
 
 Both regularizations are implemented in the LLoCa package. The default values are set to the minimum epsilon which can be represented
-in the chosen floating point precision. User-defined values can be set in the ``LearnedPDFrames`` class.
+in the chosen floating point precision. User-defined values can be set in the :class:`~lloca.framesnet.equi_frames.LearnedPDFrames` class.
 
-The text above refers to the ``LearnedPDFrames`` class. It is also possibile to orthogonalize four-vectors directly in Minkowski space
-and we implement this option in the class ``LearnedSO13Frames``. However, this approach is less numerically stable and requires additional
-regularizations to explicitly take into account coplanar vectors. Although the two approaches are mathematically equivalent, we recommend using the ``learnedpd`` option.
+The text above refers to the :class:`~lloca.framesnet.equi_frames.LearnedPDFrames` class. It is also possibile to orthogonalize four-vectors directly in Minkowski space
+and we implement this option in the class :class:`~lloca.framesnet.equi_frames.LearnedSO13Frames`. However, this approach is less numerically stable and requires additional
+regularizations to explicitly take into account coplanar vectors. Although the two approaches are mathematically equivalent, we recommend using the :class:`~lloca.framesnet.equi_frames.LearnedPDFrames` class.
 
 Gram-Schimdt orthonormalization in 3D
 -------------------------------------

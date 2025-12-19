@@ -12,8 +12,7 @@ from .nonequi_frames import FramesPredictor
 
 
 class LearnedFrames(FramesPredictor):
-    """Abstract base class for local Frames constructed
-    based on equivariantly predicted vectors"""
+    """Abstract base class for learnable local frames"""
 
     def __init__(
         self,
