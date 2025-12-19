@@ -82,7 +82,7 @@ class LearnedPDFrames(LearnedFrames):
         super().__init__(*args, n_vectors=3, **kwargs)
         self.gamma_max = gamma_max
         self.gamma_hardness = gamma_hardness
-        self.deterministic_boost = deterministic_boost
+        assert deterministic_boost is None, "deterministic_boost option is deprecated"
 
         if compile:
             self.polar_decomposition = torch.compile(
@@ -116,7 +116,6 @@ class LearnedPDFrames(LearnedFrames):
         vecs = self.globalize_vecs_or_not(vecs, ptr)
         boost = vecs[..., 0, :]
         rotation_references = vecs[..., 1:, :]
-        boost = deterministic_boost(boost, ptr, deterministic_boost=self.deterministic_boost)
         boost, reg_gammamax, gamma_mean, gamma_max = clamp_boost(
             boost, gamma_max=self.gamma_max, gamma_hardness=self.gamma_hardness
         )
@@ -482,27 +481,6 @@ def clamp_boost(x, gamma_max, gamma_hardness):
         beta_reg = beta * beta_scaling
         x_reg = mass * torch.cat((gamma_reg, gamma_reg * beta_reg), dim=-1)
         return x_reg, reg_gammamax, gamma_mean, gamma_max_realized
-
-
-def deterministic_boost(boost, ptr, deterministic_boost):
-    if deterministic_boost is None:
-        pass
-    elif deterministic_boost == "global":
-        # average boost vector over the event
-        boost = average_event(boost, ptr)
-    elif deterministic_boost == "local":
-        # average boost over all other particles in the event
-        boost_averaged = average_event(boost, ptr)
-        if ptr is None:
-            nparticles = boost.shape[1]
-        else:
-            diff = ptr[1:] - ptr[:-1]
-            nparticles = (diff).repeat_interleave(diff).unsqueeze(-1)
-        boost = boost_averaged - boost / nparticles
-    else:
-        raise ValueError(f"Option deterministic_boost={deterministic_boost} not implemented")
-
-    return boost
 
 
 def average_event(vecs, ptr=None):
