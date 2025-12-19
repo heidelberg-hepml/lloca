@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.3] - 19.12.2025
+
+### Added
+
+- Complete documentation (was very preliminary before)
+
+### Changed
+
+- Code style improvements in `utils/rand_transform.py`
+- Update demo notebook
+- Improve Frames-Net docs formatting
+- Deprecated the `deterministic_boost` option in `LearnedPDFrames`
+
 ## [1.3.2] - 21.11.2025
 
 ### Added
