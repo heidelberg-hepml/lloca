@@ -55,6 +55,7 @@ Coming soon:
 ## Examples
 
 - https://github.com/heidelberg-hepml/lloca-experiments: Codebase for the original papers.
+- https://github.com/heidelberg-hepml/tagger-quantization: Quantized LLoCa taggers
 
 Let us know if you use `lloca`, so we can add your repo to the list!
 
