@@ -78,7 +78,7 @@ occurrences at initialization, validating the numerical stability of our orthogo
 Both regularizations are implemented in the LLoCa package. The default values are set to the minimum epsilon which can be represented
 in the chosen floating point precision. User-defined values can be set in the ``framesnet`` configs.
 
-The text above refers to the ``framesnet=learnedpd`` approach. It is also possibile to orthogonalize four-vectors directly in Minkowski space 
+The text above refers to the ``framesnet=learnedpd`` approach. It is also possibile to orthogonalize four-vectors directly in Minkowski space
 and we implement this option in ``framesnet=learnedso13``. However, this approach is less numerically stable and requires additional
 regularizations to explicitly take into account coplanar vectors. Although the two approaches are mathematically equivalent, we recommend using the ``learnedpd`` option.
 

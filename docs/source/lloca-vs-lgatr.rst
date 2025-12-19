@@ -8,7 +8,7 @@ Most previously published Lorentz-equivariant networks rely on specialized layer
 * `CGENN <https://arxiv.org/abs/2305.11141>`_, a Lorentz-equivariant graph network using geometric algebra representations
 * `L-GATr <https://arxiv.org/abs/2411.00446>`_, a Lorentz-equivariant transformer using geometric algebra representations
 
-Canonicalization, or specifically Lorentz local canonicalization (LLoCa), are an alternative approach that extends an existing backbone architecture with a
+Canonicalization, or specifically Lorentz local canonicalization (LLoCa), is an alternative approach that extends an existing backbone architecture with a
 Lorentz-equivariant canonicalization procedure to achieve Lorentz-equivariance. This section discusses the benefits of both approaches and helps to decide
 which one to use for your specific application. We focus on L-GATr as a representative of the specialized-layer approach because we compared it carefully with
 LLoCa-Transformers, but most arguments apply to other specialized-layer networks as well.
@@ -31,8 +31,8 @@ Benefits of LLoCa / canonicalization
   LLoCa is particularly useful when your non-equivariant architecture already includes many tricks that would be time-consuming to re-implement in a
   Lorentz-equivariance-by-layers architecture like L-GATr, such as dynamic graph convolutions, attention mechanisms, or U-Net layouts.
   See :doc:`more-backbones/index` for instructions and code examples for how to extend your favorite architecture with LLoCa.
-* **Higher-order representations** are straight-forward to include in LLoCa, as LLoCa builds on generic tensor representations of the Lorentz group through the
-  :class:`~lloca.reps.tensorreps.TensorReps` class, e.g. `16x0n+8x1n+2x2n+1x2n` for a direct product of 16 scalar, 8 vector, 2 second-rank tensor, and 1 third-rank tensor representations.
+* **Higher-order representations** are not only straight-forward to include in LLoCa but also easily mixed in equal or unequal fractions. LLoCa builds on generic tensor representations of the Lorentz group through the
+  :class:`~lloca.reps.tensorreps.TensorReps` class, e.g. `16x0n+8x1n+2x2n+1x3n` for a direct product of 16 scalar, 8 vector, 2 second-rank tensor, and 1 third-rank tensor representations.
   Arbitrary higher-order representations are implemented, but using them comes at the cost of slower inference because of the additional matrix multiplications.
 * **Reduced resource constraints**: For similar network size, we find that LLoCa networks typically require less GPU memory and FLOPs than comparable specialized-layer networks.
   This is because the backbone processes Lorentz-invariant features only, which are typically lower-dimensional and cheaper to process.

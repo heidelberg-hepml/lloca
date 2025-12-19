@@ -38,9 +38,25 @@ The LLoCa workflow is outlined above, and extends the flow of data in a non-equi
 Implementing tensorial message-passing
 --------------------------------------
 
-Tensorial message-passing requires modifications to the backbone architecture.
-The following pages contain the required `git diff` to add tensorial message-passing for the backbone
-networks used in the original LLoCa publications.
+When using local canonicalization, we find that it is necessary to implement tensorial
+message-passing in the backbone architecture  to benefit from canonicalization.
+Without tensorial message-passing, i.e. only scalar latent representations, we find
+poor performance, even below the non-equivariant baseline, see
+`Table 1, 2, 4 in the HEP paper <https://arxiv.org/abs/2508.14898>`_.
+
+If you do not want to commit to modifying your backbone architecture yet, you can get a
+feeling for the gains of LLoCa by testing its *global canonicalization* variant.
+Global canonicalization uses a single global frame for the whole event, instead of
+seperate frames for each particle, and therefore does *not* require tensorial message-passing.
+In our experiments, we found that global canonicalization slightly improves performance compared
+to the non-equivariant baseline, but does not reach the performance of local canonicalization,
+see `Table 1 in the HEP paper <https://arxiv.org/abs/2508.14898>`_.
+Global canonicalization is implemented in the Frames-Net classes, e.g. :class:`lloca.framesnet.equi_frames.LearnedPDFrames`,
+by setting `is_global=True`.
+
+The following pages contain the `git diff` to add tensorial message-passing for the backbone
+networks used in the original LLoCa publications, to provide assistance for anyone wishing
+to implement tensorial message-passing in their favourite backbone architecture.
 
 * :doc:`transformer`
 * :doc:`particletransformer`

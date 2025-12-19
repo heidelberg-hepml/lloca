@@ -8,6 +8,8 @@ that is initialized globally and then passed to each attention block.
 It first loads the local frames and performs a few preprocessing operations on them.
 In each attention operation, this class is then called to transform queries, keys, and values
 into the global frame, perform attention there, and then transform the features back into the local frames.
+See `Eq. (12) in the ML paper <https://arxiv.org/abs/2505.20280>`_ and
+`Eq. (19) in the HEP paper <https://arxiv.org/abs/2508.14898>`_ for details.
 
 .. code-block:: diff
 
