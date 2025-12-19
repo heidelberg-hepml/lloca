@@ -3,7 +3,7 @@ Tips and tricks for stable LLoCa training
 
 In this section, we review the numerical choices made to ensure stable training of the Frames-Net architectures.
 The information contained in this section is also carefully discussed in the appendices of the `LLoCa paper <https://arxiv.org/pdf/2505.20280>`__.
-All the methods are implemented in the package and can be easily accessed via the configuration files.
+All the methods are implemented in the package and can be easily accessed as class options.
 
 Regularizing input particles
 -----------------------------
@@ -76,10 +76,10 @@ In our studies, we use :math:`\epsilon_\text{collinear}=10^{-16}`, and we do not
 occurrences at initialization, validating the numerical stability of our orthogonalization method.
 
 Both regularizations are implemented in the LLoCa package. The default values are set to the minimum epsilon which can be represented
-in the chosen floating point precision. User-defined values can be set in the ``framesnet`` configs.
+in the chosen floating point precision. User-defined values can be set in the ``LearnedPDFrames`` class.
 
-The text above refers to the ``framesnet=learnedpd`` approach. It is also possibile to orthogonalize four-vectors directly in Minkowski space
-and we implement this option in ``framesnet=learnedso13``. However, this approach is less numerically stable and requires additional
+The text above refers to the ``LearnedPDFrames`` class. It is also possibile to orthogonalize four-vectors directly in Minkowski space
+and we implement this option in the class ``LearnedSO13Frames``. However, this approach is less numerically stable and requires additional
 regularizations to explicitly take into account coplanar vectors. Although the two approaches are mathematically equivalent, we recommend using the ``learnedpd`` option.
 
 Gram-Schimdt orthonormalization in 3D
