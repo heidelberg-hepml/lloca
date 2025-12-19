@@ -12,7 +12,7 @@ from .nonequi_frames import FramesPredictor
 
 
 class LearnedFrames(FramesPredictor):
-    """Abstract class for local Frames constructed
+    """Abstract base class for local Frames constructed
     based on equivariantly predicted vectors"""
 
     def __init__(
@@ -34,10 +34,12 @@ class LearnedFrames(FramesPredictor):
         is_global: bool
             If True, average the predicted vectors to construct a global frame
         random: bool
-            If True, re-initialize the equivectors at each forward pass
-            This is a fancy way of doing data augmentation
+            If True, re-initialize the equivectors at each forward pass.
+            This is equivalent to data augmentation for is_global=True.
         fix_params: bool
-            Like random, but without the resampling
+            Fix the Frames-Net parameters.
+            This is equivalent to random, but without the resampling.
+            We find that this can be useful to avoid overfitting.
         ortho_kwargs: dict
             Keyword arguments for orthogonalization
         """
@@ -73,12 +75,29 @@ class LearnedPDFrames(LearnedFrames):
     def __init__(
         self,
         *args,
-        gamma_max=None,
-        gamma_hardness=None,
-        deterministic_boost=None,
-        compile=False,
+        gamma_max: float = None,
+        gamma_hardness: float | None = None,
+        deterministic_boost: str | None = None,
+        compile: bool = False,
         **kwargs,
     ):
+        """
+        Parameters
+        ----------
+        *args, **kwargs:
+            Passed to LearnedFrames
+        gamma_max: float | None
+            Maximum gamma factor for boost regularization.
+            If None, no regularization is applied.
+        gamma_hardness: float | None
+            Hardness, i.e. beta factor in the softplus regularization.
+            If None, a hard clamp is applied.
+        deterministic_boost: str or None
+            Deprecated option
+        compile: bool
+            Option to compile the orthonormalization procedure.
+            Does not yet give significant speedups in our tests.
+        """
         super().__init__(*args, n_vectors=3, **kwargs)
         self.gamma_max = gamma_max
         self.gamma_hardness = gamma_hardness
@@ -144,9 +163,18 @@ class LearnedSO13Frames(LearnedFrames):
     def __init__(
         self,
         *args,
-        compile=False,
+        compile: bool = False,
         **kwargs,
     ):
+        """
+        Parameters
+        ----------
+        *args, **kwargs:
+            Passed to LearnedFrames
+        compile: bool
+            Option to compile the orthonormalization procedure.
+            Does not yet give significant speedups in our tests.
+        """
         super().__init__(*args, n_vectors=3, **kwargs)
         if compile:
             self.orthogonalize_4d = torch.compile(orthogonalize_4d, dynamic=True, fullgraph=True)
@@ -198,9 +226,18 @@ class LearnedRestFrames(LearnedFrames):
     def __init__(
         self,
         *args,
-        compile=False,
+        compile: bool = False,
         **kwargs,
     ):
+        """
+        Parameters
+        ----------
+        *args, **kwargs:
+            Passed to LearnedFrames
+        compile: bool
+            Option to compile the orthonormalization procedure.
+            Does not yet give significant speedups in our tests.
+        """
         super().__init__(*args, n_vectors=2, **kwargs)
         if compile:
             self.polar_decomposition = torch.compile(
@@ -253,9 +290,18 @@ class LearnedSO3Frames(LearnedFrames):
     def __init__(
         self,
         *args,
-        compile=False,
+        compile: bool = False,
         **kwargs,
     ):
+        """
+        Parameters
+        ----------
+        *args, **kwargs:
+            Passed to LearnedFrames
+        compile: bool
+            Option to compile the orthonormalization procedure.
+            Does not yet give significant speedups in our tests.
+        """
         self.n_vectors = 2
         super().__init__(
             *args,
@@ -319,11 +365,26 @@ class LearnedZFrames(LearnedFrames):
     def __init__(
         self,
         *args,
-        gamma_max=None,
-        gamma_hardness=None,
-        compile=False,
+        gamma_max: float = None,
+        gamma_hardness: float | None = None,
+        compile: bool = False,
         **kwargs,
     ):
+        """
+        Parameters
+        ----------
+        *args, **kwargs:
+            Passed to LearnedFrames
+        gamma_max: float | None
+            Maximum gamma factor for boost regularization.
+            If None, no regularization is applied.
+        gamma_hardness: float | None
+            Hardness, i.e. beta factor in the softplus regularization.
+            If None, a hard clamp is applied.
+        compile: bool
+            Option to compile the orthonormalization procedure.
+            Does not yet give significant speedups in our tests.
+        """
         super().__init__(*args, n_vectors=2, **kwargs)
         self.gamma_max = gamma_max
         self.gamma_hardness = gamma_hardness
@@ -398,9 +459,18 @@ class LearnedSO2Frames(LearnedFrames):
     def __init__(
         self,
         *args,
-        compile=False,
+        compile: bool = False,
         **kwargs,
     ):
+        """
+        Parameters
+        ----------
+        *args, **kwargs:
+            Passed to LearnedFrames
+        compile: bool
+            Option to compile the orthonormalization procedure.
+            Does not yet give significant speedups in our tests.
+        """
         self.n_vectors = 1
         super().__init__(
             *args,

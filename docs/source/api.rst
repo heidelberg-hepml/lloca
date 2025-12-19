@@ -26,6 +26,7 @@ In addition, we implement non-equivariant networks as identity frames and data a
    :toctree: generated/
    :recursive:
 
+   lloca.framesnet.equi_frames.LearnedFrames
    lloca.framesnet.equi_frames.LearnedPDFrames
    lloca.framesnet.equi_frames.LearnedSO13Frames
    lloca.framesnet.equi_frames.LearnedRestFrames
