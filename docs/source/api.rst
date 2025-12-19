@@ -26,6 +26,7 @@ In addition, we implement non-equivariant networks as identity frames and data a
    :toctree: generated/
    :recursive:
 
+   lloca.framesnet.equi_frames.LearnedFrames
    lloca.framesnet.equi_frames.LearnedPDFrames
    lloca.framesnet.equi_frames.LearnedSO13Frames
    lloca.framesnet.equi_frames.LearnedRestFrames
@@ -35,7 +36,7 @@ In addition, we implement non-equivariant networks as identity frames and data a
    lloca.framesnet.nonequi_frames.IdentityFrames
    lloca.framesnet.nonequi_frames.RandomFrames
 
-The resulting frames are stored in the ``Frames`` bookkeeping class.
+The resulting frames are stored in the :class:`~lloca.framesnet.frames.Frames` bookkeeping class.
 A range of derived class can be used for efficient access in the backbone architecture.
 
 .. autosummary::
@@ -57,11 +58,11 @@ The LLoCa framework can be used to make generic backbone architectures Lorentz-e
 2. For message-passing architectures, transform the messages from the sender frame to the receiver frame using a non-trivial message representation, i.e. not only scalars.
 3. Transform the network outputs back to the global frame to obtain a Lorentz-equivariant output. This step is trivial in the case of Lorentz-invariant outputs.
 
-The ``MLP`` does not require any modifications to be used in the LLoCa framework.
-For message-passing architectures, we provide the ``LLoCaMessagePassing`` class to conveniently adapt graph networks based on the ``torch_geometric.nn.conv.MessagePassing`` class to the LLoCa framework.
-For transformers, we provide the ``LLoCaAttention`` class as a drop-in replacement for ``torch.nn.functional.scaled_dot_product_attention`` and other attention backends.
-We demonstrate how to use these tools with a baseline LLoCa-GNN and a LLoCa-Transformer.
-For ``ParticleNet`` and ``ParticleTransformer``, we demonstrate how to use LLoCa with established architectures.
+The :class:`~lloca.backbone.mlp.MLP` does not require any modifications to be used in the LLoCa framework.
+For message-passing architectures, we provide the :class:`~lloca.backbone.lloca_message_passing.LLoCaMessagePassing` class to conveniently adapt graph networks based on the ``torch_geometric.nn.conv.MessagePassing`` class to the LLoCa framework.
+For transformers, we provide the :class:`~lloca.backbone.attention.LLoCaAttention` class as a drop-in replacement for ``torch.nn.functional.scaled_dot_product_attention`` and other attention backends.
+We demonstrate how to use these tools with a baseline :class:`~lloca.backbone.graphnet.GraphNet` and a :class:`~lloca.backbone.transformer.Transformer`.
+For :class:`~lloca.backbone.particlenet.ParticleNet` and :class:`~lloca.backbone.particletransformer.ParticleTransformer`, we demonstrate how to use LLoCa with established architectures.
 
 .. autosummary::
     :toctree: generated/
@@ -79,8 +80,8 @@ Lorentz group representations
 -----------------------------
 
 The LLoCa framework supports arbitrary Lorentz group representations for inputs, outputs and messages.
-The ``TensorReps`` class organizes the properties of these representations,
-while the ``TensorRepsTransform`` class implements the actual transformations of features.
+The :class:`~lloca.reps.tensorreps.TensorReps` class organizes the properties of these representations,
+while the :class:`~lloca.reps.tensorreps_transform.TensorRepsTransform` class implements the actual transformations of features.
 
 .. autosummary::
    :toctree: generated/

@@ -69,7 +69,6 @@ We construct the local frames in two steps. First, we use a simple Lorentz-equiv
    def equivectors_constructor(n_vectors):
       return MLPVectors(
          n_vectors=n_vectors,
-         num_blocks=2,
          num_scalars=num_scalars,
          hidden_channels=8,
          num_layers_mlp=2,
@@ -77,6 +76,7 @@ We construct the local frames in two steps. First, we use a simple Lorentz-equiv
 
    # quickly test it
    equivectors_test = equivectors_constructor(3)
+   equivectors_test.init_standardization(fourmomenta)
    vectors = equivectors_test(fourmomenta, scalars) # (128, 10, 3, 4)
 
 Next, we define the ``framesnet`` class which calls the ``equivectors`` to predict a set of vectors
@@ -89,12 +89,13 @@ we pass the constructor as :mod:`equivectors=equivectors_constructor`.
    from lloca.framesnet.equi_frames import LearnedPDFrames
 
    framesnet = LearnedPDFrames(equivectors=equivectors_constructor)
+   framesnet.equivectors.init_standardization(fourmomenta)
    frames = framesnet(fourmomenta, scalars) # (128, 10, 4, 4)
 
 The package implements many alternative ``framesnet`` choices:
 
 - :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames`: Construct a learned Lorentz transformation from a boost and a rotation, i.e. following a polar decomposition, with the rotation constructed using the Gram-Schmidt algorithm in the 3-dimensional euclidean space. This is the default Lorentz-equivariant ``framesnet``.
-- :mod:`~lloca.framesnet.equi_frames.LearnedSO13Frames`: Construct a learned Lorentz transformation directly using the Gram-Schmidt algorithm in Minkowski space. The result is equivalent to ``LearnedPD``, but ``LearnedPD`` has the advantage of providing direct access to the boost, which is useful in some cases.
+- :mod:`~lloca.framesnet.equi_frames.LearnedSO13Frames`: Construct a learned Lorentz transformation directly using the Gram-Schmidt algorithm in Minkowski space. The result is equivalent to :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames`, but :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames` has the advantage of providing direct access to the boost, which is useful in some cases.
 - :mod:`~lloca.framesnet.equi_frames.LearnedSO3Frames` and :mod:`~lloca.framesnet.equi_frames.LearnedSO2Frames`: Construct learned :math:`SO(2)` and :math:`SO(3)` transformations, embedded in the Lorentz group. The resulting architectures are :math:`SO(2)`- and :math:`SO(3)`-equivariant, respectively.
 - :mod:`~lloca.framesnet.nonequi_frames.RandomFrames`: Random global frames, corresponding to data augmentation.
 - :mod:`~lloca.framesnet.nonequi_frames.IdentityFrames`: Frames from identity transforms, corresponding to the baseline non-equivariant architectures.
@@ -147,3 +148,14 @@ This is already handled internally for the LLoCa :mod:`~lloca.backbone.transform
    )
 
    out = backbone(features_local, frames) # (128, 10, 1)
+
+Next steps
+----------
+
+- Have a look at the :doc:`api`
+- Consider using the orthogonal approach of Lorentz-equivariance through specialized layers, e.g. L-GATr.
+  See :doc:`lloca-vs-lgatr` for a discussion, and the `L-GATr docs <https://heidelberg-hepml.github.io/lgatr/index.html>`_.
+- Instructions on how to :doc:`more-backbones/index`
+- :doc:`numerics`
+- Custom `Attention Backends <https://heidelberg-hepml.github.io/lgatr/attention_backends.html>`_ (L-GATr docs)
+- How to implement `Lorentz Symmetry Breaking <https://heidelberg-hepml.github.io/lgatr/symmetry_breaking.html>`_ (L-GATr docs)

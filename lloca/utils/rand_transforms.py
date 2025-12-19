@@ -60,22 +60,17 @@ def transform(
 
     final_trafo = lorentz_eye(dims, angles[0].device, angles[0].dtype)
     for axis, angle in zip(axes, angles, strict=False):
-        trafo = lorentz_eye(dims, angle.device, angle.dtype)
+        trafo = lorentz_eye(dims, angle.device, angle.dtype).clone()
         trafo_type = get_trafo_type(axis)
 
-        meshgrid = torch.meshgrid(*[torch.arange(d) for d in dims], indexing="ij")
-        trafo[(*meshgrid, axis[0], axis[0])] = torch.where(
-            trafo_type, torch.cosh(angle), torch.cos(angle)
-        )
-        trafo[(*meshgrid, axis[0], axis[1])] = torch.where(
-            trafo_type, torch.sinh(angle), -torch.sin(angle)
-        )
-        trafo[(*meshgrid, axis[1], axis[0])] = torch.where(
-            trafo_type, torch.sinh(angle), torch.sin(angle)
-        )
-        trafo[(*meshgrid, axis[1], axis[1])] = torch.where(
-            trafo_type, torch.cosh(angle), torch.cos(angle)
-        )
+        i, j = axis.to(dtype=torch.long).tolist()
+        c = torch.where(trafo_type, torch.cosh(angle), torch.cos(angle))
+        s = torch.where(trafo_type, torch.sinh(angle), torch.sin(angle))
+
+        trafo[..., i, i] = c
+        trafo[..., i, j] = torch.where(trafo_type, s, -s)
+        trafo[..., j, i] = s
+        trafo[..., j, j] = c
         final_trafo = torch.einsum("...jk,...kl->...jl", trafo, final_trafo)
     return final_trafo.to(in_dtype)
 
