@@ -148,3 +148,14 @@ This is already handled internally for the LLoCa :mod:`~lloca.backbone.transform
    )
 
    out = backbone(features_local, frames) # (128, 10, 1)
+
+Next steps
+----------
+
+- Have a look at the :doc:`api`
+- Consider using the orthogonal approach of Lorentz-equivariance through specialized layers, e.g. L-GATr.
+  See :doc:`lloca-vs-lgatr` for a discussion, and the `L-GATr docs <https://heidelberg-hepml.github.io/lgatr/index.html>`_.
+- Instructions on how to :doc:`more-backbones/index`
+- :doc:`numerics`
+- Custom `Attention Backends <https://heidelberg-hepml.github.io/lgatr/attention_backends.html>`_ (L-GATr docs)
+- How to implement `Lorentz Symmetry Breaking <https://heidelberg-hepml.github.io/lgatr/symmetry_breaking.html>`_ (L-GATr docs)
