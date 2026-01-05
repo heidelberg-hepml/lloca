@@ -4,13 +4,13 @@ try:
     from xformers.ops import memory_efficient_attention
 except ModuleNotFoundError as err:
     raise ImportError(
-        "xformers is not installed. Run 'pip install lloca[xformers-attention]'."
+        "xformers is not installed. Run 'pip install lgatr[xformers-attention]'."
     ) from err
 
 
 def attention(query, key, value, **kwargs):
     """Pass to xformers memory-efficient attention.
-    Note that this xformers expects the shape (batch, head, items_out, channel).
+    Note that this xformers expects the shape (batch, head, items, channel).
 
     Parameters
     ----------
