@@ -29,7 +29,7 @@ or clone the repository and install the package in dev mode
 ```
 git clone https://github.com/heidelberg-hepml/lloca.git
 cd lloca
-pip install -e .
+pip install -e ".[dev]"
 pre-commit install
 ```
 
@@ -40,7 +40,7 @@ Please have a look at the [LLoCa documentation](https://heidelberg-hepml.github.
 ## Features
 
 - Backbone architectures in `lloca/backbone`: `Transformer`, `ParticleTransformer`, `ParticleNet`, `GraphNet`, `MLP`
-- The `Transformer` backbone supports several attention kernels that can be installed optionally with e.g. `pip install lloca[xformers-attention]`, `pip install lloca[flex-attention]`
+- The `Transformer` backbone supports several attention kernels that can be installed optionally with e.g. `pip install lloca[xformers-attention]`, `pip install lloca[flex-attention]`, `pip install lloca[flash-attention]`.
 - `LLoCaMessagePassing` as blueprint for generic `LLoCa` graph network backbones
 - Equivariant vector predictors in `lloca/equivectors`: `MLPVectors`, `LGATrVectors`, `PELICANVectors`
 - Local frames for equivariant architectures on several symmetry groups: SO(1,3) (`LearnedPDFrames`, `LearnedSO13Frames`, `LearnedRestFrames`), SO(3) (`LearnedSO3Frames`), SO(1,1)xSO(2) (`LearnedZFrames`) and SO(2) (`LearnedSO2Frames`); as well as the corresponding random global frames for data augmentation
