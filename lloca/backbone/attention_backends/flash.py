@@ -6,7 +6,7 @@ try:
     from flash_attn import flash_attn_varlen_func
 except ModuleNotFoundError as err:
     raise ImportError(
-        "flash-attn is not installed. Run 'pip install lgatr[flash-attention]'."
+        "flash-attn is not installed. Run 'pip install lloca[flash-attention]'."
     ) from err
 
 
