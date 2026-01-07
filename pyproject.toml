@@ -22,11 +22,22 @@ dependencies = [
 [project.optional-dependencies]
 xformers-attention = ["xformers"]
 flex-attention = ["torch>=2.7"]  # experimental in torch 2.5, 2.6
+flash-attention = ["flash-attn"]  # non-trivial, check https://deepwiki.com/Dao-AILab/flash-attention/1.1-installation-and-setup for build instructions
+dev = [
+    # unit tests
+    "pytest",
+    "pytest-cov",
+    # docs
+    "sphinx<9.0",
+    "sphinx-autodoc-typehints",
+    "sphinx-rtd-theme",
+]
 
 [project.entry-points."lloca.backbone.attention_backends"]
-default_attention = "lloca.backbone.attention_backends.default_attention"
-xformers_attention = "lloca.backbone.attention_backends.xformers_attention"
-flex_attention = "lloca.backbone.attention_backends.flex_attention"
+native = "lloca.backbone.attention_backends.native"
+xformers = "lloca.backbone.attention_backends.xformers"
+flex = "lloca.backbone.attention_backends.flex"
+flash = "lloca.backbone.attention_backends.flash"
 
 [project.urls]
 homepage = "https://github.com/heidelberg-hepml/lloca"
@@ -46,4 +57,9 @@ extend-exclude = ["data/", "runs/", "notebooks/"]
 
 [tool.ruff.lint]
 select = ["E","F","I","B","UP"]
-ignore = ["E501", "F401"]
+ignore = [
+    "E501", # no complaints from line length
+    "B006", # allow mutable default function arguments
+]
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
