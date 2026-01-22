@@ -128,7 +128,7 @@ class BaselineSelfAttention(nn.Module):
     in_channels : int
         Number of input channels.
     out_channels : int
-        Number of input channels.
+        Number of output channels.
     hidden_channels : int
         Number of hidden channels = size of query, key, and value.
     attention
