@@ -6,6 +6,7 @@
 [![codecov](https://codecov.io/gh/heidelberg-hepml/lloca/branch/main/graph/badge.svg)](https://codecov.io/gh/heidelberg-hepml/lloca)
 [![PyPI version](https://img.shields.io/pypi/v/lloca.svg)](https://pypi.org/project/lloca)
 [![pytorch](https://img.shields.io/badge/PyTorch_2.0+-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/get-started/locally/)
+[![ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 [![LLoCa-CS](http://img.shields.io/badge/paper-arxiv.2505.20280-B31B1B.svg)](https://arxiv.org/abs/2505.20280)
 [![LLoCa-HEP](http://img.shields.io/badge/paper-arxiv.2508.14898-B31B1B.svg)](https://arxiv.org/abs/2508.14898)
