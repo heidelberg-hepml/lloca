@@ -9,6 +9,7 @@ except ModuleNotFoundError as err:
         "xformers is not installed. Run 'pip install lloca[xformers-attention]'."
     ) from err
 
+
 @torch.compiler.disable(reason="Currently breaks torch.compile")
 def attention(query, key, value, dtype=None, **kwargs):
     """Pass to xformers memory-efficient attention.
