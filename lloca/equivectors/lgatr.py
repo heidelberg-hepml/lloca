@@ -63,10 +63,8 @@ class LGATrVectors(EquiVectors, MessagePassing):
         in_shape = fourmomenta.shape[:-1]
         if ptr is not None:
             batch = get_batch_from_ptr(ptr)
-            attn_kwargs.update(
-                get_attention_mask(
-                    batch, attention_backend=self.attention_backend, dtype=scalars.dtype
-                )
+            attn_kwargs = get_attention_mask(
+                batch, attention_backend=self.attention_backend, dtype=scalars.dtype
             )
         edge_index, batch, ptr = get_edge_index_and_batch(fourmomenta, ptr, remove_self_loops=False)
 
