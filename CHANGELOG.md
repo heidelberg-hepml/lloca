@@ -9,13 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- PyTorch 2.10's`varlen_attn` backend
+- PyTorch 2.10's `varlen_attn` backend
 - `checkpoint_blocks` option for ParT
+- `transformer_v2.py` as a more modern transformer backbone (RMSNorm, GLU)
+- `compile` option for Transformer, TransformerV2 and ParT
 
 ### Changed
 
 - Disable `torch.compile` on custom attention kernels
 - Add `dtype` keyword argument to xformers attention to allow downcasting to float16/bfloat16 and enforcing flash-attention backends
+- Make attention kwargs in lgatr equivectors more flexible
 
 ## [1.3.4] - 07.01.2026
 
