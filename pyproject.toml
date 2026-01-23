@@ -13,7 +13,7 @@ authors = [
   { name = "Luigi Favaro", email = "luigi.favaro@uclouvain.be" },
 ]
 dependencies = [
-    "torch>=2.0",
+    "torch>=2.1",
     "torch-geometric>=2.3.0",
     "lgatr",
     "pelican-lite",
