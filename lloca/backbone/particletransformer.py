@@ -403,9 +403,9 @@ class PairEmbed(nn.Module):
                     if self.remove_self_pair:
                         i = torch.arange(0, seq_len, device=x.device)
                         x[:, :, i, i] = 0
-                    x = x.view(-1, self.pairwise_lv_dim, seq_len * seq_len)
+                    x = x.reshape(-1, self.pairwise_lv_dim, seq_len * seq_len)
                 if uu is not None:
-                    uu = uu.view(-1, self.pairwise_input_dim, seq_len * seq_len)
+                    uu = uu.reshape(-1, self.pairwise_input_dim, seq_len * seq_len)
 
         # with grad
         elements = 0
@@ -426,7 +426,7 @@ class PairEmbed(nn.Module):
             y[:, :, i, j] = elements
             y[:, :, j, i] = elements
         else:
-            y = elements.view(-1, self.out_dim, seq_len, seq_len)
+            y = elements.reshape(-1, self.out_dim, seq_len, seq_len)
         return y
 
     def _forward_sparse(self, x, uu=None, mask=None):
@@ -601,8 +601,11 @@ class Attention(torch.nn.Module):
             ), (
                 f"expecting key_padding_mask shape of {(bsz, src_len)}, but got {key_padding_mask.shape}"
             )
-            key_padding_mask = key_padding_mask.view(bsz, 1, 1, src_len).expand(
-                -1, self.num_heads, -1, -1
+            key_padding_mask = (
+                key_padding_mask.reshape(bsz, src_len)
+                .unsqueeze(1)
+                .unsqueeze(2)
+                .expand(-1, self.num_heads, -1, -1)
             )
             if attn_mask is None:
                 attn_mask = key_padding_mask
@@ -621,9 +624,9 @@ class Attention(torch.nn.Module):
         q, k, v = F._in_projection_packed(query, key, value, self.in_proj.weight, self.in_proj.bias)
 
         # -> (bsz, num_heads, src/tgt_len, head_dim)
-        q = q.view(bsz, tgt_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
-        k = k.view(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
-        v = v.view(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
+        q = q.reshape(bsz, tgt_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
+        k = k.reshape(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
+        v = v.reshape(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
 
         dropout_p = self.dropout if self.training else 0.0
 
@@ -800,7 +803,7 @@ class Block(nn.Module):
 
         if self.c_attn is not None:
             bsz, tgt_len, _ = x.size()
-            x = x.view(bsz, tgt_len, self.num_heads, self.head_dim)
+            x = x.reshape(bsz, tgt_len, self.num_heads, self.head_dim)
             x = torch.einsum("bthd,h->btdh", x, self.c_attn)
             x = x.reshape(bsz, tgt_len, self.embed_dim)
         x = self.post_attn_norm(x)
