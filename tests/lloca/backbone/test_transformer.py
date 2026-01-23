@@ -2,6 +2,7 @@ import pytest
 import torch
 
 from lloca.backbone.transformer import Transformer
+from lloca.backbone.transformer_v2 import Transformer as TransformerV2
 from lloca.framesnet.equi_frames import LearnedPDFrames
 from lloca.framesnet.frames import InverseFrames
 from lloca.framesnet.nonequi_frames import IdentityFrames
@@ -12,11 +13,13 @@ from tests.constants import FRAMES_PREDICTOR, LOGM2_MEAN_STD, REPS, TOLERANCES
 from tests.helpers import equivectors_builder, sample_particle
 
 
+@pytest.mark.parametrize("transformer_type", [Transformer, TransformerV2])
 @pytest.mark.parametrize("FramesPredictor", FRAMES_PREDICTOR)
 @pytest.mark.parametrize("batch_dims", [[10]])
 @pytest.mark.parametrize("attn_reps", REPS)
 @pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
 def test_transformer_invariance_equivariance(
+    transformer_type,
     FramesPredictor,
     batch_dims,
     logm2_std,
@@ -37,7 +40,7 @@ def test_transformer_invariance_equivariance(
     # define transformer
     in_reps = TensorReps("1x1n")
     trafo = TensorRepsTransform(TensorReps(in_reps))
-    net = Transformer(
+    net = transformer_type(
         in_channels=in_reps.dim,
         attn_reps=attn_reps,
         out_channels=in_reps.dim,
@@ -72,6 +75,7 @@ def test_transformer_invariance_equivariance(
     torch.testing.assert_close(fm_tr_prime_global, fm_prime_tr_global, **TOLERANCES)
 
 
+@pytest.mark.parametrize("transformer_type", [Transformer, TransformerV2])
 @pytest.mark.parametrize("FramesPredictor", [IdentityFrames, LearnedPDFrames])
 @pytest.mark.parametrize("batch_dims", [[10]])
 @pytest.mark.parametrize("attn_reps", [REPS[-1]])
@@ -80,6 +84,7 @@ def test_transformer_invariance_equivariance(
     "checkpoint_blocks,compile", [(False, False), (True, False), (False, True)]
 )
 def test_transformer_shape(
+    transformer_type,
     FramesPredictor,
     batch_dims,
     attn_reps,
@@ -102,7 +107,7 @@ def test_transformer_shape(
     # define transformer
     in_reps = TensorReps("1x1n")
     trafo = TensorRepsTransform(TensorReps(in_reps))
-    net = Transformer(
+    net = transformer_type(
         in_channels=in_reps.dim,
         attn_reps=attn_reps,
         out_channels=in_reps.dim,
