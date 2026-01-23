@@ -2,14 +2,10 @@ import pytest
 import torch
 from lgatr.nets import LGATr
 
-from lloca.backbone.attention_backends import _REGISTRY
 from lloca.equivectors.lgatr import LGATrVectors
 from lloca.utils.rand_transforms import rand_lorentz
 from tests.constants import LOGM2_MEAN_STD, TOLERANCES
 from tests.helpers import sample_particle
-
-# lgatr sparse mode relies on xformers attention backend
-_xformers_available = "xformers_attention" in _REGISTRY
 
 
 @pytest.mark.parametrize("batch_dims", [[100]])
@@ -20,7 +16,7 @@ _xformers_available = "xformers_attention" in _REGISTRY
 @pytest.mark.parametrize("lgatr_norm", [True, False])
 @pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
 @pytest.mark.parametrize("num_scalars", [0, 1])
-@pytest.mark.parametrize("sparse_mode", [True, False] if _xformers_available else [False])
+@pytest.mark.parametrize("sparse_mode, attention_backend", [(False, "flex"), (True, "xformers")])
 def test_equivariance(
     batch_dims,
     jet_size,
@@ -34,6 +30,7 @@ def test_equivariance(
     logm2_mean,
     num_scalars,
     sparse_mode,
+    attention_backend,
 ):
     assert len(batch_dims) == 1
     dtype = torch.float64
@@ -66,6 +63,7 @@ def test_equivariance(
         hidden_s_channels=hidden_s_channels,
         layer_norm=layer_norm,
         lgatr_norm=lgatr_norm,
+        attention_backend=attention_backend,
     ).to(dtype=dtype)
 
     fm_test = sample_particle(batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype)
