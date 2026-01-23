@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - PyTorch 2.10's`varlen_attn` backend
+- `checkpoint_blocks` option for ParT
 
 ### Changed
 

@@ -29,6 +29,7 @@ from typing import Any, Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 
 from ..reps.tensorreps import TensorReps
 from .attention import LLoCaAttention
@@ -858,6 +859,7 @@ class ParticleTransformer(nn.Module):
         for_inference=False,
         for_segmentation=False,
         use_amp=False,
+        checkpoint_blocks=False,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -866,6 +868,7 @@ class ParticleTransformer(nn.Module):
         self.for_inference = for_inference
         self.for_segmentation = for_segmentation
         self.use_amp = use_amp
+        self.checkpoint_blocks = checkpoint_blocks
 
         self.embed_dim = embed_dims[-1] if len(embed_dims) > 0 else input_dim
         attn_reps = TensorReps(attn_reps)
@@ -1018,7 +1021,17 @@ class ParticleTransformer(nn.Module):
 
             # transform
             for block in self.blocks:
-                x = block(x, x_cls=None, padding_mask=padding_mask, attn_mask=attn_mask)
+                if self.checkpoint_blocks:
+                    x = checkpoint(
+                        block,
+                        x,
+                        x_cls=None,
+                        padding_mask=padding_mask,
+                        attn_mask=attn_mask,
+                        use_reenrant=False,
+                    )
+                else:
+                    x = block(x, x_cls=None, padding_mask=padding_mask, attn_mask=attn_mask)
 
         # x: (batch, seq_len, embed_dim)
         # padding_mask: (batch, seq_len)
@@ -1030,9 +1043,18 @@ class ParticleTransformer(nn.Module):
                 # for classification: extract using class token
                 cls_tokens = self.cls_token.expand(x.size(0), 1, -1)  # (batch, 1, embed_dim)
                 for block in self.cls_blocks:
-                    cls_tokens = block(
-                        x, x_cls=cls_tokens, padding_mask=padding_mask
-                    )  # (batch, 1, embed_dim)
+                    if self.checkpoint_blocks:
+                        cls_tokens = checkpoint(
+                            block,
+                            x,
+                            x_cls=cls_tokens,
+                            padding_mask=padding_mask,
+                            use_reentrant=False,
+                        )  # (batch, 1, embed_dim)
+                    else:
+                        cls_tokens = block(
+                            x, x_cls=cls_tokens, padding_mask=padding_mask
+                        )  # (batch, 1, embed_dim)
                 cls_tokens = cls_tokens.squeeze(1)  # (batch, embed_dim)
             else:
                 # for classification: simple average pooling

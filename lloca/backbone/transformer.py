@@ -1,7 +1,5 @@
 """Baseline LLoCa-Transformer."""
 
-from functools import partial
-
 import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
@@ -381,8 +379,7 @@ class Transformer(nn.Module):
         h = self.linear_in(inputs)
         for block in self.blocks:
             if self.checkpoint_blocks:
-                fn = partial(block, **attn_kwargs)
-                h = checkpoint(fn, h, use_reentrant=False)
+                h = checkpoint(block, h, use_reentrant=False, **attn_kwargs)
             else:
                 h = block(h, **attn_kwargs)
         outputs = self.linear_out(h)
