@@ -37,7 +37,7 @@ dev = [
 
 [project.entry-points."lloca.backbone.attention_backends"]
 native = "lloca.backbone.attention_backends.native"
-varlen = "lgatr.primitives.attention_backends.varlen"
+varlen = "lloca.primitives.attention_backends.varlen"
 xformers = "lloca.backbone.attention_backends.xformers"
 flex = "lloca.backbone.attention_backends.flex"
 flash = "lloca.backbone.attention_backends.flash"
