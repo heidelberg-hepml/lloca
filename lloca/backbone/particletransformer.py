@@ -860,6 +860,7 @@ class ParticleTransformer(nn.Module):
         for_segmentation=False,
         use_amp=False,
         checkpoint_blocks=False,
+        compile=False,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -979,6 +980,9 @@ class ParticleTransformer(nn.Module):
         if fix_init:
             self.fix_init_weight()
 
+        if compile:
+            self.__class__ = torch.compile(self.__class__, dynamic=True, mode="default")
+
     def fix_init_weight(self):
         def rescale(param, _layer_id):
             param.div_(math.sqrt(2.0 * _layer_id))
@@ -1028,7 +1032,7 @@ class ParticleTransformer(nn.Module):
                         x_cls=None,
                         padding_mask=padding_mask,
                         attn_mask=attn_mask,
-                        use_reenrant=False,
+                        use_reentrant=False,
                     )
                 else:
                     x = block(x, x_cls=None, padding_mask=padding_mask, attn_mask=attn_mask)

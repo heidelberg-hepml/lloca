@@ -333,7 +333,8 @@ class Transformer(nn.Module):
         attention_factor: int = 1,
         mlp_factor: int = 4,
         multi_query: bool = False,
-        dropout_prob=None,
+        dropout_prob: float | None = None,
+        compile: bool = False,
     ) -> None:
         super().__init__()
         attn_reps = TensorReps(attn_reps)
@@ -357,6 +358,9 @@ class Transformer(nn.Module):
             ]
         )
         self.linear_out = nn.Linear(self.hidden_channels, out_channels)
+
+        if compile:
+            self.__class__ = torch.compile(self.__class__, dynamic=True, mode="default")
 
     def forward(self, inputs: torch.Tensor, frames, **attn_kwargs) -> torch.Tensor:
         """Forward pass.
