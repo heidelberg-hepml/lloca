@@ -436,34 +436,50 @@ class PairEmbed(nn.Module):
         with torch.no_grad():
             if x is not None:
                 batch_size, _, seq_len = x.size()
+                device = x.device
             else:
                 batch_size, _, seq_len, _ = uu.size()
+                device = uu.device
 
-            i0, i1, i2, i3 = (Ellipsis,) * 4
+            if self.is_symmetric:
+                offset = -1 if self.remove_self_pair else 0
+                tri = torch.tril_indices(seq_len, seq_len, offset=offset, device=device)
+                row_idx, col_idx = tri[0], tri[1]
+            else:
+                rng = torch.arange(seq_len, device=device)
+                g_i, g_j = torch.meshgrid(rng, rng, indexing="ij")
+                row_idx, col_idx = g_i.reshape(-1), g_j.reshape(-1)
+
+            # compute pair mask if provided
+            pair_mask_flat = None
             if mask is not None:
-                mask = mask.unsqueeze(-1) * mask.unsqueeze(-2)  # (batch_size, 1, seq_len, seq_len)
-                if self.is_symmetric:
-                    offset = -1 if self.remove_self_pair else 0
-                    i0, _, i2, i3 = mask.float().tril(offset).nonzero(as_tuple=True)
-                else:
-                    i0, _, i2, i3 = mask.nonzero(as_tuple=True)
+                mask = mask.unsqueeze(-1) * mask.unsqueeze(-2)
+                pair_mask = mask.squeeze(1)
+                pair_mask_flat = pair_mask[:, row_idx, col_idx].unsqueeze(-1)
 
+            # prepare x/uu pairs for embedding
+            x_embed = 0
             if x is not None:
-                x = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2))
-                x = x.permute(0, 2, 3, 1)[i0, i2, i3, :]  # (num_elements, pairwise_lv_dim)
-                x = x.T.unsqueeze(0).contiguous()  # (1, pairwise_lv_dim, num_elements)
+                xp = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2))
+                xp = xp.permute(0, 2, 3, 1)[:, row_idx, col_idx, :]
+                if pair_mask_flat is not None:
+                    xp = xp * pair_mask_flat.to(xp.dtype)
+                xp_flat = xp.reshape(-1, xp.shape[-1]).T.unsqueeze(0)
+                tmp = self.embed(xp_flat).squeeze(0).T
+                x_embed = tmp.reshape(batch_size, -1, tmp.shape[-1])
+            uu_embed = 0
             if uu is not None:
-                uu = uu.permute(0, 2, 3, 1)[i0, i2, i3, :]  # (num_elements, pairwise_input_dim)
-                uu = uu.T.unsqueeze(0).contiguous()  # (1, pairwise_input_dim, num_elements)
+                up = uu.permute(0, 2, 3, 1)[:, row_idx, col_idx, :]
+                if pair_mask_flat is not None:
+                    up = up * pair_mask_flat.to(up.dtype)
+                up_flat = up.reshape(-1, up.shape[-1]).T.unsqueeze(0)
+                tmp = self.fts_embed(up_flat).squeeze(0).T
+                uu_embed = tmp.reshape(batch_size, -1, tmp.shape[-1])
 
-        # with grad
-        elements = 0
-        if x is not None:
-            elements = elements + self.embed(x)
-        if uu is not None:
-            elements = elements + self.fts_embed(uu)
-        elements = elements.squeeze(0).T  # (num_elements, out_dim)
+        # sum pairwise contributions
+        elements = x_embed + uu_embed
 
+        # scatter back into dense matrix
         y = torch.zeros(
             batch_size,
             seq_len,
@@ -472,11 +488,10 @@ class PairEmbed(nn.Module):
             dtype=elements.dtype,
             device=elements.device,
         )
-        y[i0, i2, i3, :] = elements
+        y[:, row_idx, col_idx, :] = elements
         if self.is_symmetric:
-            y[i0, i3, i2, :] = elements
+            y[:, col_idx, row_idx, :] = elements
         y = y.permute(0, 3, 1, 2).contiguous()
-
         return y
 
     def forward(self, x, uu=None, mask=None):
