@@ -479,6 +479,7 @@ class PairEmbed(nn.Module):
 
         return y
 
+    @torch.compiler.disable()  # torch.compile fails to make this seqlen-dynamic
     def forward(self, x, uu=None, mask=None):
         if self.sparse_eval:
             return self._forward_sparse(x, uu=uu, mask=mask)
