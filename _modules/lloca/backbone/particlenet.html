@@ -1,0 +1,439 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lloca.backbone.particlenet &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">lloca.backbone.particlenet</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for lloca.backbone.particlenet</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;ParticleNet with local frame transformations.&quot;&quot;&quot;</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Paper: &quot;ParticleNet: Jet Tagging via Particle Clouds&quot; - https://arxiv.org/abs/1902.08570</span>
+<span class="sd">Code: https://github.com/hqucms/weaver-core/blob/main/weaver/nn/model/ParticleNet.py</span>
+
+<span class="sd">We have to do three things to build LLoCa-ParticleNet</span>
+<span class="sd">- Specify the hidden_reps_list for hidden representations in each message-passing layer</span>
+<span class="sd">- Pass the frames through the network to have them ready in the message-passing steps</span>
+<span class="sd">- During the edge convolution, transform the features from the local to the global frames</span>
+<span class="sd">  using tools from the lloca code (TensorRepsTransform, IndexSelectFrames, ChangeOfFrames)</span>
+
+<span class="sd">You can use &#39;git diff --no-index&#39; to compare this file with the original particlenet.py file.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c1"># ruff: noqa</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..framesnet.frames</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChangeOfFrames</span><span class="p">,</span> <span class="n">IndexSelectFrames</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..reps.tensorreps</span><span class="w"> </span><span class="kn">import</span> <span class="n">TensorReps</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..reps.tensorreps_transform</span><span class="w"> </span><span class="kn">import</span> <span class="n">TensorRepsTransform</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">change_local_frame</span><span class="p">(</span><span class="n">x_j_framej</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">frames</span><span class="p">,</span> <span class="n">trafo</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Transform features x_j from frame &#39;j&#39; (&#39;x_j_framej&#39;) to frame &#39;i&#39; (&#39;x_j_framei&#39;).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x_j_framej : torch.Tensor</span>
+<span class="sd">        Input features in local frame &#39;j&#39; of shape (batch_size, num_dims, num_points, k).</span>
+<span class="sd">    idx : torch.Tensor</span>
+<span class="sd">        Indices of the nearest neighbors in the batch of shape (batch_size*num_points*k).</span>
+<span class="sd">    frames : Frames</span>
+<span class="sd">        Local frames of reference for the particles, shape (num_points, 4, 4).</span>
+<span class="sd">    trafo : TensorRepsTransform</span>
+<span class="sd">        Transformation function to apply to the features.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    torch.Tensor</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># we use batch_size*num_points with repeats of k for idx_i, e.g. for 2 points with 3 batch and k=2,</span>
+    <span class="c1"># idx_i becomes (0,1,2,3,4,5) -&gt; (0,0,1,1,2,2,3,3,4,4,5,5).</span>
+    <span class="n">idx_i</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span>
+        <span class="n">x_j_framej</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">x_j_framej</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">x_j_framej</span><span class="o">.</span><span class="n">device</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">repeat_interleave</span><span class="p">(</span><span class="n">x_j_framej</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>  <span class="c1"># identity (batch, num_points*k)</span>
+    <span class="n">idx_j</span> <span class="o">=</span> <span class="n">idx</span>  <span class="c1"># indices from knn (batch, num_points*k)</span>
+
+    <span class="n">frames_i</span> <span class="o">=</span> <span class="n">IndexSelectFrames</span><span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="n">idx_i</span><span class="p">)</span>
+    <span class="n">frames_j</span> <span class="o">=</span> <span class="n">IndexSelectFrames</span><span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="n">idx_j</span><span class="p">)</span>
+    <span class="n">trafo_j_to_i</span> <span class="o">=</span> <span class="n">ChangeOfFrames</span><span class="p">(</span><span class="n">frames_j</span><span class="p">,</span> <span class="n">frames_i</span><span class="p">)</span>  <span class="c1"># convention: (frames_start, frames_end)</span>
+
+    <span class="c1"># reshape and apply trafo</span>
+    <span class="n">x_j_framej_2</span> <span class="o">=</span> <span class="n">x_j_framej</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># (batch_size, num_points, k, num_dims)</span>
+    <span class="n">pre</span> <span class="o">=</span> <span class="n">x_j_framej_2</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">x_j_framej_2</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>  <span class="c1"># (batch_size*num_points*k, num_dims)</span>
+    <span class="n">x_j_framei</span> <span class="o">=</span> <span class="n">trafo</span><span class="p">(</span><span class="n">pre</span><span class="p">,</span> <span class="n">trafo_j_to_i</span><span class="p">)</span>
+    <span class="n">x_j_framei</span> <span class="o">=</span> <span class="n">x_j_framei</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">x_j_framej_2</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span>
+        <span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span>
+    <span class="p">)</span>  <span class="c1"># (batch_size, num_dims, num_points, k)</span>
+    <span class="k">return</span> <span class="n">x_j_framei</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">knn</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+    <span class="n">inner</span> <span class="o">=</span> <span class="o">-</span><span class="mi">2</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">x</span><span class="p">)</span>
+    <span class="n">xx</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">x</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">pairwise_distance</span> <span class="o">=</span> <span class="o">-</span><span class="n">xx</span> <span class="o">-</span> <span class="n">inner</span> <span class="o">-</span> <span class="n">xx</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">pairwise_distance</span><span class="o">.</span><span class="n">topk</span><span class="p">(</span><span class="n">k</span><span class="o">=</span><span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">][:,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">:]</span>  <span class="c1"># (batch_size, num_points, k)</span>
+    <span class="k">return</span> <span class="n">idx</span>
+
+
+<span class="c1"># v1 is faster on GPU</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_graph_feature_v1</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">frames</span><span class="p">,</span> <span class="n">trafo</span><span class="p">):</span>
+    <span class="n">batch_size</span><span class="p">,</span> <span class="n">num_dims</span><span class="p">,</span> <span class="n">num_points</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">size</span><span class="p">()</span>
+
+    <span class="n">idx_base</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">num_points</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">idx</span> <span class="o">+</span> <span class="n">idx_base</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">idx</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">fts</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+        <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_dims</span>
+    <span class="p">)</span>  <span class="c1"># -&gt; (batch_size, num_points, num_dims) -&gt; (batch_size*num_points, num_dims)</span>
+    <span class="n">fts</span> <span class="o">=</span> <span class="n">fts</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="p">:]</span><span class="o">.</span><span class="n">view</span><span class="p">(</span>
+        <span class="n">batch_size</span><span class="p">,</span> <span class="n">num_points</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">num_dims</span>
+    <span class="p">)</span>  <span class="c1"># neighbors: -&gt; (batch_size*num_points*k, num_dims) -&gt; ...</span>
+    <span class="n">fts</span> <span class="o">=</span> <span class="n">fts</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>  <span class="c1"># (batch_size, num_dims, num_points, k)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="n">num_dims</span><span class="p">,</span> <span class="n">num_points</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+    <span class="n">fts</span> <span class="o">=</span> <span class="n">change_local_frame</span><span class="p">(</span><span class="n">fts</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">frames</span><span class="p">,</span> <span class="n">trafo</span><span class="p">)</span>
+    <span class="n">fts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">x</span><span class="p">,</span> <span class="n">fts</span> <span class="o">-</span> <span class="n">x</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># -&gt;(batch_size, 2*num_dims, num_points, k)</span>
+    <span class="k">return</span> <span class="n">fts</span>
+
+
+<span class="c1"># v2 is faster on CPU</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_graph_feature_v2</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">frames</span><span class="p">,</span> <span class="n">trafo</span><span class="p">):</span>
+    <span class="n">batch_size</span><span class="p">,</span> <span class="n">num_dims</span><span class="p">,</span> <span class="n">num_points</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">size</span><span class="p">()</span>
+
+    <span class="n">idx_base</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">x</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">num_points</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">idx</span> <span class="o">+</span> <span class="n">idx_base</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">idx</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">fts</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span>
+        <span class="n">num_dims</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="p">)</span>  <span class="c1"># -&gt; (num_dims, batch_size, num_points) -&gt; (num_dims, batch_size*num_points)</span>
+    <span class="n">fts</span> <span class="o">=</span> <span class="n">fts</span><span class="p">[:,</span> <span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">view</span><span class="p">(</span>
+        <span class="n">num_dims</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">num_points</span><span class="p">,</span> <span class="n">k</span>
+    <span class="p">)</span>  <span class="c1"># neighbors: -&gt; (num_dims, batch_size*num_points*k) -&gt; ...</span>
+    <span class="n">fts</span> <span class="o">=</span> <span class="n">fts</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>  <span class="c1"># (batch_size, num_dims, num_points, k)</span>
+    <span class="n">fts</span> <span class="o">=</span> <span class="n">change_local_frame</span><span class="p">(</span><span class="n">fts</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">frames</span><span class="p">,</span> <span class="n">trafo</span><span class="p">)</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="n">num_dims</span><span class="p">,</span> <span class="n">num_points</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
+    <span class="n">fts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">x</span><span class="p">,</span> <span class="n">fts</span> <span class="o">-</span> <span class="n">x</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># -&gt;(batch_size, 2*num_dims, num_points, k)</span>
+
+    <span class="k">return</span> <span class="n">fts</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">EdgeConvBlock</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;EdgeConv layer.</span>
+<span class="sd">    Introduced in &quot;`Dynamic Graph CNN for Learning on Point Clouds</span>
+<span class="sd">    &lt;https://arxiv.org/pdf/1801.07829&gt;`__&quot;.  Can be described as follows:</span>
+<span class="sd">    .. math::</span>
+<span class="sd">       x_i^{(l+1)} = \max_{j \in \mathcal{N}(i)} \mathrm{ReLU}(</span>
+<span class="sd">       \Theta \cdot (x_j^{(l)} - x_i^{(l)}) + \Phi \cdot x_i^{(l)})</span>
+<span class="sd">    where :math:`\mathcal{N}(i)` is the neighbor of :math:`i`.</span>
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    in_feat : int</span>
+<span class="sd">        Input feature size.</span>
+<span class="sd">    out_feat : int</span>
+<span class="sd">        Output feature size.</span>
+<span class="sd">    batch_norm : bool</span>
+<span class="sd">        Whether to include batch normalization on messages.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">k</span><span class="p">,</span>
+        <span class="n">in_reps</span><span class="p">,</span>
+        <span class="n">out_feats</span><span class="p">,</span>
+        <span class="n">batch_norm</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">activation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">cpu_mode</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">EdgeConvBlock</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">k</span> <span class="o">=</span> <span class="n">k</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">batch_norm</span> <span class="o">=</span> <span class="n">batch_norm</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">activation</span> <span class="o">=</span> <span class="n">activation</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_layers</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">out_feats</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">get_graph_feature</span> <span class="o">=</span> <span class="n">get_graph_feature_v2</span> <span class="k">if</span> <span class="n">cpu_mode</span> <span class="k">else</span> <span class="n">get_graph_feature_v1</span>
+        <span class="n">in_feat</span> <span class="o">=</span> <span class="n">in_reps</span><span class="o">.</span><span class="n">dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trafo</span> <span class="o">=</span> <span class="n">TensorRepsTransform</span><span class="p">(</span><span class="n">TensorReps</span><span class="p">(</span><span class="n">in_reps</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">convs</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_layers</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">convs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">Conv2d</span><span class="p">(</span>
+                    <span class="mi">2</span> <span class="o">*</span> <span class="n">in_feat</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">out_feats</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">],</span>
+                    <span class="n">out_feats</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+                    <span class="n">kernel_size</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                    <span class="n">bias</span><span class="o">=</span><span class="kc">False</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">batch_norm</span> <span class="k">else</span> <span class="kc">True</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">batch_norm</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bns</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_layers</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">bns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">BatchNorm2d</span><span class="p">(</span><span class="n">out_feats</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+
+        <span class="k">if</span> <span class="n">activation</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">acts</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_layers</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">acts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">())</span>
+
+        <span class="k">if</span> <span class="n">in_feat</span> <span class="o">==</span> <span class="n">out_feats</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sc</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sc</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Conv1d</span><span class="p">(</span><span class="n">in_feat</span><span class="p">,</span> <span class="n">out_feats</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">kernel_size</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sc_bn</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">BatchNorm1d</span><span class="p">(</span><span class="n">out_feats</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">activation</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sc_act</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">points</span><span class="p">,</span> <span class="n">features</span><span class="p">,</span> <span class="n">frames</span><span class="p">):</span>
+        <span class="n">topk_indices</span> <span class="o">=</span> <span class="n">knn</span><span class="p">(</span><span class="n">points</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">)</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_graph_feature</span><span class="p">(</span><span class="n">features</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">k</span><span class="p">,</span> <span class="n">topk_indices</span><span class="p">,</span> <span class="n">frames</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">trafo</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">conv</span><span class="p">,</span> <span class="n">bn</span><span class="p">,</span> <span class="n">act</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">convs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bns</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">acts</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">conv</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>  <span class="c1"># (N, C&#39;, P, K)</span>
+            <span class="k">if</span> <span class="n">bn</span><span class="p">:</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">bn</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">act</span><span class="p">:</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">act</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+        <span class="n">fts</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># (N, C, P)</span>
+
+        <span class="c1"># shortcut</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sc</span><span class="p">:</span>
+            <span class="n">sc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sc</span><span class="p">(</span><span class="n">features</span><span class="p">)</span>  <span class="c1"># (N, C_out, P)</span>
+            <span class="n">sc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sc_bn</span><span class="p">(</span><span class="n">sc</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sc</span> <span class="o">=</span> <span class="n">features</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sc_act</span><span class="p">(</span><span class="n">sc</span> <span class="o">+</span> <span class="n">fts</span><span class="p">)</span>  <span class="c1"># (N, C_out, P)</span>
+
+
+<div class="viewcode-block" id="ParticleNet">
+<a class="viewcode-back" href="../../../generated/lloca.backbone.particlenet.ParticleNet.html#lloca.backbone.particlenet.ParticleNet">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ParticleNet</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;ParticleNet with local frame transformations.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">input_dims</span><span class="p">,</span>
+        <span class="n">hidden_reps_list</span><span class="p">,</span>
+        <span class="n">num_classes</span><span class="p">,</span>
+        <span class="n">conv_params</span><span class="o">=</span><span class="p">[(</span><span class="mi">7</span><span class="p">,</span> <span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">32</span><span class="p">,</span> <span class="mi">32</span><span class="p">)),</span> <span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="mi">64</span><span class="p">,</span> <span class="mi">64</span><span class="p">))],</span>
+        <span class="n">fc_params</span><span class="o">=</span><span class="p">[(</span><span class="mi">128</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)],</span>
+        <span class="n">use_fusion</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">use_fts_bn</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">use_counts</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">for_inference</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">for_segmentation</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="c1"># hidden_reps_list: hidden representation for message-passing at beginning of each layer</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ParticleNet</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">hidden_reps_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">TensorReps</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">hidden_reps_list</span><span class="p">]</span>
+        <span class="k">assert</span> <span class="n">input_dims</span> <span class="o">==</span> <span class="n">hidden_reps_list</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dim</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">hidden_reps_list</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">conv_params</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">use_fts_bn</span> <span class="o">=</span> <span class="n">use_fts_bn</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_fts_bn</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bn_fts</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">BatchNorm1d</span><span class="p">(</span><span class="n">hidden_reps_list</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dim</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">use_counts</span> <span class="o">=</span> <span class="n">use_counts</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">edge_convs</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">ModuleList</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">layer_param</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">conv_params</span><span class="p">):</span>
+            <span class="n">k</span><span class="p">,</span> <span class="n">channels</span> <span class="o">=</span> <span class="n">layer_param</span>
+            <span class="n">in_reps</span> <span class="o">=</span> <span class="n">hidden_reps_list</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+            <span class="k">assert</span> <span class="p">(</span>
+                <span class="n">in_reps</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="n">conv_params</span><span class="p">[</span><span class="n">idx</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">idx</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">hidden_reps_list</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dim</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">edge_convs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">EdgeConvBlock</span><span class="p">(</span><span class="n">k</span><span class="o">=</span><span class="n">k</span><span class="p">,</span> <span class="n">in_reps</span><span class="o">=</span><span class="n">in_reps</span><span class="p">,</span> <span class="n">out_feats</span><span class="o">=</span><span class="n">channels</span><span class="p">,</span> <span class="n">cpu_mode</span><span class="o">=</span><span class="n">for_inference</span><span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">use_fusion</span> <span class="o">=</span> <span class="n">use_fusion</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_fusion</span><span class="p">:</span>
+            <span class="n">in_chn</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">conv_params</span><span class="p">)</span>
+            <span class="n">out_chn</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="nb">min</span><span class="p">((</span><span class="n">in_chn</span> <span class="o">//</span> <span class="mi">128</span><span class="p">)</span> <span class="o">*</span> <span class="mi">128</span><span class="p">,</span> <span class="mi">1024</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">fusion_block</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">Conv1d</span><span class="p">(</span><span class="n">in_chn</span><span class="p">,</span> <span class="n">out_chn</span><span class="p">,</span> <span class="n">kernel_size</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">BatchNorm1d</span><span class="p">(</span><span class="n">out_chn</span><span class="p">),</span>
+                <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
+            <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">for_segmentation</span> <span class="o">=</span> <span class="n">for_segmentation</span>
+
+        <span class="n">fcs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">layer_param</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">fc_params</span><span class="p">):</span>
+            <span class="n">channels</span><span class="p">,</span> <span class="n">drop_rate</span> <span class="o">=</span> <span class="n">layer_param</span>
+            <span class="k">if</span> <span class="n">idx</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">in_chn</span> <span class="o">=</span> <span class="n">out_chn</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_fusion</span> <span class="k">else</span> <span class="n">conv_params</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">in_chn</span> <span class="o">=</span> <span class="n">fc_params</span><span class="p">[</span><span class="n">idx</span> <span class="o">-</span> <span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">for_segmentation</span><span class="p">:</span>
+                <span class="n">fcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span>
+                        <span class="n">nn</span><span class="o">.</span><span class="n">Conv1d</span><span class="p">(</span><span class="n">in_chn</span><span class="p">,</span> <span class="n">channels</span><span class="p">,</span> <span class="n">kernel_size</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">bias</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+                        <span class="n">nn</span><span class="o">.</span><span class="n">BatchNorm1d</span><span class="p">(</span><span class="n">channels</span><span class="p">),</span>
+                        <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span>
+                        <span class="n">nn</span><span class="o">.</span><span class="n">Dropout</span><span class="p">(</span><span class="n">drop_rate</span><span class="p">),</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">fcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">in_chn</span><span class="p">,</span> <span class="n">channels</span><span class="p">),</span> <span class="n">nn</span><span class="o">.</span><span class="n">ReLU</span><span class="p">(),</span> <span class="n">nn</span><span class="o">.</span><span class="n">Dropout</span><span class="p">(</span><span class="n">drop_rate</span><span class="p">))</span>
+                <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">for_segmentation</span><span class="p">:</span>
+            <span class="n">fcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Conv1d</span><span class="p">(</span><span class="n">fc_params</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">num_classes</span><span class="p">,</span> <span class="n">kernel_size</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">fc_params</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">num_classes</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fc</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Sequential</span><span class="p">(</span><span class="o">*</span><span class="n">fcs</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">for_inference</span> <span class="o">=</span> <span class="n">for_inference</span>
+
+<div class="viewcode-block" id="ParticleNet.forward">
+<a class="viewcode-back" href="../../../generated/lloca.backbone.particlenet.ParticleNet.html#lloca.backbone.particlenet.ParticleNet.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">points</span><span class="p">,</span> <span class="n">features</span><span class="p">,</span> <span class="n">frames</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="c1">#         print(&#39;points:\n&#39;, points)</span>
+        <span class="c1">#         print(&#39;features:\n&#39;, features)</span>
+        <span class="k">if</span> <span class="n">mask</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">features</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span>  <span class="c1"># (N, 1, P)</span>
+        <span class="n">points</span> <span class="o">*=</span> <span class="n">mask</span>
+        <span class="n">features</span> <span class="o">*=</span> <span class="n">mask</span>
+        <span class="n">coord_shift</span> <span class="o">=</span> <span class="p">(</span><span class="n">mask</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="mf">1e9</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_counts</span><span class="p">:</span>
+            <span class="n">counts</span> <span class="o">=</span> <span class="n">mask</span><span class="o">.</span><span class="n">float</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">counts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">counts</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">counts</span><span class="p">))</span>  <span class="c1"># &gt;=1</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_fts_bn</span><span class="p">:</span>
+            <span class="n">fts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bn_fts</span><span class="p">(</span><span class="n">features</span><span class="p">)</span> <span class="o">*</span> <span class="n">mask</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fts</span> <span class="o">=</span> <span class="n">features</span>
+        <span class="n">outputs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">conv</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">edge_convs</span><span class="p">):</span>
+            <span class="n">pts</span> <span class="o">=</span> <span class="p">(</span><span class="n">points</span> <span class="k">if</span> <span class="n">idx</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="n">fts</span><span class="p">)</span> <span class="o">+</span> <span class="n">coord_shift</span>
+            <span class="n">fts</span> <span class="o">=</span> <span class="n">conv</span><span class="p">(</span><span class="n">pts</span><span class="p">,</span> <span class="n">fts</span><span class="p">,</span> <span class="n">frames</span><span class="p">)</span> <span class="o">*</span> <span class="n">mask</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_fusion</span><span class="p">:</span>
+                <span class="n">outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fts</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_fusion</span><span class="p">:</span>
+            <span class="n">fts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fusion_block</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">outputs</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span> <span class="o">*</span> <span class="n">mask</span>
+
+        <span class="c1">#         assert(((fts.abs().sum(dim=1, keepdim=True) != 0).float() - mask.float()).abs().sum().item() == 0)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">for_segmentation</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">fts</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">use_counts</span><span class="p">:</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">fts</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="n">counts</span>  <span class="c1"># divide by the real counts</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">fts</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fc</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">for_inference</span><span class="p">:</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">softmax</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="c1"># print(&#39;output:\n&#39;, output)</span>
+        <span class="k">return</span> <span class="n">output</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

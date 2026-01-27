@@ -1,0 +1,297 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lloca.backbone.attention &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">lloca.backbone.attention</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for lloca.backbone.attention</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;LLoCa attention module.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">math</span><span class="w"> </span><span class="kn">import</span> <span class="n">prod</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tensor</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..framesnet.frames</span><span class="w"> </span><span class="kn">import</span> <span class="n">Frames</span><span class="p">,</span> <span class="n">InverseFrames</span><span class="p">,</span> <span class="n">LowerIndicesFrames</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..reps.tensorreps</span><span class="w"> </span><span class="kn">import</span> <span class="n">TensorReps</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..reps.tensorreps_transform</span><span class="w"> </span><span class="kn">import</span> <span class="n">TensorRepsTransform</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.attention_backends</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_attention_backend</span>
+
+
+<div class="viewcode-block" id="LLoCaAttention">
+<a class="viewcode-back" href="../../../generated/lloca.backbone.attention.LLoCaAttention.html#lloca.backbone.attention.LLoCaAttention">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LLoCaAttention</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attn_reps</span><span class="p">,</span> <span class="n">num_heads</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attention with frame-to-frame transformations.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        attn_reps : TensorReps</span>
+<span class="sd">            Tensor representation of a single attention head.</span>
+<span class="sd">        num_heads : int</span>
+<span class="sd">            Number of attention heads</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">transform</span> <span class="o">=</span> <span class="n">TensorRepsTransform</span><span class="p">(</span><span class="n">TensorReps</span><span class="p">(</span><span class="n">attn_reps</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_heads</span> <span class="o">=</span> <span class="n">num_heads</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">frames</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inv_frames</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lower_inv_frames</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="LLoCaAttention.prepare_frames">
+<a class="viewcode-back" href="../../../generated/lloca.backbone.attention.LLoCaAttention.html#lloca.backbone.attention.LLoCaAttention.prepare_frames">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">prepare_frames</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frames</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Prepare local frames for processing with LLoCa attention.</span>
+<span class="sd">        For a single forward pass through the network, this method is</span>
+<span class="sd">        called only once for efficiency.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        frames: torch.tensor</span>
+<span class="sd">            Local frames of reference for each particle of shape (..., N, 4, 4)</span>
+<span class="sd">            where N is the number of particles.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">frames</span> <span class="o">=</span> <span class="n">frames</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">frames</span><span class="o">.</span><span class="n">is_global</span><span class="p">:</span>
+            <span class="c1"># insert frames head dimension</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">frames</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">frames</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">*</span><span class="n">frames</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">3</span><span class="p">],</span> <span class="mi">1</span><span class="p">,</span> <span class="n">frames</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">],</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">frames</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">frames</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span>
+                <span class="o">*</span><span class="n">frames</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">3</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_heads</span><span class="p">,</span> <span class="n">frames</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">],</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span>
+            <span class="p">)</span>
+
+            <span class="c1"># create inv_frames and lower_inv_frames</span>
+            <span class="n">inv_frames</span> <span class="o">=</span> <span class="n">InverseFrames</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">frames</span><span class="p">)</span>
+            <span class="n">lower_inv_frames</span> <span class="o">=</span> <span class="n">LowerIndicesFrames</span><span class="p">(</span><span class="n">inv_frames</span><span class="p">)</span>
+
+            <span class="c1"># qkv = (inv_frames, lower_inv_frames, inv_frames)</span>
+            <span class="c1"># note that (lower_inv_frames, inv_frames, inv_frames) is equivalent</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">frames_qkv</span> <span class="o">=</span> <span class="n">Frames</span><span class="p">(</span>
+                <span class="n">matrices</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span>
+                    <span class="p">[</span>
+                        <span class="n">inv_frames</span><span class="o">.</span><span class="n">matrices</span><span class="p">,</span>
+                        <span class="n">lower_inv_frames</span><span class="o">.</span><span class="n">matrices</span><span class="p">,</span>
+                        <span class="n">inv_frames</span><span class="o">.</span><span class="n">matrices</span><span class="p">,</span>
+                    <span class="p">],</span>
+                    <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                <span class="p">),</span>
+                <span class="n">is_identity</span><span class="o">=</span><span class="n">inv_frames</span><span class="o">.</span><span class="n">is_identity</span><span class="p">,</span>
+                <span class="n">is_global</span><span class="o">=</span><span class="n">inv_frames</span><span class="o">.</span><span class="n">is_global</span><span class="p">,</span>
+                <span class="n">det</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">inv_frames</span><span class="o">.</span><span class="n">det</span><span class="p">,</span> <span class="n">lower_inv_frames</span><span class="o">.</span><span class="n">det</span><span class="p">,</span> <span class="n">inv_frames</span><span class="o">.</span><span class="n">det</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+                <span class="n">inv</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">inv_frames</span><span class="o">.</span><span class="n">inv</span><span class="p">,</span> <span class="n">lower_inv_frames</span><span class="o">.</span><span class="n">inv</span><span class="p">,</span> <span class="n">inv_frames</span><span class="o">.</span><span class="n">inv</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+            <span class="p">)</span>
+
+            <span class="c1"># flatten frames (preparation for tensorreps_transform)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">frames</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">frames</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">frames_qkv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">frames_qkv</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_local_to_global</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q_local</span><span class="p">,</span> <span class="n">k_local</span><span class="p">,</span> <span class="n">v_local</span><span class="p">):</span>
+        <span class="c1"># check input shapes</span>
+        <span class="k">assert</span> <span class="n">k_local</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">v_local</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">q_local</span><span class="o">.</span><span class="n">shape</span>  <span class="c1"># has to match perfectly</span>
+        <span class="k">assert</span> <span class="mi">3</span> <span class="o">*</span> <span class="n">prod</span><span class="p">(</span><span class="n">k_local</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">frames_qkv</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">]</span>
+
+        <span class="c1"># transform q, k, v into global frame</span>
+        <span class="n">qkv_local</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">q_local</span><span class="p">,</span> <span class="n">k_local</span><span class="p">,</span> <span class="n">v_local</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">qkv_global</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">qkv_local</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">frames_qkv</span><span class="p">)</span>
+        <span class="n">q_global</span><span class="p">,</span> <span class="n">k_global</span><span class="p">,</span> <span class="n">v_global</span> <span class="o">=</span> <span class="n">qkv_global</span><span class="o">.</span><span class="n">chunk</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">q_global</span><span class="p">,</span> <span class="n">k_global</span><span class="p">,</span> <span class="n">v_global</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_global_to_local</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">out_global</span><span class="p">):</span>
+        <span class="c1"># transform result back into local frame</span>
+        <span class="n">out_local</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">out_global</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">frames</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out_local</span>
+
+<div class="viewcode-block" id="LLoCaAttention.forward">
+<a class="viewcode-back" href="../../../generated/lloca.backbone.attention.LLoCaAttention.html#lloca.backbone.attention.LLoCaAttention.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">q_local</span><span class="p">,</span> <span class="n">k_local</span><span class="p">,</span> <span class="n">v_local</span><span class="p">,</span> <span class="o">**</span><span class="n">attn_kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Execute LLoCa attention.</span>
+
+<span class="sd">        Strategy</span>
+<span class="sd">        1) Transform q, k, v into global frame</span>
+<span class="sd">        2) Apply attention in global frame</span>
+<span class="sd">        3) Transform output back into local frame</span>
+
+<span class="sd">        Comments</span>
+<span class="sd">        - Dimensions: ... (optional), H (head), N (particles), C (channels).</span>
+<span class="sd">        - Extension to cross-attention is trivial but we don&#39;t have this right now for convenience. Strategy: frames_q for queries (in contrast to frames=frames_kv).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        q_local: torch.tensor</span>
+<span class="sd">            Local queries of shape (..., H, N, C)</span>
+<span class="sd">        k_local: torch.tensor</span>
+<span class="sd">            Local keys of shape (..., H, N, C)</span>
+<span class="sd">        v_local: torch.tensor</span>
+<span class="sd">            Local values of shape (..., H, N, C)</span>
+<span class="sd">        **attn_kwargs</span>
+<span class="sd">            Optional arguments that are passed on to the attention backend</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out_local: torch.tensor</span>
+<span class="sd">            Attention output in local frame of shape (..., H, N, C)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">frames</span><span class="o">.</span><span class="n">is_global</span><span class="p">:</span>
+            <span class="c1"># fallback to standard attention for global frames</span>
+            <span class="k">return</span> <span class="n">scaled_dot_product_attention</span><span class="p">(</span>
+                <span class="n">q_local</span><span class="p">,</span>
+                <span class="n">k_local</span><span class="p">,</span>
+                <span class="n">v_local</span><span class="p">,</span>
+                <span class="o">**</span><span class="n">attn_kwargs</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="n">q_global</span><span class="p">,</span> <span class="n">k_global</span><span class="p">,</span> <span class="n">v_global</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_local_to_global</span><span class="p">(</span><span class="n">q_local</span><span class="p">,</span> <span class="n">k_local</span><span class="p">,</span> <span class="n">v_local</span><span class="p">)</span>
+
+        <span class="c1"># (B, H, N, C) format required for scaled_dot_product_attention</span>
+        <span class="n">shape_q</span><span class="p">,</span> <span class="n">shape_k</span> <span class="o">=</span> <span class="n">q_global</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">k_global</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">q_global</span> <span class="o">=</span> <span class="n">q_global</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">*</span><span class="n">shape_q</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">:])</span>
+        <span class="n">k_global</span> <span class="o">=</span> <span class="n">k_global</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">*</span><span class="n">shape_k</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">:])</span>
+        <span class="n">v_global</span> <span class="o">=</span> <span class="n">v_global</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">*</span><span class="n">shape_k</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">:])</span>
+
+        <span class="c1"># attention (in global frame)</span>
+        <span class="n">out_global</span> <span class="o">=</span> <span class="n">scaled_dot_product_attention</span><span class="p">(</span>
+            <span class="n">q_global</span><span class="p">,</span>
+            <span class="n">k_global</span><span class="p">,</span>
+            <span class="n">v_global</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">attn_kwargs</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">out_global</span> <span class="o">=</span> <span class="n">out_global</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="o">*</span><span class="n">shape_q</span><span class="p">)</span>  <span class="c1"># (..., H, N, C)</span>
+
+        <span class="n">out_local</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_global_to_local</span><span class="p">(</span><span class="n">out_global</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out_local</span></div>
+</div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">scaled_dot_product_attention</span><span class="p">(</span>
+    <span class="n">query</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">key</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">value</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">attn_kwargs</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Execute scaled dot-product attention.</span>
+<span class="sd">    The attention backend is determined dynamically</span>
+<span class="sd">    based on the ``**attn_kwargs``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    query : torch.Tensor</span>
+<span class="sd">        Tensor of shape (..., items_out, channels)</span>
+<span class="sd">    key : torch.Tensor</span>
+<span class="sd">        Tensor of shape (..., items_in, channels)</span>
+<span class="sd">    value : torch.Tensor</span>
+<span class="sd">        Tensor of shape (..., items_in, channels)</span>
+<span class="sd">    **attn_kwargs</span>
+<span class="sd">        Optional keyword arguments passed to attention.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    torch.Tensor</span>
+<span class="sd">        Tensor of shape (..., head, item_out, channels)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">attention_backend</span> <span class="o">=</span> <span class="n">get_attention_backend</span><span class="p">(</span><span class="o">**</span><span class="n">attn_kwargs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">attention_backend</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="o">**</span><span class="n">attn_kwargs</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

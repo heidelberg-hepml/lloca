@@ -1,0 +1,210 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lloca.reps.tensorreps.TensorReps &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="lloca.reps.tensorreps_transform.TensorRepsTransform" href="lloca.reps.tensorreps_transform.TensorRepsTransform.html" />
+    <link rel="prev" title="lloca.backbone.particletransformer.ParticleTransformer" href="lloca.backbone.particletransformer.ParticleTransformer.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">API Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../api.html#equivariant-vector-prediction">Equivariant vector prediction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#frames-net">Frames-Net</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#backbone-networks">Backbone networks</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../api.html#lorentz-group-representations">Lorentz group representations</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">lloca.reps.tensorreps.TensorReps</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.reps.tensorreps.TensorReps"><code class="docutils literal notranslate"><span class="pre">TensorReps</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.reps.tensorreps_transform.TensorRepsTransform.html">lloca.reps.tensorreps_transform.TensorRepsTransform</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#utilities">Utilities</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../api.html">API Reference</a></li>
+      <li class="breadcrumb-item active">lloca.reps.tensorreps.TensorReps</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/generated/lloca.reps.tensorreps.TensorReps.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="lloca-reps-tensorreps-tensorreps">
+<h1>lloca.reps.tensorreps.TensorReps<a class="headerlink" href="#lloca-reps-tensorreps-tensorreps" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="lloca.reps.tensorreps.TensorReps">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lloca.reps.tensorreps.</span></span><span class="sig-name descname"><span class="pre">TensorReps</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">simplify</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/reps/tensorreps.html#TensorReps"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.reps.tensorreps.TensorReps" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">tuple</span></code></p>
+<p>Generic tensor representations</p>
+<p>Create a tensor representation based on the input.
+This can be a string representation or a list of _TensorMulRep instances.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>input</strong> (<em>Union</em><em>[</em><a class="reference internal" href="#lloca.reps.tensorreps.TensorReps" title="lloca.reps.tensorreps.TensorReps"><em>TensorReps</em></a><em>, </em><em>str</em><em>, </em><em>List</em><em>[</em><em>_TensorMulRep</em><em>]</em><em>]</em>) – The input to initialize the tensor reps.
+If <cite>input</cite> is a string, it is parsed to extract the tensor representations.
+If <cite>input</cite> is a list, it should contain instances of <cite>_TensorMulRep</cite>.</p></li>
+<li><p><strong>simplify</strong> (<em>bool</em>) – Whether to simplify the tensor reps after initialization. Default is True.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="lloca.reps.tensorreps.TensorReps.dim">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dim</span></span><a class="headerlink" href="#lloca.reps.tensorreps.TensorReps.dim" title="Link to this definition"></a></dt>
+<dd><p>The total dimension of the tensor reps.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lloca.reps.tensorreps.TensorReps.is_simplified">
+<span class="sig-name descname"><span class="pre">is_simplified</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/reps/tensorreps.html#TensorReps.is_simplified"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.reps.tensorreps.TensorReps.is_simplified" title="Link to this definition"></a></dt>
+<dd><p>Check if the TensorReps is simlified.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="lloca.reps.tensorreps.TensorReps.is_sorted">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">is_sorted</span></span><a class="headerlink" href="#lloca.reps.tensorreps.TensorReps.is_sorted" title="Link to this definition"></a></dt>
+<dd><p>Whether the tensor reps are sorted by the order of the reps.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="lloca.reps.tensorreps.TensorReps.max_rep">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">max_rep</span></span><a class="headerlink" href="#lloca.reps.tensorreps.TensorReps.max_rep" title="Link to this definition"></a></dt>
+<dd><p>The tensor irrep with the highest order.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="lloca.reps.tensorreps.TensorReps.mul">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">mul</span></span><a class="headerlink" href="#lloca.reps.tensorreps.TensorReps.mul" title="Link to this definition"></a></dt>
+<dd><p>The total multiplier of the tensor reps.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="lloca.reps.tensorreps.TensorReps.mul_scalars">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">mul_scalars</span></span><a class="headerlink" href="#lloca.reps.tensorreps.TensorReps.mul_scalars" title="Link to this definition"></a></dt>
+<dd><p>The total multiplier of the tensor reps scalars.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="lloca.reps.tensorreps.TensorReps.mul_without_scalars">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">mul_without_scalars</span></span><a class="headerlink" href="#lloca.reps.tensorreps.TensorReps.mul_without_scalars" title="Link to this definition"></a></dt>
+<dd><p>The total multiplier of the tensor reps without the scalars.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="lloca.reps.tensorreps.TensorReps.reps">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">reps</span></span><a class="headerlink" href="#lloca.reps.tensorreps.TensorReps.reps" title="Link to this definition"></a></dt>
+<dd><p>The set of tensor reps.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lloca.reps.tensorreps.TensorReps.simplify">
+<span class="sig-name descname"><span class="pre">simplify</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/reps/tensorreps.html#TensorReps.simplify"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.reps.tensorreps.TensorReps.simplify" title="Link to this definition"></a></dt>
+<dd><p>Simplifies the tensor reps by combining the same reps.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lloca.reps.tensorreps.TensorReps.sort">
+<span class="sig-name descname"><span class="pre">sort</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/reps/tensorreps.html#TensorReps.sort"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.reps.tensorreps.TensorReps.sort" title="Link to this definition"></a></dt>
+<dd><p>Sorts the tensor reps by the order of the reps.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="lloca.backbone.particletransformer.ParticleTransformer.html" class="btn btn-neutral float-left" title="lloca.backbone.particletransformer.ParticleTransformer" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="lloca.reps.tensorreps_transform.TensorRepsTransform.html" class="btn btn-neutral float-right" title="lloca.reps.tensorreps_transform.TensorRepsTransform" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

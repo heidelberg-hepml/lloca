@@ -1,0 +1,414 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lloca.utils.orthogonalize_4d &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">lloca.utils.orthogonalize_4d</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for lloca.utils.orthogonalize_4d</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Orthogonalization of Minkowski vectors.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.lorentz</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">lorentz_cross</span><span class="p">,</span>
+    <span class="n">lorentz_inner</span><span class="p">,</span>
+    <span class="n">lorentz_squarednorm</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="orthogonalize_4d">
+<a class="viewcode-back" href="../../../generated/lloca.utils.orthogonalize_4d.html#lloca.utils.orthogonalize_4d.orthogonalize_4d">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">orthogonalize_4d</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">use_float64</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">return_reg</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">checks</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;High-level wrapper for orthogonalization of three Minkowski vectors.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    vecs : torch.Tensor</span>
+<span class="sd">        Tensor containing three Minkowski vectors of shape (..., 3, 4).</span>
+<span class="sd">    use_float64 : bool</span>
+<span class="sd">        If True, use float64 for numerical stability during orthogonalization.</span>
+<span class="sd">    return_reg : bool</span>
+<span class="sd">        If True, return a tuple with the orthogonalized vectors and the number of</span>
+<span class="sd">        regularized vectors for lightlike and coplanar cases.</span>
+<span class="sd">    checks : bool</span>
+<span class="sd">        If True, perform additional assertion checks on predicted vectors.</span>
+<span class="sd">        It may cause slowdowns due to GPU/CPU synchronization, use only for debugging.</span>
+<span class="sd">    kwargs : dict</span>
+<span class="sd">        Additional keyword arguments passed to the orthogonalization function.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    trafo : torch.Tensor</span>
+<span class="sd">        Lorentz transformation of shape (..., 4, 4) that orthogonalizes the input vectors.</span>
+<span class="sd">        The first vector is guaranteed to be timelike.</span>
+<span class="sd">    reg_lightlike : int</span>
+<span class="sd">        Number of vectors that were regularized due to being lightlike.</span>
+<span class="sd">    reg_coplanar : int</span>
+<span class="sd">        Number of vectors that were regularized due to coplanarity.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">use_float64</span><span class="p">:</span>
+        <span class="n">original_dtype</span> <span class="o">=</span> <span class="n">vecs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span>
+        <span class="n">vecs</span> <span class="o">=</span> <span class="n">vecs</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+
+    <span class="n">out</span> <span class="o">=</span> <span class="n">orthogonalize_wrapper_4d</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">return_reg</span><span class="o">=</span><span class="n">return_reg</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">return_reg</span><span class="p">:</span>
+        <span class="n">orthogonal_vecs</span><span class="p">,</span> <span class="o">*</span><span class="n">reg</span> <span class="o">=</span> <span class="n">out</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">orthogonal_vecs</span> <span class="o">=</span> <span class="n">out</span>
+    <span class="n">trafo</span> <span class="o">=</span> <span class="n">orthogonal_vecs</span>
+    <span class="k">if</span> <span class="n">checks</span><span class="p">:</span>
+        <span class="n">check_timelike_first</span><span class="p">(</span><span class="n">trafo</span><span class="p">)</span>
+
+    <span class="n">scale</span> <span class="o">=</span> <span class="n">trafo</span><span class="o">.</span><span class="n">new_tensor</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">trafo</span> <span class="o">=</span> <span class="n">trafo</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">outer</span><span class="p">(</span><span class="n">scale</span><span class="p">,</span> <span class="n">scale</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">use_float64</span><span class="p">:</span>
+        <span class="n">trafo</span> <span class="o">=</span> <span class="n">trafo</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">original_dtype</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">trafo</span><span class="p">,</span> <span class="o">*</span><span class="n">reg</span><span class="p">)</span> <span class="k">if</span> <span class="n">return_reg</span> <span class="k">else</span> <span class="n">trafo</span></div>
+
+
+
+<div class="viewcode-block" id="orthogonalize_wrapper_4d">
+<a class="viewcode-back" href="../../../generated/lloca.utils.orthogonalize_4d.html#lloca.utils.orthogonalize_4d.orthogonalize_wrapper_4d">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">orthogonalize_wrapper_4d</span><span class="p">(</span>
+    <span class="n">vecs</span><span class="p">,</span>
+    <span class="n">method</span><span class="o">=</span><span class="s2">&quot;gramschmidt&quot;</span><span class="p">,</span>
+    <span class="n">eps_norm</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">eps_reg_coplanar</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">eps_reg_lightlike</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">return_reg</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Wrapper for orthogonalization of Minkowski vectors.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    vecs : torch.Tensor</span>
+<span class="sd">        Tensor containing list of three Minkowski vectors of shape (..., 3, 4).</span>
+<span class="sd">    method : str</span>
+<span class="sd">        Method for orthogonalization. Options are &quot;cross&quot; and &quot;gramschmidt&quot;.</span>
+<span class="sd">    eps_norm : float or None</span>
+<span class="sd">        Numerical regularization for the normalization of the vectors.</span>
+<span class="sd">        If None, use the smallest representable value for the vectors dtype.</span>
+<span class="sd">    eps_reg_coplanar : float or None</span>
+<span class="sd">        Controls the scale of the regularization for coplanar vectors.</span>
+<span class="sd">        eps_reg_coplanar defines the selection threshold.</span>
+<span class="sd">    eps_reg_lightlike : float or None</span>
+<span class="sd">        Controls the scale of the regularization for lightlike vectors.</span>
+<span class="sd">        eps_reg_lightlike defines the selection threshold.</span>
+<span class="sd">    return_reg : bool</span>
+<span class="sd">        If True, return a tuple with the orthogonalized vectors and the number of</span>
+<span class="sd">        regularized vectors for lightlike and coplanar cases.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    orthogonal_vecs : torch.Tensor</span>
+<span class="sd">        Four orthogonalized Minkowski vectors of shape (..., 4, 4).</span>
+<span class="sd">    reg_lightlike : int</span>
+<span class="sd">        Number of vectors that were regularized due to being lightlike.</span>
+<span class="sd">    reg_coplanar : int</span>
+<span class="sd">        Number of vectors that were regularized due to coplanarity.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">eps_norm</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">vecs</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span> <span class="k">if</span> <span class="n">eps_norm</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">eps_norm</span>
+
+    <span class="n">vecs</span><span class="p">,</span> <span class="n">reg_lightlike</span> <span class="o">=</span> <span class="n">regularize_lightlike</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">eps_reg_lightlike</span><span class="p">)</span>
+    <span class="n">vecs</span><span class="p">,</span> <span class="n">reg_coplanar</span> <span class="o">=</span> <span class="n">regularize_coplanar</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">eps_reg_coplanar</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;cross&quot;</span><span class="p">:</span>
+        <span class="n">trafo</span> <span class="o">=</span> <span class="n">orthogonalize_cross</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">eps_norm</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">&quot;gramschmidt&quot;</span><span class="p">:</span>
+        <span class="n">trafo</span> <span class="o">=</span> <span class="n">orthogonalize_gramschmidt</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">eps_norm</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Orthogonalization method </span><span class="si">{</span><span class="n">method</span><span class="si">}</span><span class="s2"> not implemented&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">(</span><span class="n">trafo</span><span class="p">,</span> <span class="n">reg_lightlike</span><span class="p">,</span> <span class="n">reg_coplanar</span><span class="p">)</span> <span class="k">if</span> <span class="n">return_reg</span> <span class="k">else</span> <span class="n">trafo</span></div>
+
+
+
+<div class="viewcode-block" id="orthogonalize_gramschmidt">
+<a class="viewcode-back" href="../../../generated/lloca.utils.orthogonalize_4d.html#lloca.utils.orthogonalize_4d.orthogonalize_gramschmidt">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">orthogonalize_gramschmidt</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">eps_norm</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gram-Schmidt orthogonalization algorithm for Minkowski vectors.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    vecs : torch.Tensor</span>
+<span class="sd">        List of three Minkowski vectors of shape (..., 3, 4).</span>
+<span class="sd">    eps_norm : float or None</span>
+<span class="sd">        Small value to avoid division by zero during normalization.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    orthogonal_vecs : torch.Tensor</span>
+<span class="sd">        List of four orthogonalized Minkowski vectors of shape (..., 4, 4).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">vecs</span> <span class="o">=</span> <span class="n">normalize_4d</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">eps_norm</span><span class="p">)</span>
+    <span class="n">e0</span><span class="p">,</span> <span class="n">v1</span><span class="p">,</span> <span class="n">v2</span> <span class="o">=</span> <span class="n">vecs</span><span class="o">.</span><span class="n">unbind</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="n">denom0</span> <span class="o">=</span> <span class="n">lorentz_squarednorm</span><span class="p">(</span><span class="n">e0</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">eps_norm</span>
+    <span class="n">inner01</span> <span class="o">=</span> <span class="n">lorentz_inner</span><span class="p">(</span><span class="n">v1</span><span class="p">,</span> <span class="n">e0</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">u1</span> <span class="o">=</span> <span class="n">v1</span> <span class="o">-</span> <span class="n">e0</span> <span class="o">*</span> <span class="n">inner01</span> <span class="o">/</span> <span class="n">denom0</span>
+    <span class="n">e1</span> <span class="o">=</span> <span class="n">normalize_4d</span><span class="p">(</span><span class="n">u1</span><span class="p">,</span> <span class="n">eps_norm</span><span class="p">)</span>
+
+    <span class="n">inner02</span> <span class="o">=</span> <span class="n">lorentz_inner</span><span class="p">(</span><span class="n">v2</span><span class="p">,</span> <span class="n">e0</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">u2</span> <span class="o">=</span> <span class="n">v2</span> <span class="o">-</span> <span class="n">e0</span> <span class="o">*</span> <span class="n">inner02</span> <span class="o">/</span> <span class="n">denom0</span>
+    <span class="n">denom1</span> <span class="o">=</span> <span class="n">lorentz_squarednorm</span><span class="p">(</span><span class="n">e1</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">eps_norm</span>
+    <span class="n">inner21</span> <span class="o">=</span> <span class="n">lorentz_inner</span><span class="p">(</span><span class="n">v2</span><span class="p">,</span> <span class="n">e1</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">u2</span> <span class="o">=</span> <span class="n">u2</span> <span class="o">-</span> <span class="n">e1</span> <span class="o">*</span> <span class="n">inner21</span> <span class="o">/</span> <span class="n">denom1</span>
+    <span class="n">e2</span> <span class="o">=</span> <span class="n">normalize_4d</span><span class="p">(</span><span class="n">u2</span><span class="p">,</span> <span class="n">eps_norm</span><span class="p">)</span>
+
+    <span class="n">e3</span> <span class="o">=</span> <span class="n">lorentz_cross</span><span class="p">(</span><span class="n">e0</span><span class="p">,</span> <span class="n">e1</span><span class="p">,</span> <span class="n">e2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">e0</span><span class="p">,</span> <span class="n">e1</span><span class="p">,</span> <span class="n">e2</span><span class="p">,</span> <span class="n">e3</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">2</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="orthogonalize_cross">
+<a class="viewcode-back" href="../../../generated/lloca.utils.orthogonalize_4d.html#lloca.utils.orthogonalize_4d.orthogonalize_cross">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">orthogonalize_cross</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">eps_norm</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Orthogonalization algorithm using repeated cross products.</span>
+<span class="sd">    This approach gives the same result as orthogonalize_gramschmidt for unlimited</span>
+<span class="sd">    precision, but we find empirically that the Gram-Schmidt approach is more stable.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    vecs : torch.Tensor</span>
+<span class="sd">        List of three Minkowski vectors of shape (..., 3, 4).</span>
+<span class="sd">    eps_norm : float or None</span>
+<span class="sd">        Small value to avoid division by zero during normalization.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    orthogonal_vecs : torch.Tensor</span>
+<span class="sd">        List of four orthogonalized Minkowski vectors of shape (..., 4, 4).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">vecs</span> <span class="o">=</span> <span class="n">normalize_4d</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">eps_norm</span><span class="p">)</span>
+    <span class="n">e0</span><span class="p">,</span> <span class="n">v1</span><span class="p">,</span> <span class="n">v2</span> <span class="o">=</span> <span class="n">vecs</span><span class="o">.</span><span class="n">unbind</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="n">e1</span> <span class="o">=</span> <span class="n">normalize_4d</span><span class="p">(</span><span class="n">lorentz_cross</span><span class="p">(</span><span class="n">e0</span><span class="p">,</span> <span class="n">v1</span><span class="p">,</span> <span class="n">v2</span><span class="p">),</span> <span class="n">eps_norm</span><span class="p">)</span>
+    <span class="n">e2</span> <span class="o">=</span> <span class="n">normalize_4d</span><span class="p">(</span><span class="n">lorentz_cross</span><span class="p">(</span><span class="n">e0</span><span class="p">,</span> <span class="n">e1</span><span class="p">,</span> <span class="n">v2</span><span class="p">),</span> <span class="n">eps_norm</span><span class="p">)</span>
+    <span class="n">e3</span> <span class="o">=</span> <span class="n">normalize_4d</span><span class="p">(</span><span class="n">lorentz_cross</span><span class="p">(</span><span class="n">e0</span><span class="p">,</span> <span class="n">e1</span><span class="p">,</span> <span class="n">e2</span><span class="p">),</span> <span class="n">eps_norm</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">e0</span><span class="p">,</span> <span class="n">e1</span><span class="p">,</span> <span class="n">e2</span><span class="p">,</span> <span class="n">e3</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">2</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="check_timelike_first">
+<a class="viewcode-back" href="../../../generated/lloca.utils.orthogonalize_4d.html#lloca.utils.orthogonalize_4d.check_timelike_first">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_timelike_first</span><span class="p">(</span><span class="n">trafo</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Check that the Lorentz transformation has only one timelike vector.</span>
+<span class="sd">    This is necessary to ensure that the resulting Lorentz transformation has the</span>
+<span class="sd">    correct metric signature (1, -1, -1, -1). Note that the timelike nature of the</span>
+<span class="sd">    first vector is enforced by the nonlinearity in the framesnet, this will trigger</span>
+<span class="sd">    if numerical instabilities occur in the orthogonalization.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    trafo : torch.Tensor</span>
+<span class="sd">        Lorentz transformation of shape (..., 4, 4) where the last two dimensions</span>
+<span class="sd">        represent the transformation matrix.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    trafo : torch.Tensor</span>
+<span class="sd">        Lorentz transformation of shape (..., 4, 4) with the first vector being timelike.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">vecs</span> <span class="o">=</span> <span class="p">[</span><span class="n">trafo</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="p">:]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">)]</span>
+    <span class="n">norm</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">lorentz_squarednorm</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">vecs</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">num_pos_norm</span> <span class="o">=</span> <span class="p">(</span><span class="n">norm</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="p">(</span><span class="n">num_pos_norm</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">(),</span> <span class="s2">&quot;Don&#39;t always have exactly 1 timelike vector&quot;</span></div>
+
+
+
+<div class="viewcode-block" id="regularize_lightlike">
+<a class="viewcode-back" href="../../../generated/lloca.utils.orthogonalize_4d.html#lloca.utils.orthogonalize_4d.regularize_lightlike">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">regularize_lightlike</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">eps_reg_lightlike</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;If the Minkowski norm of a vector is close to zero,</span>
+<span class="sd">    it is lightlike. In this case, we add a bit of noise to the vector</span>
+<span class="sd">    to break the degeneracy and ensure that the orthogonalization works.</span>
+<span class="sd">    The noise is sampled such that the resulting vector is timelike.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    vecs : torch.Tensor</span>
+<span class="sd">        List of three Minkowski vectors of shape (..., 3, 4).</span>
+<span class="sd">    eps_reg_lightlike : float or None</span>
+<span class="sd">        Small value to control the scale of the regularization for lightlike vectors.</span>
+<span class="sd">        If None, use the smallest representable value for the vectors dtype.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    vecs_reg : torch.Tensor</span>
+<span class="sd">        List of three Minkowski vectors of shape (..., 3, 4) with regularization applied.</span>
+<span class="sd">    reg_lightlike : int</span>
+<span class="sd">        Number of vectors that were regularized due to being lightlike.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">eps_reg_lightlike</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">vecs</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span> <span class="k">if</span> <span class="n">eps_reg_lightlike</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">eps_reg_lightlike</span>
+    <span class="p">)</span>
+    <span class="n">inners</span> <span class="o">=</span> <span class="n">lorentz_squarednorm</span><span class="p">(</span><span class="n">vecs</span><span class="p">)</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">inners</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">eps_reg_lightlike</span>
+
+    <span class="c1"># calculate the 3-norm and set the 0th-component accordingly</span>
+    <span class="n">randn_vecs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">vecs</span><span class="p">)</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span>
+    <span class="n">randn_vecs_3sqnorm</span> <span class="o">=</span> <span class="p">(</span><span class="n">randn_vecs</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">randn_vecs</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">randn_vecs_3sqnorm</span><span class="p">)</span><span class="o">.</span><span class="n">sqrt</span><span class="p">()</span>  <span class="c1"># heuristic factor of 2 to ensure timelike</span>
+
+    <span class="n">vecs_reg</span> <span class="o">=</span> <span class="n">vecs</span> <span class="o">+</span> <span class="n">mask</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">eps_reg_lightlike</span> <span class="o">*</span> <span class="n">randn_vecs</span>
+    <span class="n">reg_lightlike</span> <span class="o">=</span> <span class="n">mask</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">vecs_reg</span><span class="p">,</span> <span class="n">reg_lightlike</span></div>
+
+
+
+<div class="viewcode-block" id="regularize_coplanar">
+<a class="viewcode-back" href="../../../generated/lloca.utils.orthogonalize_4d.html#lloca.utils.orthogonalize_4d.regularize_coplanar">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">regularize_coplanar</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">eps_reg_coplanar</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;If the cross product of three vectors is close to zero,</span>
+<span class="sd">    they are coplanar. In this case, we add a bit of noise to each vector</span>
+<span class="sd">    to break the degeneracy and ensure that the orthogonalization works.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    vecs : torch.Tensor</span>
+<span class="sd">        List of three Minkowski vectors of shape (..., 3, 4).</span>
+<span class="sd">    eps_reg_coplanar : float or None</span>
+<span class="sd">        Small value to control the scale of the regularization for coplanar vectors.</span>
+<span class="sd">        If None, use the smallest representable value for the vectors dtype.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    vecs_reg : torch.Tensor</span>
+<span class="sd">        List of three Minkowski vectors of shape (..., 3, 4) with regularization applied.</span>
+<span class="sd">    reg_coplanar : int</span>
+<span class="sd">        Number of vectors that were regularized due to coplanarity.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">eps_reg_coplanar</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">vecs</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span> <span class="k">if</span> <span class="n">eps_reg_coplanar</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">eps_reg_coplanar</span>
+    <span class="n">v0</span><span class="p">,</span> <span class="n">v1</span><span class="p">,</span> <span class="n">v2</span> <span class="o">=</span> <span class="n">vecs</span><span class="o">.</span><span class="n">unbind</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">cross_norm2</span> <span class="o">=</span> <span class="n">lorentz_squarednorm</span><span class="p">(</span><span class="n">lorentz_cross</span><span class="p">(</span><span class="n">v0</span><span class="p">,</span> <span class="n">v1</span><span class="p">,</span> <span class="n">v2</span><span class="p">))</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">cross_norm2</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">eps_reg_coplanar</span>
+
+    <span class="n">vecs_reg</span> <span class="o">=</span> <span class="n">vecs</span> <span class="o">+</span> <span class="n">mask</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">eps_reg_coplanar</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn_like</span><span class="p">(</span><span class="n">vecs</span><span class="p">)</span>
+    <span class="n">reg_coplanar</span> <span class="o">=</span> <span class="n">mask</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">vecs_reg</span><span class="p">,</span> <span class="n">reg_coplanar</span></div>
+
+
+
+<div class="viewcode-block" id="normalize_4d">
+<a class="viewcode-back" href="../../../generated/lloca.utils.orthogonalize_4d.html#lloca.utils.orthogonalize_4d.normalize_4d">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">normalize_4d</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalize a Minkowski vector by the absolute value of the Minkowski norm.</span>
+<span class="sd">    Note that this norm can be close to zero.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    v : torch.Tensor</span>
+<span class="sd">        Minkowski vector of shape (..., 4).</span>
+<span class="sd">    eps : float or None</span>
+<span class="sd">        Small value to avoid division by zero.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    torch.Tensor</span>
+<span class="sd">        Normalized Minkowski vector of shape (..., 4).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">norm</span> <span class="o">=</span> <span class="n">lorentz_squarednorm</span><span class="p">(</span><span class="n">v</span><span class="p">)</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">norm</span> <span class="o">=</span> <span class="n">norm</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span><span class="o">.</span><span class="n">sqrt</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">v</span> <span class="o">/</span> <span class="p">(</span><span class="n">norm</span> <span class="o">+</span> <span class="n">eps</span><span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

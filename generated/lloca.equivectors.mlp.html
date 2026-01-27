@@ -1,0 +1,329 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lloca.equivectors.mlp &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="lloca.equivectors.lgatr" href="lloca.equivectors.lgatr.html" />
+    <link rel="prev" title="API Reference" href="../api.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">API Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../api.html#equivariant-vector-prediction">Equivariant vector prediction</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">lloca.equivectors.mlp</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.equivectors.mlp.EquiEdgeConv"><code class="docutils literal notranslate"><span class="pre">EquiEdgeConv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.equivectors.mlp.MLPVectors"><code class="docutils literal notranslate"><span class="pre">MLPVectors</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.equivectors.mlp.get_nonlinearity"><code class="docutils literal notranslate"><span class="pre">get_nonlinearity()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.equivectors.mlp.get_operation"><code class="docutils literal notranslate"><span class="pre">get_operation()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.equivectors.mlp.softmax"><code class="docutils literal notranslate"><span class="pre">softmax()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.equivectors.lgatr.html">lloca.equivectors.lgatr</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.equivectors.pelican.html">lloca.equivectors.pelican</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#frames-net">Frames-Net</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#backbone-networks">Backbone networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#lorentz-group-representations">Lorentz group representations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#utilities">Utilities</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../api.html">API Reference</a></li>
+      <li class="breadcrumb-item active">lloca.equivectors.mlp</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/generated/lloca.equivectors.mlp.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-lloca.equivectors.mlp">
+<span id="lloca-equivectors-mlp"></span><h1>lloca.equivectors.mlp<a class="headerlink" href="#module-lloca.equivectors.mlp" title="Link to this heading"></a></h1>
+<p>Edge convolution with a simple MLP.</p>
+<p class="rubric">Functions</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_edge_index_and_batch</span></code>(fourmomenta, ptr[, ...])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#lloca.equivectors.mlp.get_nonlinearity" title="lloca.equivectors.mlp.get_nonlinearity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_nonlinearity</span></code></a>(nonlinearity)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#lloca.equivectors.mlp.get_operation" title="lloca.equivectors.mlp.get_operation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_operation</span></code></a>(operation)</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#lloca.equivectors.mlp.softmax" title="lloca.equivectors.mlp.softmax"><code class="xref py py-obj docutils literal notranslate"><span class="pre">softmax</span></code></a>(src[, index, ptr, dim])</p></td>
+<td><p>Adapted version of the torch_geometric softmax function <a class="reference external" href="https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/utils/_softmax.html">https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/utils/_softmax.html</a>.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Classes</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#lloca.equivectors.mlp.EquiEdgeConv" title="lloca.equivectors.mlp.EquiEdgeConv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">EquiEdgeConv</span></code></a>(in_vectors, out_vectors, ...[, ...])</p></td>
+<td><p>Equivariant edge convolution, implemented using torch_geometric's MessagePassing class.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#lloca.equivectors.mlp.MLPVectors" title="lloca.equivectors.mlp.MLPVectors"><code class="xref py py-obj docutils literal notranslate"><span class="pre">MLPVectors</span></code></a>(n_vectors, *args, **kwargs)</p></td>
+<td><p>Edge convolution with a simple MLP.</p></td>
+</tr>
+</tbody>
+</table>
+<dl class="py class">
+<dt class="sig sig-object py" id="lloca.equivectors.mlp.EquiEdgeConv">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lloca.equivectors.mlp.</span></span><span class="sig-name descname"><span class="pre">EquiEdgeConv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">in_vectors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_vectors</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_scalars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hidden_channels</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_layers_mlp</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_edges</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">operation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'add'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nonlinearity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'softmax'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fm_norm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">layer_norm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_amp</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dropout_prob</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aggr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'sum'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/equivectors/mlp.html#EquiEdgeConv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.equivectors.mlp.EquiEdgeConv" title="Link to this definition"></a></dt>
+<dd><p>Equivariant edge convolution, implemented using torch_geometric’s MessagePassing class.</p>
+<p>The choice of the parameters <code class="docutils literal notranslate"><span class="pre">operation</span></code>, <code class="docutils literal notranslate"><span class="pre">nonlinearity</span></code>, <code class="docutils literal notranslate"><span class="pre">fm_norm</span></code>, <code class="docutils literal notranslate"><span class="pre">aggr</span></code>, <code class="docutils literal notranslate"><span class="pre">layer_norm</span></code> is critical to the stability of the approach.
+Bad combinations initialize the <code class="docutils literal notranslate"><span class="pre">framesnet</span></code> to predict strongly boosted vectors, leading to strongly boosted frames and unstable training.
+We recommend to stick to the default parameters, which worked for all our experiments.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>in_vectors</strong> (<em>int</em>) – Number of input vectors.</p></li>
+<li><p><strong>out_vectors</strong> (<em>int</em>) – Number of output vectors.</p></li>
+<li><p><strong>num_scalars</strong> (<em>int</em>) – Number of scalar features per particle.</p></li>
+<li><p><strong>hidden_channels</strong> (<em>int</em>) – Number of hidden channels in the MLP.</p></li>
+<li><p><strong>num_layers_mlp</strong> (<em>int</em>) – Number of hidden layers in the MLP.</p></li>
+<li><p><strong>include_edges</strong> (<em>bool</em>) – Whether to include edge attributes in the message passing. If True, edge attributes will be calculated from fourmomenta and standardized. Default is True.</p></li>
+<li><p><strong>operation</strong> (<em>str</em>) – Operation to perform on the fourmomenta. Options are “add”, “diff”, or “single”. Default is “add”.</p></li>
+<li><p><strong>nonlinearity</strong> (<em>str</em>) – Nonlinearity to apply to the output of the MLP. Options are “exp”, “softplus”, and “softmax”. Default is “softmax”.</p></li>
+<li><p><strong>fm_norm</strong> (<em>bool</em>) – Whether to normalize the relative fourmomentum. Default is True.</p></li>
+<li><p><strong>layer_norm</strong> (<em>bool</em>) – Whether to apply Lorentz-equivariant layer normalization to the output vectors. Default is True.</p></li>
+<li><p><strong>use_amp</strong> (<em>bool</em>) – Whether to use automatic mixed precision (AMP) for the MLP. Default is False.</p></li>
+<li><p><strong>dropout_prob</strong> (<em>float</em>) – Dropout probability for the MLP. If None, no dropout will be applied. Default is None.</p></li>
+<li><p><strong>aggr</strong> (<em>str</em>) – Aggregation method for message passing. Options are “add”, “mean”, or “max”. Default is “sum”.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="lloca.equivectors.mlp.EquiEdgeConv.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fourmomenta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scalars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ptr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/equivectors/mlp.html#EquiEdgeConv.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.equivectors.mlp.EquiEdgeConv.forward" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fourmomenta</strong> (<em>torch.Tensor</em>) – Tensor of shape (num_particles, in_vectors*4) containing the fourmomenta of the particles.</p></li>
+<li><p><strong>scalars</strong> (<em>torch.Tensor</em>) – Tensor of shape (num_particles, num_scalars) containing scalar features for each particle.</p></li>
+<li><p><strong>edge_index</strong> (<em>torch.Tensor</em>) – Edge index tensor containing the indices of the source and target nodes, shape (2, num_edges).</p></li>
+<li><p><strong>ptr</strong> (<em>torch.Tensor</em>) – Pointer tensor indicating the start of each batch for sparse tensors, shape (num_batches+1,).</p></li>
+<li><p><strong>batch</strong> (<em>torch.Tensor</em><em>, </em><em>optional</em>) – Batch tensor indicating the batch each particle belongs to. If None, all particles are assumed to belong to the same batch.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Tensor of shape (num_particles, out_vectors*4) containing the predicted vectors for each edge.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.Tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="lloca.equivectors.mlp.EquiEdgeConv.message">
+<span class="sig-name descname"><span class="pre">message</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">edge_index</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s_i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s_j</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fm_i</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fm_j</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">node_ptr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">node_batch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_attr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/equivectors/mlp.html#EquiEdgeConv.message"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.equivectors.mlp.EquiEdgeConv.message" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>edge_index</strong> (<em>torch.Tensor</em>) – Edge index tensor containing the indices of the source and target nodes, shape (2, num_edges).</p></li>
+<li><p><strong>s_i</strong> (<em>torch.Tensor</em>) – Scalar features of the source nodes, shape (num_edges, num_scalars).</p></li>
+<li><p><strong>s_j</strong> (<em>torch.Tensor</em>) – Scalar features of the target nodes, shape (num_edges, num_scalars).</p></li>
+<li><p><strong>fm_i</strong> (<em>torch.Tensor</em>) – Fourmomentum of the source nodes, shape (num_edges, 4*in_vectors).</p></li>
+<li><p><strong>fm_j</strong> (<em>torch.Tensor</em>) – Fourmomentum of the target nodes, shape (num_edges, 4*in_vectors).</p></li>
+<li><p><strong>node_ptr</strong> (<em>torch.Tensor</em>) – Pointer tensor indicating the start of each batch for sparse tensors, shape (num_batches+1,).</p></li>
+<li><p><strong>edge_attr</strong> (<em>torch.Tensor</em><em>, </em><em>optional</em>) – Edge attributes tensor. If None, no edge attributes will be used, shape (num_edges, num_edge_attributes).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Tensor of shape (num_edges, out_vectors*4) containing the predicted vectors for each edge.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.Tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="lloca.equivectors.mlp.MLPVectors">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lloca.equivectors.mlp.</span></span><span class="sig-name descname"><span class="pre">MLPVectors</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n_vectors</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/equivectors/mlp.html#MLPVectors"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.equivectors.mlp.MLPVectors" title="Link to this definition"></a></dt>
+<dd><p>Edge convolution with a simple MLP.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_vectors</strong> (<em>int</em>) – Number of output vectors per particle.
+Different FramesPredictor’s need different n_vectors,
+so this parameter should be set dynamically.</p></li>
+<li><p><strong>*args</strong></p></li>
+<li><p><strong>**kwargs</strong></p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="lloca.equivectors.mlp.MLPVectors.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fourmomenta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scalars</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ptr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/equivectors/mlp.html#MLPVectors.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.equivectors.mlp.MLPVectors.forward" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fourmomenta</strong> (<em>torch.Tensor</em>) – Tensor of shape (…, 4) containing the fourmomenta of the particles.</p></li>
+<li><p><strong>scalars</strong> (<em>torch.Tensor</em><em>, </em><em>optional</em>) – Tensor of shape (…, num_scalars) containing scalar features for each particle. If None, a tensor of zeros will be created.</p></li>
+<li><p><strong>ptr</strong> (<em>torch.Tensor</em><em>, </em><em>optional</em>) – Pointer tensor indicating the start and end of each batch for sparse tensors.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Tensor of shape (…, n_vectors, 4) containing the predicted vectors for each particle.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.Tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.equivectors.mlp.get_nonlinearity">
+<span class="sig-prename descclassname"><span class="pre">lloca.equivectors.mlp.</span></span><span class="sig-name descname"><span class="pre">get_nonlinearity</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nonlinearity</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/equivectors/mlp.html#get_nonlinearity"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.equivectors.mlp.get_nonlinearity" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>nonlinearity</strong> (<em>str</em>) – Nonlinearity to apply to the output of the MLP. Options are “exp”, “softplus”, “softmax”.
+We enforce the prediction of timelike vectors.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A function that applies the specified nonlinearity to the input tensor.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>callable</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.equivectors.mlp.get_operation">
+<span class="sig-prename descclassname"><span class="pre">lloca.equivectors.mlp.</span></span><span class="sig-name descname"><span class="pre">get_operation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">operation</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/equivectors/mlp.html#get_operation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.equivectors.mlp.get_operation" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>operation</strong> (<em>str</em>) – Operation to perform on the fourmomenta. Options are “add”, “diff”, or “single”.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A function that performs the specified operation on two fourmomenta tensors.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>callable</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.equivectors.mlp.softmax">
+<span class="sig-prename descclassname"><span class="pre">lloca.equivectors.mlp.</span></span><span class="sig-name descname"><span class="pre">softmax</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">src</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">index</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ptr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dim</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/equivectors/mlp.html#softmax"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.equivectors.mlp.softmax" title="Link to this definition"></a></dt>
+<dd><p>Adapted version of the torch_geometric softmax function
+<a class="reference external" href="https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/utils/_softmax.html">https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/utils/_softmax.html</a>.
+Use the index argument in output_size of torch.repeat_interleave to avoid GPU/CPU sync.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>src</strong> (<em>torch.Tensor</em>) – Source tensor of shape (N,) where N is the number of elements.</p></li>
+<li><p><strong>index</strong> (<em>torch.Tensor</em><em>, </em><em>optional</em>) – Index tensor indicating the batch index for each element.
+Tensor of shape (N,) where N is the number of elements.</p></li>
+<li><p><strong>ptr</strong> (<em>torch.Tensor</em>) – Pointer tensor indicating the start of each batch.
+Tensor of shape (B+1,) where B is the number of batches.</p></li>
+<li><p><strong>dim</strong> (<em>int</em><em>, </em><em>optional</em>) – Dimension along which to apply the softmax. Default is 0.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../api.html" class="btn btn-neutral float-left" title="API Reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="lloca.equivectors.lgatr.html" class="btn btn-neutral float-right" title="lloca.equivectors.lgatr" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
