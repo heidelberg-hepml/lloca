@@ -9,9 +9,9 @@ from lgatr.layers import EquiLayerNorm
 from lgatr.primitives.invariants import _load_inner_product_factors
 from torch_geometric.nn import MessagePassing
 
-from ..backbone.attention_backends import get_sparse_attention_mask
 from ..utils.lorentz import lorentz_squarednorm
 from ..utils.utils import get_batch_from_ptr
+from .attn_misc import get_attention_mask
 from .base import EquiVectors
 from .mlp import get_edge_index_and_batch, get_nonlinearity, get_operation
 
@@ -30,6 +30,7 @@ class LGATrVectors(EquiVectors, MessagePassing):
         layer_norm=False,
         lgatr_norm=True,
         use_amp=False,
+        attention_backend="xformers",
     ):
         # Note: fm_norm option not supported, because it would be unstable with remove_self_loops=False
         super().__init__(aggr=aggr)
@@ -55,15 +56,16 @@ class LGATrVectors(EquiVectors, MessagePassing):
         self.nonlinearity = get_nonlinearity(nonlinearity)
         self.layer_norm = layer_norm
         self.use_amp = use_amp
+        self.attention_backend = attention_backend
 
     def forward(self, fourmomenta, scalars=None, ptr=None, **kwargs):
         attn_kwargs = {}
         in_shape = fourmomenta.shape[:-1]
         if ptr is not None:
             batch = get_batch_from_ptr(ptr)
-            on_cpu = fourmomenta.device == torch.device("cpu")
-            mask = get_sparse_attention_mask(batch, materialize=on_cpu, dtype=scalars.dtype)
-            attn_kwargs["attn_mask" if on_cpu else "attn_bias"] = mask
+            attn_kwargs = get_attention_mask(
+                batch, attention_backend=self.attention_backend, dtype=scalars.dtype
+            )
         edge_index, batch, ptr = get_edge_index_and_batch(fourmomenta, ptr, remove_self_loops=False)
 
         fourmomenta = fourmomenta.unsqueeze(0)

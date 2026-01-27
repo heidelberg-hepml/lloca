@@ -1,31 +1,13 @@
-"""Baseline LLoCa-Transformer."""
+"""LLoCa-Transformer with RMSNorm and GLU."""
+
+from functools import partial
 
 import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
-from ..reps.tensorreps import TensorReps
-from .attention import LLoCaAttention
-
-
-class BaselineLayerNorm(nn.Module):
-    """Baseline layer norm over all dimensions except the first."""
-
-    @staticmethod
-    def forward(inputs: torch.Tensor) -> torch.Tensor:
-        """Forward pass.
-
-        Parameters
-        ----------
-        inputs : Tensor
-            Input data
-
-        Returns
-        -------
-        outputs : Tensor
-            Normalized inputs.
-        """
-        return torch.nn.functional.layer_norm(inputs, normalized_shape=inputs.shape[-1:])
+from lloca.backbone.attention import LLoCaAttention
+from lloca.reps.tensorreps import TensorReps
 
 
 class MultiHeadQKVLinear(nn.Module):
@@ -68,56 +50,6 @@ class MultiHeadQKVLinear(nn.Module):
         return q, k, v
 
 
-class MultiQueryQKVLinear(nn.Module):
-    """Compute queries, keys, and values via multi-query attention.
-
-    Parameters
-    ----------
-    in_channels : int
-        Number of input channels.
-    hidden_channels : int
-        Number of hidden channels = size of query, key, and value.
-    num_heads : int
-        Number of attention heads.
-    """
-
-    def __init__(self, in_channels, hidden_channels, num_heads):
-        super().__init__()
-        self.num_heads = num_heads
-        self.q_linear = nn.Linear(in_channels, hidden_channels)
-        self.k_linear = nn.Linear(in_channels, hidden_channels // num_heads)
-        self.v_linear = nn.Linear(in_channels, hidden_channels // num_heads)
-
-    def forward(self, inputs):
-        """Forward pass.
-
-        Parameters
-        ----------
-        inputs : Tensor
-            Input data
-
-        Returns
-        -------
-        q : Tensor
-            Queries
-        k : Tensor
-            Keys
-        v : Tensor
-            Values
-        """
-        q = self.q_linear(inputs)
-
-        *leading, items, hidden_channels = q.shape
-        q = q.reshape(*leading, items, self.num_heads, hidden_channels // self.num_heads)
-        q = q.movedim(-2, -3)
-
-        k = self.k_linear(inputs)[
-            ..., None, :, :
-        ]  # (..., head=1, item, hidden_channels // num_heads)
-        v = self.v_linear(inputs)[..., None, :, :]
-        return q, k, v
-
-
 class BaselineSelfAttention(nn.Module):
     """Baseline self-attention layer.
 
@@ -132,8 +64,6 @@ class BaselineSelfAttention(nn.Module):
     attention
     num_heads : int
         Number of attention heads.
-    multi_query : bool
-        Use multi-query attention instead of multi-head attention.
     dropout_prob : float
         Dropout probability for output.
     """
@@ -145,7 +75,6 @@ class BaselineSelfAttention(nn.Module):
         hidden_channels: int,
         attention,
         num_heads: int = 8,
-        multi_query: bool = True,
         dropout_prob=None,
     ) -> None:
         super().__init__()
@@ -157,8 +86,7 @@ class BaselineSelfAttention(nn.Module):
         self.attention = attention
 
         # Linear maps
-        qkv_class = MultiQueryQKVLinear if multi_query else MultiHeadQKVLinear
-        self.qkv_linear = qkv_class(in_channels, hidden_channels, num_heads)
+        self.qkv_linear = MultiHeadQKVLinear(in_channels, hidden_channels, num_heads)
         self.out_linear = nn.Linear(hidden_channels, out_channels)
 
         if dropout_prob is not None:
@@ -222,8 +150,6 @@ class BaselineTransformerBlock(nn.Module):
         hidden_channels / num_heads.
     mlp_factor : int
         Factor by which the activation size is increased over the default value of hidden_channels.
-    multi_query : bool
-        Use multi-query attention instead of multi-head attention.
     dropout_prob : float
         Dropout probability for output.
     """
@@ -234,14 +160,12 @@ class BaselineTransformerBlock(nn.Module):
         attention,
         num_heads: int = 8,
         attention_factor: int = 1,
-        multi_query: bool = True,
-        mlp_factor: int = 4,
+        mlp_factor: int = 2,
         dropout_prob=None,
     ) -> None:
         super().__init__()
 
-        self.norm1 = BaselineLayerNorm()
-        self.norm2 = BaselineLayerNorm()
+        self.norm = nn.RMSNorm(normalized_shape=hidden_channels, elementwise_affine=False)
 
         hidden_channels_attn = hidden_channels * attention_factor
 
@@ -251,17 +175,18 @@ class BaselineTransformerBlock(nn.Module):
             hidden_channels_attn,
             attention,
             num_heads=num_heads,
-            multi_query=multi_query,
             dropout_prob=dropout_prob,
         )
 
-        self.mlp = nn.Sequential(
-            nn.Linear(hidden_channels, mlp_factor * hidden_channels),
+        self.mlp_in = nn.Sequential(
+            nn.Linear(hidden_channels, 2 * mlp_factor * hidden_channels),
             nn.Dropout(dropout_prob) if dropout_prob is not None else nn.Identity(),
-            nn.GELU(),
+        )
+        self.mlp_out = nn.Sequential(
             nn.Linear(mlp_factor * hidden_channels, hidden_channels),
             nn.Dropout(dropout_prob) if dropout_prob is not None else nn.Identity(),
         )
+        self.act = nn.GELU()
 
     def forward(self, inputs: torch.Tensor, **attn_kwargs) -> torch.Tensor:
         """Forward pass.
@@ -279,13 +204,15 @@ class BaselineTransformerBlock(nn.Module):
         """
 
         # Residual attention
-        h = self.norm1(inputs)
+        h = self.norm(inputs)
         h = self.attention(h, **attn_kwargs)
         outputs = inputs + h
 
-        # Residual MLP
-        h = self.norm2(outputs)
-        h = self.mlp(h)
+        # Residual MLP with GatedLinearUnit
+        h = self.norm(outputs)
+        h1, h2 = self.mlp_in(h).chunk(2, dim=-1)
+        h = self.act(h1) * h2
+        h = self.mlp_out(h)
         outputs = outputs + h
 
         return outputs
@@ -316,8 +243,6 @@ class Transformer(nn.Module):
         hidden_channels / num_heads.
     mlp_factor : int
         Factor by which the activation size is increased over the default value of hidden_channels.
-    multi_query : bool
-        Use multi-query attention instead of multi-head attention.
     dropout_prob : float
         Dropout probability for output.
     compile : bool, optional
@@ -333,8 +258,7 @@ class Transformer(nn.Module):
         num_heads: int,
         checkpoint_blocks: bool = False,
         attention_factor: int = 1,
-        mlp_factor: int = 4,
-        multi_query: bool = False,
+        mlp_factor: int = 2,
         dropout_prob: float | None = None,
         compile: bool = False,
     ) -> None:
@@ -353,7 +277,6 @@ class Transformer(nn.Module):
                     num_heads=num_heads,
                     attention_factor=attention_factor,
                     mlp_factor=mlp_factor,
-                    multi_query=multi_query,
                     dropout_prob=dropout_prob,
                 )
                 for _ in range(num_blocks)
@@ -388,7 +311,8 @@ class Transformer(nn.Module):
         h = self.linear_in(inputs)
         for block in self.blocks:
             if self.checkpoint_blocks:
-                h = checkpoint(block, h, use_reentrant=False, **attn_kwargs)
+                fn = partial(block, **attn_kwargs)
+                h = checkpoint(fn, h, use_reentrant=False)
             else:
                 h = block(h, **attn_kwargs)
         outputs = self.linear_out(h)

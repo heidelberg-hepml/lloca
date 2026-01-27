@@ -5,6 +5,7 @@ from lloca.backbone.attention import LLoCaAttention
 from lloca.backbone.particletransformer import Block, ParticleTransformer
 from lloca.framesnet.equi_frames import LearnedPDFrames, LearnedSO13Frames
 from lloca.framesnet.frames import InverseFrames
+from lloca.framesnet.nonequi_frames import IdentityFrames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.utils.rand_transforms import rand_lorentz
@@ -125,6 +126,7 @@ def test_ParT_invariance(
         input_dim=7,
         num_classes=1,
         attn_reps="8x0n+2x1n",
+        num_layers=2,
     ).to(dtype=dtype)
     model.eval()  # turn off dropout
 
@@ -162,3 +164,66 @@ def test_ParT_invariance(
 
     # test equivariance of scores
     torch.testing.assert_close(score_tr_prime_local, score_prime_local, **MILD_TOLERANCES)
+
+
+@pytest.mark.parametrize("FramesPredictor", [IdentityFrames, LearnedPDFrames])
+@pytest.mark.parametrize("batch_dims", [[10]])
+@pytest.mark.parametrize("logm2_mean,logm2_std", [LOGM2_MEAN_STD[0]])
+@pytest.mark.parametrize(
+    "checkpoint_blocks,compile", [(False, False), (True, False), (False, True)]
+)
+def test_ParT_shape(
+    FramesPredictor,
+    batch_dims,
+    logm2_std,
+    logm2_mean,
+    checkpoint_blocks,
+    compile,
+):
+    assert len(batch_dims) == 1
+    batch = torch.zeros(batch_dims[0], dtype=torch.long)
+
+    kwargs = {}
+    if FramesPredictor == LearnedPDFrames:
+        kwargs["equivectors"] = equivectors_builder()
+    predictor = FramesPredictor(**kwargs)
+
+    fm_test = sample_particle(batch_dims, logm2_std, logm2_mean)
+    if FramesPredictor == LearnedPDFrames:
+        predictor.equivectors.init_standardization(fm_test)
+
+    # define ParT
+    in_reps = TensorReps("1x1n")
+    trafo = TensorRepsTransform(TensorReps(in_reps))
+    model = ParticleTransformer(
+        input_dim=7,
+        num_classes=1,
+        attn_reps="8x0n+2x1n",
+        embed_dims=(32, 64, 32),
+        pair_embed_dims=(16, 16, 16),
+        num_heads=2,
+        num_layers=2,
+        checkpoint_blocks=checkpoint_blocks,
+        compile=compile,
+    )
+    model.eval()  # turn off dropout
+
+    def ParT_wrapper(p_local, frames):
+        fts_local = get_tagging_features(p_local, batch)
+        fts_local = fts_local.transpose(-1, -2).unsqueeze(0)
+        p_local = p_local[..., [1, 2, 3, 0]]
+        p_local = p_local.transpose(-1, -2).unsqueeze(0)
+        mask = torch.ones_like(p_local[..., [0], :])
+        frames = frames.reshape(1, *frames.shape)
+        x = model(x=fts_local, v=p_local, frames=frames, mask=mask)
+        x = x.transpose(-1, -2).squeeze(0)
+        return x
+
+    # sample Lorentz vectors
+    fm = sample_particle(batch_dims, logm2_std, logm2_mean)
+    frames = predictor(fm)
+    fm_local = trafo(fm, frames)
+
+    # ParT
+    out = ParT_wrapper(fm_local, frames)
+    assert out.shape == (1,)

@@ -29,6 +29,7 @@ from typing import Any, Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 
 from ..reps.tensorreps import TensorReps
 from .attention import LLoCaAttention
@@ -402,9 +403,9 @@ class PairEmbed(nn.Module):
                     if self.remove_self_pair:
                         i = torch.arange(0, seq_len, device=x.device)
                         x[:, :, i, i] = 0
-                    x = x.view(-1, self.pairwise_lv_dim, seq_len * seq_len)
+                    x = x.reshape(-1, self.pairwise_lv_dim, seq_len * seq_len)
                 if uu is not None:
-                    uu = uu.view(-1, self.pairwise_input_dim, seq_len * seq_len)
+                    uu = uu.reshape(-1, self.pairwise_input_dim, seq_len * seq_len)
 
         # with grad
         elements = 0
@@ -425,7 +426,7 @@ class PairEmbed(nn.Module):
             y[:, :, i, j] = elements
             y[:, :, j, i] = elements
         else:
-            y = elements.view(-1, self.out_dim, seq_len, seq_len)
+            y = elements.reshape(-1, self.out_dim, seq_len, seq_len)
         return y
 
     def _forward_sparse(self, x, uu=None, mask=None):
@@ -478,6 +479,7 @@ class PairEmbed(nn.Module):
 
         return y
 
+    @torch.compiler.disable()  # torch.compile fails to make this seqlen-dynamic
     def forward(self, x, uu=None, mask=None):
         if self.sparse_eval:
             return self._forward_sparse(x, uu=uu, mask=mask)
@@ -600,8 +602,11 @@ class Attention(torch.nn.Module):
             ), (
                 f"expecting key_padding_mask shape of {(bsz, src_len)}, but got {key_padding_mask.shape}"
             )
-            key_padding_mask = key_padding_mask.view(bsz, 1, 1, src_len).expand(
-                -1, self.num_heads, -1, -1
+            key_padding_mask = (
+                key_padding_mask.reshape(bsz, src_len)
+                .unsqueeze(1)
+                .unsqueeze(2)
+                .expand(-1, self.num_heads, -1, -1)
             )
             if attn_mask is None:
                 attn_mask = key_padding_mask
@@ -620,9 +625,9 @@ class Attention(torch.nn.Module):
         q, k, v = F._in_projection_packed(query, key, value, self.in_proj.weight, self.in_proj.bias)
 
         # -> (bsz, num_heads, src/tgt_len, head_dim)
-        q = q.view(bsz, tgt_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
-        k = k.view(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
-        v = v.view(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
+        q = q.reshape(bsz, tgt_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
+        k = k.reshape(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
+        v = v.reshape(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
 
         dropout_p = self.dropout if self.training else 0.0
 
@@ -799,7 +804,7 @@ class Block(nn.Module):
 
         if self.c_attn is not None:
             bsz, tgt_len, _ = x.size()
-            x = x.view(bsz, tgt_len, self.num_heads, self.head_dim)
+            x = x.reshape(bsz, tgt_len, self.num_heads, self.head_dim)
             x = torch.einsum("bthd,h->btdh", x, self.c_attn)
             x = x.reshape(bsz, tgt_len, self.embed_dim)
         x = self.post_attn_norm(x)
@@ -858,6 +863,8 @@ class ParticleTransformer(nn.Module):
         for_inference=False,
         for_segmentation=False,
         use_amp=False,
+        checkpoint_blocks=False,
+        compile=False,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -866,6 +873,7 @@ class ParticleTransformer(nn.Module):
         self.for_inference = for_inference
         self.for_segmentation = for_segmentation
         self.use_amp = use_amp
+        self.checkpoint_blocks = checkpoint_blocks
 
         self.embed_dim = embed_dims[-1] if len(embed_dims) > 0 else input_dim
         attn_reps = TensorReps(attn_reps)
@@ -976,6 +984,9 @@ class ParticleTransformer(nn.Module):
         if fix_init:
             self.fix_init_weight()
 
+        if compile:
+            self.__class__ = torch.compile(self.__class__, dynamic=True, mode="default")
+
     def fix_init_weight(self):
         def rescale(param, _layer_id):
             param.div_(math.sqrt(2.0 * _layer_id))
@@ -1018,7 +1029,17 @@ class ParticleTransformer(nn.Module):
 
             # transform
             for block in self.blocks:
-                x = block(x, x_cls=None, padding_mask=padding_mask, attn_mask=attn_mask)
+                if self.checkpoint_blocks:
+                    x = checkpoint(
+                        block,
+                        x,
+                        x_cls=None,
+                        padding_mask=padding_mask,
+                        attn_mask=attn_mask,
+                        use_reentrant=False,
+                    )
+                else:
+                    x = block(x, x_cls=None, padding_mask=padding_mask, attn_mask=attn_mask)
 
         # x: (batch, seq_len, embed_dim)
         # padding_mask: (batch, seq_len)
@@ -1030,9 +1051,18 @@ class ParticleTransformer(nn.Module):
                 # for classification: extract using class token
                 cls_tokens = self.cls_token.expand(x.size(0), 1, -1)  # (batch, 1, embed_dim)
                 for block in self.cls_blocks:
-                    cls_tokens = block(
-                        x, x_cls=cls_tokens, padding_mask=padding_mask
-                    )  # (batch, 1, embed_dim)
+                    if self.checkpoint_blocks:
+                        cls_tokens = checkpoint(
+                            block,
+                            x,
+                            x_cls=cls_tokens,
+                            padding_mask=padding_mask,
+                            use_reentrant=False,
+                        )  # (batch, 1, embed_dim)
+                    else:
+                        cls_tokens = block(
+                            x, x_cls=cls_tokens, padding_mask=padding_mask
+                        )  # (batch, 1, embed_dim)
                 cls_tokens = cls_tokens.squeeze(1)  # (batch, embed_dim)
             else:
                 # for classification: simple average pooling

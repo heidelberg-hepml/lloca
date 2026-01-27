@@ -13,17 +13,19 @@ authors = [
   { name = "Luigi Favaro", email = "luigi.favaro@uclouvain.be" },
 ]
 dependencies = [
-    "torch>=2.0",
+    "torch>=2.1",
     "torch-geometric>=2.3.0",
     "lgatr",
     "pelican-lite",
 ]
 
 [project.optional-dependencies]
+varlen-attention = ["torch>=2.10"]
 xformers-attention = ["xformers"]
 flex-attention = ["torch>=2.7"]  # experimental in torch 2.5, 2.6
 flash-attention = ["flash-attn"]  # non-trivial, check https://deepwiki.com/Dao-AILab/flash-attention/1.1-installation-and-setup for build instructions
 dev = [
+    "pre-commit",
     # unit tests
     "pytest",
     "pytest-cov",
@@ -35,6 +37,7 @@ dev = [
 
 [project.entry-points."lloca.backbone.attention_backends"]
 native = "lloca.backbone.attention_backends.native"
+varlen = "lloca.backbone.attention_backends.varlen"
 xformers = "lloca.backbone.attention_backends.xformers"
 flex = "lloca.backbone.attention_backends.flex"
 flash = "lloca.backbone.attention_backends.flash"
