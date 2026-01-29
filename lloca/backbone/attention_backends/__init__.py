@@ -10,6 +10,7 @@ VARLEN_KWARGS = ["cu_seq_q", "cu_seq_k", "max_q", "max_k"]
 XFORMERS_KWARGS = ["attn_bias", "op"]
 FLEX_KWARGS = ["score_mod", "block_mask"]
 FLASH_KWARGS = ["cu_seqlens_q", "cu_seqlens_k", "max_seqlen_q", "max_seqlen_k"]
+SPARSE_BACKENDS = ["varlen", "xformers", "flex", "flash"]
 
 
 @lru_cache

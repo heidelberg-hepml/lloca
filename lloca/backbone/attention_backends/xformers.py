@@ -4,10 +4,13 @@ import torch
 
 try:
     from xformers.ops import memory_efficient_attention
+    from xformers.ops.fmha.attn_bias import BlockDiagonalMask
 except ModuleNotFoundError as err:
     raise ImportError(
         "xformers is not installed. Run 'pip install lloca[xformers-attention]'."
     ) from err
+
+BlockDiagonalMask = BlockDiagonalMask
 
 
 @torch.compiler.disable()

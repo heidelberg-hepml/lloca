@@ -9,9 +9,9 @@ from lgatr.layers import EquiLayerNorm
 from lgatr.primitives.invariants import _load_inner_product_factors
 from torch_geometric.nn import MessagePassing
 
+from ..backbone.attention_backends.mask import get_sparse_attention_mask
 from ..utils.lorentz import lorentz_squarednorm
 from ..utils.utils import get_batch_from_ptr
-from .attn_misc import get_attention_mask
 from .base import EquiVectors
 from .mlp import get_edge_index_and_batch, get_nonlinearity, get_operation
 
@@ -63,7 +63,7 @@ class LGATrVectors(EquiVectors, MessagePassing):
         in_shape = fourmomenta.shape[:-1]
         if ptr is not None:
             batch = get_batch_from_ptr(ptr)
-            attn_kwargs = get_attention_mask(
+            attn_kwargs = get_sparse_attention_mask(
                 batch, attention_backend=self.attention_backend, dtype=scalars.dtype
             )
         edge_index, batch, ptr = get_edge_index_and_batch(fourmomenta, ptr, remove_self_loops=False)

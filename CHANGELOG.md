@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.5] - 26.01.2026
+## [1.3.5] - 29.01.2026
 
 ### Added
 
@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Disable `torch.compile` on custom attention kernels
 - Add `dtype` keyword argument to xformers attention to allow downcasting to float16/bfloat16 and enforcing flash-attention backends
-- Make attention kwargs in lgatr equivectors more flexible
+- Write generic `get_sparse_attention_mask` function that works for all variable-length kernels; used in `equivectors/lgatr.py`
 
 ## [1.3.4] - 07.01.2026
 
