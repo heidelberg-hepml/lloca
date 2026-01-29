@@ -1,0 +1,18 @@
+﻿lloca.equivectors.lgatr
+=======================
+
+.. automodule:: lloca.equivectors.lgatr
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      get_qk_product
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      LGATrVectors
+   
