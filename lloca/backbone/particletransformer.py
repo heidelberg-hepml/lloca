@@ -915,7 +915,7 @@ class ParticleTransformer(nn.Module):
 
         self.embed = Embed(
             input_dim,
-            embed_dims if len(embed_dims) > 0 else (self.embed_dim),
+            embed_dims if len(embed_dims) > 0 else [self.embed_dim],
             activation=activation,
         )
 
