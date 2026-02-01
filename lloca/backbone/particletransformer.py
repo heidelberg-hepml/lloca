@@ -847,6 +847,7 @@ class ParticleTransformer(nn.Module):
         remove_self_pair=False,
         use_pre_activation_pair=True,
         embed_dims=(128, 512, 128),
+        ffn_ratio=4,
         pair_embed_dims=(64, 64, 64),
         num_heads=8,
         num_layers=8,
@@ -875,14 +876,13 @@ class ParticleTransformer(nn.Module):
         self.use_amp = use_amp
         self.checkpoint_blocks = checkpoint_blocks
 
-        self.embed_dim = embed_dims[-1] if len(embed_dims) > 0 else input_dim
         attn_reps = TensorReps(attn_reps)
-        assert attn_reps.dim * num_heads == self.embed_dim
+        self.embed_dim = attn_reps.dim * num_heads
         self.attention = LLoCaAttention(attn_reps, num_heads)
         default_cfg = dict(
             embed_dim=self.embed_dim,
             num_heads=num_heads,
-            ffn_ratio=4,
+            ffn_ratio=ffn_ratio,
             dropout=0.1,
             attn_dropout=0.1,
             activation_dropout=0.1,
@@ -913,10 +913,10 @@ class ParticleTransformer(nn.Module):
         if cls_block_params is not None:
             cfg_cls_block.update(cls_block_params)
 
-        self.embed = (
-            Embed(input_dim, embed_dims, activation=activation)
-            if len(embed_dims) > 0
-            else nn.Identity()
+        self.embed = Embed(
+            input_dim,
+            embed_dims if len(embed_dims) > 0 else (self.embed_dim),
+            activation=activation,
         )
 
         if pair_input_dim is None:
