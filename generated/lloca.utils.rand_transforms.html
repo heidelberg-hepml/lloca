@@ -1,0 +1,364 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lloca.utils.rand_transforms &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="lloca.utils.orthogonalize_3d" href="lloca.utils.orthogonalize_3d.html" />
+    <link rel="prev" title="lloca.utils.lorentz" href="lloca.utils.lorentz.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">API Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../api.html#equivariant-vector-prediction">Equivariant vector prediction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#frames-net">Frames-Net</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#backbone-networks">Backbone networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#lorentz-group-representations">Lorentz group representations</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../api.html#utilities">Utilities</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.utils.html">lloca.utils.utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.lorentz.html">lloca.utils.lorentz</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">lloca.utils.rand_transforms</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.rand_transforms.get_trafo_type"><code class="docutils literal notranslate"><span class="pre">get_trafo_type()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.rand_transforms.rand_boost"><code class="docutils literal notranslate"><span class="pre">rand_boost()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.rand_transforms.rand_lorentz"><code class="docutils literal notranslate"><span class="pre">rand_lorentz()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.rand_transforms.rand_rotation"><code class="docutils literal notranslate"><span class="pre">rand_rotation()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.rand_transforms.rand_xyrotation"><code class="docutils literal notranslate"><span class="pre">rand_xyrotation()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.rand_transforms.rand_ztransform"><code class="docutils literal notranslate"><span class="pre">rand_ztransform()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.rand_transforms.sample_rapidity"><code class="docutils literal notranslate"><span class="pre">sample_rapidity()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.rand_transforms.transform"><code class="docutils literal notranslate"><span class="pre">transform()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.orthogonalize_3d.html">lloca.utils.orthogonalize_3d</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.orthogonalize_4d.html">lloca.utils.orthogonalize_4d</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.polar_decomposition.html">lloca.utils.polar_decomposition</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../api.html">API Reference</a></li>
+      <li class="breadcrumb-item active">lloca.utils.rand_transforms</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/generated/lloca.utils.rand_transforms.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-lloca.utils.rand_transforms">
+<span id="lloca-utils-rand-transforms"></span><h1>lloca.utils.rand_transforms<a class="headerlink" href="#module-lloca.utils.rand_transforms" title="Link to this heading"></a></h1>
+<p>Random Lorentz transformations.</p>
+<p class="rubric">Functions</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#lloca.utils.rand_transforms.get_trafo_type" title="lloca.utils.rand_transforms.get_trafo_type"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_trafo_type</span></code></a>(axis)</p></td>
+<td><p>Determine whether the transformation is a boost or a rotation, based on the spacetime axes that are involved.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#lloca.utils.rand_transforms.rand_boost" title="lloca.utils.rand_transforms.rand_boost"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rand_boost</span></code></a>(shape[, std_eta, n_max_std_eta, ...])</p></td>
+<td><p>Create a general pure boost, i.e. a symmetric Lorentz transformation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#lloca.utils.rand_transforms.rand_lorentz" title="lloca.utils.rand_transforms.rand_lorentz"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rand_lorentz</span></code></a>(shape[, std_eta, ...])</p></td>
+<td><p>Create general Lorentz transformations as rotation * boost.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#lloca.utils.rand_transforms.rand_rotation" title="lloca.utils.rand_transforms.rand_rotation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rand_rotation</span></code></a>(shape[, device, dtype, generator])</p></td>
+<td><p>Create rotation matrices embedded in Lorentz transformations.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">rand_wrapper</span></code>(shape, device, dtype[, generator])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#lloca.utils.rand_transforms.rand_xyrotation" title="lloca.utils.rand_transforms.rand_xyrotation"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rand_xyrotation</span></code></a>(shape[, device, dtype, ...])</p></td>
+<td><p>Create xy-plane rotation matrices embedded in the Lorentz group.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#lloca.utils.rand_transforms.rand_ztransform" title="lloca.utils.rand_transforms.rand_ztransform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">rand_ztransform</span></code></a>(shape[, std_eta, ...])</p></td>
+<td><p>Create Lorentz transformations consisting of a boost along the z-axis and a rotation around the z-axis.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="xref py py-obj docutils literal notranslate"><span class="pre">randn_wrapper</span></code>(shape, device, dtype[, generator])</p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#lloca.utils.rand_transforms.sample_rapidity" title="lloca.utils.rand_transforms.sample_rapidity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_rapidity</span></code></a>(shape[, std_eta, ...])</p></td>
+<td><p>Sample rapidity from a clipped gaussian distribution.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#lloca.utils.rand_transforms.transform" title="lloca.utils.rand_transforms.transform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">transform</span></code></a>(axes, angles[, use_float64])</p></td>
+<td><p>Recursively build transformation matrices based on given lists of axes and angles.</p></td>
+</tr>
+</tbody>
+</table>
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.rand_transforms.get_trafo_type">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.rand_transforms.</span></span><span class="sig-name descname"><span class="pre">get_trafo_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">axis</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/rand_transforms.html#get_trafo_type"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.rand_transforms.get_trafo_type" title="Link to this definition"></a></dt>
+<dd><p>Determine whether the transformation is a boost or a rotation,
+based on the spacetime axes that are involved.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>axis</strong> (<em>torch.Tensor</em>) – Axis of the transformation, should be of shape (2, …)</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>trafo_type</strong> – A boolean tensor indicating whether the transformation is a boost (1) or a rotation (0).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.Tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.rand_transforms.rand_boost">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.rand_transforms.</span></span><span class="sig-name descname"><span class="pre">rand_boost</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">std_eta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_max_std_eta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'cpu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">torch.float32</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/rand_transforms.html#rand_boost"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.rand_transforms.rand_boost" title="Link to this definition"></a></dt>
+<dd><p>Create a general pure boost, i.e. a symmetric Lorentz transformation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>shape</strong> (<em>torch.Size</em>) – Shape of the transformation matrices</p></li>
+<li><p><strong>std_eta</strong> (<em>float</em>) – Standard deviation of rapidity</p></li>
+<li><p><strong>n_max_std_eta</strong> (<em>float</em>) – Allowed number of standard deviations;
+used to sample from a truncated Gaussian</p></li>
+<li><p><strong>device</strong> (<em>str</em>)</p></li>
+<li><p><strong>dtype</strong> (<em>torch.dtype</em>)</p></li>
+<li><p><strong>generator</strong> (<em>torch.Generator</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>final_trafo</strong> – The resulting Lorentz transformation matrices of shape (…, 4, 4).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.rand_transforms.rand_lorentz">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.rand_transforms.</span></span><span class="sig-name descname"><span class="pre">rand_lorentz</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">std_eta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_max_std_eta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'cpu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">torch.float32</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/rand_transforms.html#rand_lorentz"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.rand_transforms.rand_lorentz" title="Link to this definition"></a></dt>
+<dd><p>Create general Lorentz transformations as rotation * boost.
+Any Lorentz transformation can be expressed in this way,
+see polar decomposition of the Lorentz group.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>shape</strong> (<em>torch.Size</em>) – Shape of the transformation matrices</p></li>
+<li><p><strong>std_eta</strong> (<em>float</em>) – Standard deviation of rapidity</p></li>
+<li><p><strong>n_max_std_eta</strong> (<em>float</em>) – Allowed number of standard deviations;
+used to sample from a truncated Gaussian</p></li>
+<li><p><strong>device</strong> (<em>str</em>)</p></li>
+<li><p><strong>dtype</strong> (<em>torch.dtype</em>)</p></li>
+<li><p><strong>generator</strong> (<em>torch.Generator</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>final_trafo</strong> – The resulting Lorentz transformation matrices of shape (…, 4, 4).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.rand_transforms.rand_rotation">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.rand_transforms.</span></span><span class="sig-name descname"><span class="pre">rand_rotation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'cpu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">torch.float32</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/rand_transforms.html#rand_rotation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.rand_transforms.rand_rotation" title="Link to this definition"></a></dt>
+<dd><p>Create rotation matrices embedded in Lorentz transformations.
+The rotations are sampled uniformly using quaternions,
+see <a class="reference external" href="https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation">https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation</a>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>shape</strong> (<em>torch.Size</em>) – Shape of the transformation matrices</p></li>
+<li><p><strong>device</strong> (<em>str</em>)</p></li>
+<li><p><strong>dtype</strong> (<em>torch.dtype</em>)</p></li>
+<li><p><strong>generator</strong> (<em>torch.Generator</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>final_trafo</strong> – The resulting Lorentz transformation matrices of shape (…, 4, 4).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.rand_transforms.rand_xyrotation">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.rand_transforms.</span></span><span class="sig-name descname"><span class="pre">rand_xyrotation</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'cpu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">torch.float32</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/rand_transforms.html#rand_xyrotation"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.rand_transforms.rand_xyrotation" title="Link to this definition"></a></dt>
+<dd><p>Create xy-plane rotation matrices embedded in the Lorentz group.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>shape</strong> (<em>torch.Size</em>) – Shape of the transformation matrices</p></li>
+<li><p><strong>device</strong> (<em>str</em>)</p></li>
+<li><p><strong>dtype</strong> (<em>torch.dtype</em>)</p></li>
+<li><p><strong>generator</strong> (<em>torch.Generator</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>final_trafo</strong> – The resulting Lorentz transformation matrices of shape (…, 4, 4).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.rand_transforms.rand_ztransform">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.rand_transforms.</span></span><span class="sig-name descname"><span class="pre">rand_ztransform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">std_eta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_max_std_eta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'cpu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">torch.float32</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/rand_transforms.html#rand_ztransform"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.rand_transforms.rand_ztransform" title="Link to this definition"></a></dt>
+<dd><p>Create Lorentz transformations consisting of a boost along
+the z-axis and a rotation around the z-axis.
+This transformation is common in LHC physics.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>shape</strong> (<em>torch.Size</em>) – Shape of the transformation matrices</p></li>
+<li><p><strong>std_eta</strong> (<em>float</em>) – Standard deviation of rapidity</p></li>
+<li><p><strong>n_max_std_eta</strong> (<em>float</em>) – Allowed number of standard deviations;
+used to sample from a truncated Gaussian</p></li>
+<li><p><strong>device</strong> (<em>str</em>)</p></li>
+<li><p><strong>dtype</strong> (<em>torch.dtype</em>)</p></li>
+<li><p><strong>generator</strong> (<em>torch.Generator</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>final_trafo</strong> – The resulting Lorentz transformation matrices of shape (…, 4, 4).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.rand_transforms.sample_rapidity">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.rand_transforms.</span></span><span class="sig-name descname"><span class="pre">sample_rapidity</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">shape</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">std_eta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_max_std_eta</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'cpu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">torch.float32</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/rand_transforms.html#sample_rapidity"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.rand_transforms.sample_rapidity" title="Link to this definition"></a></dt>
+<dd><p>Sample rapidity from a clipped gaussian distribution.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>shape</strong> (<em>torch.Size</em>) – Shape of the output tensor</p></li>
+<li><p><strong>std_eta</strong> (<em>float</em>) – Standard deviation of the rapidity</p></li>
+<li><p><strong>n_max_std_eta</strong> (<em>float</em>) – Maximum number of standard deviations for truncation</p></li>
+<li><p><strong>device</strong> (<em>str</em>)</p></li>
+<li><p><strong>dtype</strong> (<em>torch.dtype</em>)</p></li>
+<li><p><strong>generator</strong> (<em>torch.Generator</em>)</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.rand_transforms.transform">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.rand_transforms.</span></span><span class="sig-name descname"><span class="pre">transform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">axes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">angles</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_float64</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/rand_transforms.html#transform"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.rand_transforms.transform" title="Link to this definition"></a></dt>
+<dd><p>Recursively build transformation matrices based on given lists of axes and angles.
+This function is very flexible, but transformations built in this way suffer from
+numerical inaccuracies when many transformations are chained together.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>axes</strong> (<em>list</em><em>[</em><em>int</em><em>]</em>) – List of axes along which the transformations are performed.
+Each element is a tensor of shape (2, …).</p></li>
+<li><p><strong>angles</strong> (<em>list</em><em>[</em><em>torch.Tensor</em><em>]</em>) – List of angles used for the transformations.
+Each element is a tensor of shape (…,).</p></li>
+<li><p><strong>use_float64</strong> (<em>bool</em><em>, </em><em>optional</em>) – Whether to use float64 for calculations, by default True</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>final_trafo</strong> – Final transformation matrix of shape (…, 4, 4).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.Tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="lloca.utils.lorentz.html" class="btn btn-neutral float-left" title="lloca.utils.lorentz" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="lloca.utils.orthogonalize_3d.html" class="btn btn-neutral float-right" title="lloca.utils.orthogonalize_3d" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

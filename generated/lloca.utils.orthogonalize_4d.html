@@ -1,0 +1,364 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lloca.utils.orthogonalize_4d &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="lloca.utils.polar_decomposition" href="lloca.utils.polar_decomposition.html" />
+    <link rel="prev" title="lloca.utils.orthogonalize_3d" href="lloca.utils.orthogonalize_3d.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">API Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../api.html#equivariant-vector-prediction">Equivariant vector prediction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#frames-net">Frames-Net</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#backbone-networks">Backbone networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#lorentz-group-representations">Lorentz group representations</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../api.html#utilities">Utilities</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.utils.html">lloca.utils.utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.lorentz.html">lloca.utils.lorentz</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.rand_transforms.html">lloca.utils.rand_transforms</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.orthogonalize_3d.html">lloca.utils.orthogonalize_3d</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">lloca.utils.orthogonalize_4d</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.orthogonalize_4d.check_timelike_first"><code class="docutils literal notranslate"><span class="pre">check_timelike_first()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.orthogonalize_4d.normalize_4d"><code class="docutils literal notranslate"><span class="pre">normalize_4d()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.orthogonalize_4d.orthogonalize_4d"><code class="docutils literal notranslate"><span class="pre">orthogonalize_4d()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.orthogonalize_4d.orthogonalize_cross"><code class="docutils literal notranslate"><span class="pre">orthogonalize_cross()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.orthogonalize_4d.orthogonalize_gramschmidt"><code class="docutils literal notranslate"><span class="pre">orthogonalize_gramschmidt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.orthogonalize_4d.orthogonalize_wrapper_4d"><code class="docutils literal notranslate"><span class="pre">orthogonalize_wrapper_4d()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.orthogonalize_4d.regularize_coplanar"><code class="docutils literal notranslate"><span class="pre">regularize_coplanar()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.orthogonalize_4d.regularize_lightlike"><code class="docutils literal notranslate"><span class="pre">regularize_lightlike()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.polar_decomposition.html">lloca.utils.polar_decomposition</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../api.html">API Reference</a></li>
+      <li class="breadcrumb-item active">lloca.utils.orthogonalize_4d</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/generated/lloca.utils.orthogonalize_4d.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-lloca.utils.orthogonalize_4d">
+<span id="lloca-utils-orthogonalize-4d"></span><h1>lloca.utils.orthogonalize_4d<a class="headerlink" href="#module-lloca.utils.orthogonalize_4d" title="Link to this heading"></a></h1>
+<p>Orthogonalization of Minkowski vectors.</p>
+<p class="rubric">Functions</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#lloca.utils.orthogonalize_4d.check_timelike_first" title="lloca.utils.orthogonalize_4d.check_timelike_first"><code class="xref py py-obj docutils literal notranslate"><span class="pre">check_timelike_first</span></code></a>(trafo)</p></td>
+<td><p>Check that the Lorentz transformation has only one timelike vector.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#lloca.utils.orthogonalize_4d.normalize_4d" title="lloca.utils.orthogonalize_4d.normalize_4d"><code class="xref py py-obj docutils literal notranslate"><span class="pre">normalize_4d</span></code></a>(v[, eps])</p></td>
+<td><p>Normalize a Minkowski vector by the absolute value of the Minkowski norm.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#lloca.utils.orthogonalize_4d.orthogonalize_4d" title="lloca.utils.orthogonalize_4d.orthogonalize_4d"><code class="xref py py-obj docutils literal notranslate"><span class="pre">orthogonalize_4d</span></code></a>(vecs[, use_float64, ...])</p></td>
+<td><p>High-level wrapper for orthogonalization of three Minkowski vectors.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#lloca.utils.orthogonalize_4d.orthogonalize_cross" title="lloca.utils.orthogonalize_4d.orthogonalize_cross"><code class="xref py py-obj docutils literal notranslate"><span class="pre">orthogonalize_cross</span></code></a>(vecs[, eps_norm])</p></td>
+<td><p>Orthogonalization algorithm using repeated cross products.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#lloca.utils.orthogonalize_4d.orthogonalize_gramschmidt" title="lloca.utils.orthogonalize_4d.orthogonalize_gramschmidt"><code class="xref py py-obj docutils literal notranslate"><span class="pre">orthogonalize_gramschmidt</span></code></a>(vecs[, eps_norm])</p></td>
+<td><p>Gram-Schmidt orthogonalization algorithm for Minkowski vectors.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#lloca.utils.orthogonalize_4d.orthogonalize_wrapper_4d" title="lloca.utils.orthogonalize_4d.orthogonalize_wrapper_4d"><code class="xref py py-obj docutils literal notranslate"><span class="pre">orthogonalize_wrapper_4d</span></code></a>(vecs[, method, ...])</p></td>
+<td><p>Wrapper for orthogonalization of Minkowski vectors.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#lloca.utils.orthogonalize_4d.regularize_coplanar" title="lloca.utils.orthogonalize_4d.regularize_coplanar"><code class="xref py py-obj docutils literal notranslate"><span class="pre">regularize_coplanar</span></code></a>(vecs[, eps_reg_coplanar])</p></td>
+<td><p>If the cross product of three vectors is close to zero, they are coplanar.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#lloca.utils.orthogonalize_4d.regularize_lightlike" title="lloca.utils.orthogonalize_4d.regularize_lightlike"><code class="xref py py-obj docutils literal notranslate"><span class="pre">regularize_lightlike</span></code></a>(vecs[, eps_reg_lightlike])</p></td>
+<td><p>If the Minkowski norm of a vector is close to zero, it is lightlike.</p></td>
+</tr>
+</tbody>
+</table>
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.orthogonalize_4d.check_timelike_first">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.orthogonalize_4d.</span></span><span class="sig-name descname"><span class="pre">check_timelike_first</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trafo</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/orthogonalize_4d.html#check_timelike_first"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.orthogonalize_4d.check_timelike_first" title="Link to this definition"></a></dt>
+<dd><p>Check that the Lorentz transformation has only one timelike vector.
+This is necessary to ensure that the resulting Lorentz transformation has the
+correct metric signature (1, -1, -1, -1). Note that the timelike nature of the
+first vector is enforced by the nonlinearity in the framesnet, this will trigger
+if numerical instabilities occur in the orthogonalization.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>trafo</strong> (<em>torch.Tensor</em>) – Lorentz transformation of shape (…, 4, 4) where the last two dimensions
+represent the transformation matrix.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>trafo</strong> – Lorentz transformation of shape (…, 4, 4) with the first vector being timelike.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.Tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.orthogonalize_4d.normalize_4d">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.orthogonalize_4d.</span></span><span class="sig-name descname"><span class="pre">normalize_4d</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/orthogonalize_4d.html#normalize_4d"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.orthogonalize_4d.normalize_4d" title="Link to this definition"></a></dt>
+<dd><p>Normalize a Minkowski vector by the absolute value of the Minkowski norm.
+Note that this norm can be close to zero.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>v</strong> (<em>torch.Tensor</em>) – Minkowski vector of shape (…, 4).</p></li>
+<li><p><strong>eps</strong> (<em>float</em><em> or </em><em>None</em>) – Small value to avoid division by zero.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Normalized Minkowski vector of shape (…, 4).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.Tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.orthogonalize_4d.orthogonalize_4d">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.orthogonalize_4d.</span></span><span class="sig-name descname"><span class="pre">orthogonalize_4d</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vecs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_float64</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_reg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">checks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/orthogonalize_4d.html#orthogonalize_4d"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.orthogonalize_4d.orthogonalize_4d" title="Link to this definition"></a></dt>
+<dd><p>High-level wrapper for orthogonalization of three Minkowski vectors.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>vecs</strong> (<em>torch.Tensor</em>) – Tensor containing three Minkowski vectors of shape (…, 3, 4).</p></li>
+<li><p><strong>use_float64</strong> (<em>bool</em>) – If True, use float64 for numerical stability during orthogonalization.</p></li>
+<li><p><strong>return_reg</strong> (<em>bool</em>) – If True, return a tuple with the orthogonalized vectors and the number of
+regularized vectors for lightlike and coplanar cases.</p></li>
+<li><p><strong>checks</strong> (<em>bool</em>) – If True, perform additional assertion checks on predicted vectors.
+It may cause slowdowns due to GPU/CPU synchronization, use only for debugging.</p></li>
+<li><p><strong>kwargs</strong> (<em>dict</em>) – Additional keyword arguments passed to the orthogonalization function.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>trafo</strong> (<em>torch.Tensor</em>) – Lorentz transformation of shape (…, 4, 4) that orthogonalizes the input vectors.
+The first vector is guaranteed to be timelike.</p></li>
+<li><p><strong>reg_lightlike</strong> (<em>int</em>) – Number of vectors that were regularized due to being lightlike.</p></li>
+<li><p><strong>reg_coplanar</strong> (<em>int</em>) – Number of vectors that were regularized due to coplanarity.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.orthogonalize_4d.orthogonalize_cross">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.orthogonalize_4d.</span></span><span class="sig-name descname"><span class="pre">orthogonalize_cross</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vecs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_norm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/orthogonalize_4d.html#orthogonalize_cross"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.orthogonalize_4d.orthogonalize_cross" title="Link to this definition"></a></dt>
+<dd><p>Orthogonalization algorithm using repeated cross products.
+This approach gives the same result as orthogonalize_gramschmidt for unlimited
+precision, but we find empirically that the Gram-Schmidt approach is more stable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>vecs</strong> (<em>torch.Tensor</em>) – List of three Minkowski vectors of shape (…, 3, 4).</p></li>
+<li><p><strong>eps_norm</strong> (<em>float</em><em> or </em><em>None</em>) – Small value to avoid division by zero during normalization.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>orthogonal_vecs</strong> – List of four orthogonalized Minkowski vectors of shape (…, 4, 4).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.Tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.orthogonalize_4d.orthogonalize_gramschmidt">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.orthogonalize_4d.</span></span><span class="sig-name descname"><span class="pre">orthogonalize_gramschmidt</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vecs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_norm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/orthogonalize_4d.html#orthogonalize_gramschmidt"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.orthogonalize_4d.orthogonalize_gramschmidt" title="Link to this definition"></a></dt>
+<dd><p>Gram-Schmidt orthogonalization algorithm for Minkowski vectors.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>vecs</strong> (<em>torch.Tensor</em>) – List of three Minkowski vectors of shape (…, 3, 4).</p></li>
+<li><p><strong>eps_norm</strong> (<em>float</em><em> or </em><em>None</em>) – Small value to avoid division by zero during normalization.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>orthogonal_vecs</strong> – List of four orthogonalized Minkowski vectors of shape (…, 4, 4).</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.Tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.orthogonalize_4d.orthogonalize_wrapper_4d">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.orthogonalize_4d.</span></span><span class="sig-name descname"><span class="pre">orthogonalize_wrapper_4d</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vecs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'gramschmidt'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_norm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_reg_coplanar</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_reg_lightlike</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_reg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/orthogonalize_4d.html#orthogonalize_wrapper_4d"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.orthogonalize_4d.orthogonalize_wrapper_4d" title="Link to this definition"></a></dt>
+<dd><p>Wrapper for orthogonalization of Minkowski vectors.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>vecs</strong> (<em>torch.Tensor</em>) – Tensor containing list of three Minkowski vectors of shape (…, 3, 4).</p></li>
+<li><p><strong>method</strong> (<em>str</em>) – Method for orthogonalization. Options are “cross” and “gramschmidt”.</p></li>
+<li><p><strong>eps_norm</strong> (<em>float</em><em> or </em><em>None</em>) – Numerical regularization for the normalization of the vectors.
+If None, use the smallest representable value for the vectors dtype.</p></li>
+<li><p><strong>eps_reg_coplanar</strong> (<em>float</em><em> or </em><em>None</em>) – Controls the scale of the regularization for coplanar vectors.
+eps_reg_coplanar defines the selection threshold.</p></li>
+<li><p><strong>eps_reg_lightlike</strong> (<em>float</em><em> or </em><em>None</em>) – Controls the scale of the regularization for lightlike vectors.
+eps_reg_lightlike defines the selection threshold.</p></li>
+<li><p><strong>return_reg</strong> (<em>bool</em>) – If True, return a tuple with the orthogonalized vectors and the number of
+regularized vectors for lightlike and coplanar cases.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>orthogonal_vecs</strong> (<em>torch.Tensor</em>) – Four orthogonalized Minkowski vectors of shape (…, 4, 4).</p></li>
+<li><p><strong>reg_lightlike</strong> (<em>int</em>) – Number of vectors that were regularized due to being lightlike.</p></li>
+<li><p><strong>reg_coplanar</strong> (<em>int</em>) – Number of vectors that were regularized due to coplanarity.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.orthogonalize_4d.regularize_coplanar">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.orthogonalize_4d.</span></span><span class="sig-name descname"><span class="pre">regularize_coplanar</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vecs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_reg_coplanar</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/orthogonalize_4d.html#regularize_coplanar"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.orthogonalize_4d.regularize_coplanar" title="Link to this definition"></a></dt>
+<dd><p>If the cross product of three vectors is close to zero,
+they are coplanar. In this case, we add a bit of noise to each vector
+to break the degeneracy and ensure that the orthogonalization works.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>vecs</strong> (<em>torch.Tensor</em>) – List of three Minkowski vectors of shape (…, 3, 4).</p></li>
+<li><p><strong>eps_reg_coplanar</strong> (<em>float</em><em> or </em><em>None</em>) – Small value to control the scale of the regularization for coplanar vectors.
+If None, use the smallest representable value for the vectors dtype.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>vecs_reg</strong> (<em>torch.Tensor</em>) – List of three Minkowski vectors of shape (…, 3, 4) with regularization applied.</p></li>
+<li><p><strong>reg_coplanar</strong> (<em>int</em>) – Number of vectors that were regularized due to coplanarity.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.orthogonalize_4d.regularize_lightlike">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.orthogonalize_4d.</span></span><span class="sig-name descname"><span class="pre">regularize_lightlike</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vecs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_reg_lightlike</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/orthogonalize_4d.html#regularize_lightlike"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.orthogonalize_4d.regularize_lightlike" title="Link to this definition"></a></dt>
+<dd><p>If the Minkowski norm of a vector is close to zero,
+it is lightlike. In this case, we add a bit of noise to the vector
+to break the degeneracy and ensure that the orthogonalization works.
+The noise is sampled such that the resulting vector is timelike.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>vecs</strong> (<em>torch.Tensor</em>) – List of three Minkowski vectors of shape (…, 3, 4).</p></li>
+<li><p><strong>eps_reg_lightlike</strong> (<em>float</em><em> or </em><em>None</em>) – Small value to control the scale of the regularization for lightlike vectors.
+If None, use the smallest representable value for the vectors dtype.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>vecs_reg</strong> (<em>torch.Tensor</em>) – List of three Minkowski vectors of shape (…, 3, 4) with regularization applied.</p></li>
+<li><p><strong>reg_lightlike</strong> (<em>int</em>) – Number of vectors that were regularized due to being lightlike.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="lloca.utils.orthogonalize_3d.html" class="btn btn-neutral float-left" title="lloca.utils.orthogonalize_3d" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="lloca.utils.polar_decomposition.html" class="btn btn-neutral float-right" title="lloca.utils.polar_decomposition" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

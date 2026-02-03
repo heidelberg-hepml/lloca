@@ -1,0 +1,12 @@
+﻿lloca.equivectors.pelican
+=========================
+
+.. automodule:: lloca.equivectors.pelican
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      PELICANVectors
+   

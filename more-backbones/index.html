@@ -1,0 +1,179 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Make any network Lorentz-equivariant &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="LLoCa-Transformer" href="transformer.html" />
+    <link rel="prev" title="LLoCa vs L-GATr" href="../lloca-vs-lgatr.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Make any network Lorentz-equivariant</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="transformer.html">LLoCa-Transformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="particletransformer.html">LLoCa-ParticleTransformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="graphnet.html">LLoCa-GraphNet</a></li>
+<li class="toctree-l2"><a class="reference internal" href="particlenet.html">LLoCa-ParticleNet</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Make any network Lorentz-equivariant</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/more-backbones/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="make-any-network-lorentz-equivariant">
+<h1>Make any network Lorentz-equivariant<a class="headerlink" href="#make-any-network-lorentz-equivariant" title="Link to this heading"></a></h1>
+<p>Given my favourite non-equivariant network, or backbone, how can I make it Lorentz-equivariant?</p>
+<a class="reference internal image-reference" href="../_images/lloca.png"><img alt="../_images/lloca.png" class="align-center" src="../_images/lloca.png" style="width: 100%;" />
+</a>
+<p>The LLoCa workflow is outlined above, and extends the flow of data in a non-equivariant network in three steps:</p>
+<ol class="arabic simple">
+<li><p><strong>Predict local frames with small Lorentz-equivariant network.</strong>
+We first use a small Lorentz-equivariant network to predict a set of vectors for each particle.
+Next, these vectors are orthonormalized to obtain four vectors forming an adaptive local coordinate system,
+and these vectors are then identified as the rows of the Lorentz transformation that transforms from the
+global to the particles local reference frame.
+The <cite>lloca</cite> package combines these steps into the Frames-Net, which supports different Lorentz-equivariant
+networks and several variants of creating the local reference frames for the Lorentz group and its subgroups,
+see <a class="reference internal" href="../api.html"><span class="doc">API Reference</span></a>. This step is a pre-processing, and does not require any modification of the backbone architecture.</p></li>
+<li><p><strong>Canonicalize particle data</strong>, i.e. transform particle data into the local reference frame
+using the previously predicted local reference frames, before processing them with the network.
+Finally, the neural network output has to be transformed back into the global frame again.
+The transformation behaviour of the network inputs and outputs depends on their representation,
+which is typically a mix of scalar and vector representations.
+The <cite>lloca</cite> package uses <a class="reference internal" href="../generated/lloca.reps.tensorreps.TensorReps.html#lloca.reps.tensorreps.TensorReps" title="lloca.reps.tensorreps.TensorReps"><code class="xref py py-class docutils literal notranslate"><span class="pre">TensorReps</span></code></a> specify the representations, and
+<a class="reference internal" href="../generated/lloca.reps.tensorreps_transform.TensorRepsTransform.html#lloca.reps.tensorreps_transform.TensorRepsTransform" title="lloca.reps.tensorreps_transform.TensorRepsTransform"><code class="xref py py-class docutils literal notranslate"><span class="pre">TensorRepsTransform</span></code></a> to perform the transformations.
+This step is a pre and post-processing, and does not require any modification of the backbone architecture.</p></li>
+<li><p><strong>Tensorial message-passing</strong> finally requires small modifications in the backbone architecture,
+if it uses message passing such as graph networks and transformers.
+Because the latent features are expressed in different frames for the individual particles,
+they should be transformed from the sender to the receiver frames according to the learned local frame transformations.
+The representation of the latent features is a hyperparameter that should contain at least one vector
+to allow the network to meaningfully communicate geometric information.
+We detail the concrete steps required for the LLoCa-X networks used in our publications below.</p></li>
+</ol>
+<section id="implementing-tensorial-message-passing">
+<h2>Implementing tensorial message-passing<a class="headerlink" href="#implementing-tensorial-message-passing" title="Link to this heading"></a></h2>
+<p>When using local canonicalization, we find that it is necessary to implement tensorial
+message-passing in the backbone architecture  to benefit from canonicalization.
+Without tensorial message-passing, i.e. only scalar latent representations, we find
+poor performance, even below the non-equivariant baseline, see
+<a class="reference external" href="https://arxiv.org/abs/2508.14898">Table 1, 2, 4 in the HEP paper</a>.</p>
+<p>If you do not want to commit to modifying your backbone architecture yet, you can get a
+feeling for the gains of LLoCa by testing its <em>global canonicalization</em> variant.
+Global canonicalization uses a single global frame for the whole event, instead of
+seperate frames for each particle, and therefore does <em>not</em> require tensorial message-passing.
+In our experiments, we found that global canonicalization slightly improves performance compared
+to the non-equivariant baseline, but does not reach the performance of local canonicalization,
+see <a class="reference external" href="https://arxiv.org/abs/2508.14898">Table 1 in the HEP paper</a>.
+Global canonicalization is implemented in the Frames-Net classes, e.g. <a class="reference internal" href="../generated/lloca.framesnet.equi_frames.LearnedPDFrames.html#lloca.framesnet.equi_frames.LearnedPDFrames" title="lloca.framesnet.equi_frames.LearnedPDFrames"><code class="xref py py-class docutils literal notranslate"><span class="pre">LearnedPDFrames</span></code></a>,
+by setting <code class="docutils literal notranslate"><span class="pre">is_global=True</span></code>.</p>
+<p>The following pages contain the <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">diff</span></code> to add tensorial message-passing for the backbone
+networks used in the original LLoCa publications, to provide assistance for anyone wishing
+to implement tensorial message-passing in their favourite backbone architecture.</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="transformer.html"><span class="doc">LLoCa-Transformer</span></a></p></li>
+<li><p><a class="reference internal" href="particletransformer.html"><span class="doc">LLoCa-ParticleTransformer</span></a></p></li>
+<li><p><a class="reference internal" href="graphnet.html"><span class="doc">LLoCa-GraphNet</span></a></p></li>
+<li><p><a class="reference internal" href="particlenet.html"><span class="doc">LLoCa-ParticleNet</span></a></p></li>
+</ul>
+<div class="toctree-wrapper compound">
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../lloca-vs-lgatr.html" class="btn btn-neutral float-left" title="LLoCa vs L-GATr" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="transformer.html" class="btn btn-neutral float-right" title="LLoCa-Transformer" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

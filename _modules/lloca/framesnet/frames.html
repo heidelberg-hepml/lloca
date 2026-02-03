@@ -1,0 +1,400 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lloca.framesnet.frames &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">lloca.framesnet.frames</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for lloca.framesnet.frames</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Bookkeeping classes to access local frames.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils.lorentz</span><span class="w"> </span><span class="kn">import</span> <span class="n">lorentz_eye</span>
+
+
+<div class="viewcode-block" id="Frames">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.frames.Frames.html#lloca.framesnet.frames.Frames">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Frames</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Bookkeeping class for local frames.</span>
+
+<span class="sd">    Collection of Lorentz transformations, represented as (..., 4, 4) matrices.</span>
+<span class="sd">    Properties like det and inv are cached for performance.</span>
+<span class="sd">    Attributes should not be changed after initialization to avoid inconsistencies.</span>
+<span class="sd">    The object can be modified with e.g. ``.reshape()``, ``.expand()`` and ``.repeat()``, ``.to()``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">matrices</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">is_global</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">det</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">inv</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">is_identity</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">device</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">dtype</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;There are 2 ways to initialize an Frames object, with different arguments:</span>
+<span class="sd">        - From matrices: Set matrices and optionally is_global, det, inv</span>
+<span class="sd">        - As identity: Set is_identity=True, shape, device, dtype</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        matrices: torch.tensor</span>
+<span class="sd">            Transformation matrices of shape (..., 4, 4)</span>
+<span class="sd">        is_global: bool</span>
+<span class="sd">            Whether frames are the same for all particles in the point cloud</span>
+<span class="sd">        inv: torch.Tensor</span>
+<span class="sd">            Optional cached inverse of shape (..., 4, 4).</span>
+<span class="sd">            If not given, takes a bit of extra time to compute.</span>
+<span class="sd">        det: torch.Tensor</span>
+<span class="sd">            Optional cached determinant of shape (...).</span>
+<span class="sd">            If not given, takes a bit of extra time to compute.</span>
+<span class="sd">        is_identity: bool</span>
+<span class="sd">            Sets matrices to diagonal.</span>
+<span class="sd">        shape: List[int]</span>
+<span class="sd">            Specifies matrices.shape[:-2] if is_identity. Otherwise inferred from matrices.</span>
+<span class="sd">        device: str</span>
+<span class="sd">            Specifies device if is_identity. Otherwise inferred from matrices.</span>
+<span class="sd">        dtype: torch.dtype</span>
+<span class="sd">            Specifies dtype if is_identity. Otherwise inferred from matrices.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># straight-forward initialization</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_identity</span> <span class="o">=</span> <span class="n">is_identity</span>
+        <span class="k">if</span> <span class="n">is_identity</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">matrices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="n">shape</span> <span class="ow">and</span> <span class="n">device</span> <span class="ow">and</span> <span class="n">dtype</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">shape</span> <span class="o">=</span> <span class="n">matrices</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+                <span class="n">device</span> <span class="o">=</span> <span class="n">matrices</span><span class="o">.</span><span class="n">device</span>
+                <span class="n">dtype</span> <span class="o">=</span> <span class="n">matrices</span><span class="o">.</span><span class="n">dtype</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">matrices</span> <span class="o">=</span> <span class="n">lorentz_eye</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">is_global</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">det</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">matrices</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">matrices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">assert</span> <span class="n">matrices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">:]</span> <span class="o">==</span> <span class="p">(</span>
+                <span class="mi">4</span><span class="p">,</span>
+                <span class="mi">4</span><span class="p">,</span>
+            <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;matrices must be of shape (..., 4, 4), but found </span><span class="si">{</span><span class="n">matrices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">:]</span><span class="si">}</span><span class="s2"> instead&quot;</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">matrices</span> <span class="o">=</span> <span class="n">matrices</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">is_global</span> <span class="o">=</span> <span class="n">is_global</span>
+            <span class="k">if</span> <span class="n">det</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="n">det</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">matrices</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">inv</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="n">inv</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">matrices</span><span class="o">.</span><span class="n">shape</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">det</span> <span class="o">=</span> <span class="n">det</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inv</span> <span class="o">=</span> <span class="n">inv</span>
+
+        <span class="c1"># cache expensive properties</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">det</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">det</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">det</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">matrices</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">inv</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">matrices</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inv</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">*=</span> <span class="o">-</span><span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">inv</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">*=</span> <span class="o">-</span><span class="mi">1</span>
+
+<div class="viewcode-block" id="Frames.reshape">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.frames.Frames.html#lloca.framesnet.frames.Frames.reshape">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">reshape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">shape</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reshape the matrices to generate a new object of different shape.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        shape: int</span>
+<span class="sd">            New shape for the matrices. The last two dimensions must be (4, 4).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Frames</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">:]</span> <span class="o">==</span> <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Frames</span><span class="p">(</span>
+            <span class="n">matrices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">matrices</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">*</span><span class="n">shape</span><span class="p">),</span>
+            <span class="n">is_identity</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_identity</span><span class="p">,</span>
+            <span class="n">is_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_global</span><span class="p">,</span>
+            <span class="n">inv</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">inv</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">*</span><span class="n">shape</span><span class="p">),</span>
+            <span class="n">det</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">det</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">*</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">]),</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Frames.expand">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.frames.Frames.html#lloca.framesnet.frames.Frames.expand">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">expand</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">shape</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand the matrices to generate a new object of different shape.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        shape: int</span>
+<span class="sd">            New shape for the matrices. The last two dimensions must be (4, 4).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Frames</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">:]</span> <span class="o">==</span> <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Frames</span><span class="p">(</span>
+            <span class="n">matrices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">matrices</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">*</span><span class="n">shape</span><span class="p">),</span>
+            <span class="n">is_identity</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_identity</span><span class="p">,</span>
+            <span class="n">is_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_global</span><span class="p">,</span>
+            <span class="n">inv</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">inv</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">*</span><span class="n">shape</span><span class="p">),</span>
+            <span class="n">det</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">det</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">*</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">]),</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Frames.repeat">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.frames.Frames.html#lloca.framesnet.frames.Frames.repeat">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">repeat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">shape</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Repeat the matrices to generate a new object of different shape.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        shape: int</span>
+<span class="sd">            New shape for the matrices. The last two dimensions must be (4, 4).</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Frames</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">:]</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Frames</span><span class="p">(</span>
+            <span class="n">matrices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">matrices</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="o">*</span><span class="n">shape</span><span class="p">),</span>
+            <span class="n">is_identity</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_identity</span><span class="p">,</span>
+            <span class="n">is_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_global</span><span class="p">,</span>
+            <span class="n">inv</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">inv</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="o">*</span><span class="n">shape</span><span class="p">),</span>
+            <span class="n">det</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">det</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="o">*</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">]),</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Frames.to">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.frames.Frames.html#lloca.framesnet.frames.Frames.to">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Move the matrices to a new device and/or dtype.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">matrices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">matrices</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inv</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inv</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">det</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">det</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">repr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">matrices</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">metric</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">diag</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">matrices</span><span class="o">.</span><span class="n">new_tensor</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">diag_embed</span><span class="p">(</span><span class="n">diag</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">base</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="p">,)</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">matrices</span><span class="o">.</span><span class="n">ndim</span> <span class="o">-</span> <span class="mi">2</span><span class="p">),</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">device</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">matrices</span><span class="o">.</span><span class="n">device</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">matrices</span><span class="o">.</span><span class="n">dtype</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">matrices</span><span class="o">.</span><span class="n">shape</span></div>
+
+
+
+<div class="viewcode-block" id="InverseFrames">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.frames.InverseFrames.html#lloca.framesnet.frames.InverseFrames">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">InverseFrames</span><span class="p">(</span><span class="n">Frames</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Inverse of a collection of frames.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frames</span><span class="p">:</span> <span class="n">Frames</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">matrices</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">inv</span><span class="p">,</span>
+            <span class="n">is_global</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">is_global</span><span class="p">,</span>
+            <span class="n">inv</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">matrices</span><span class="p">,</span>
+            <span class="n">det</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">det</span><span class="p">,</span>
+            <span class="n">is_identity</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">is_identity</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+            <span class="n">shape</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="IndexSelectFrames">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.frames.IndexSelectFrames.html#lloca.framesnet.frames.IndexSelectFrames">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">IndexSelectFrames</span><span class="p">(</span><span class="n">Frames</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Index-controlled collection of frames.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frames</span><span class="p">:</span> <span class="n">Frames</span><span class="p">,</span> <span class="n">indices</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">matrices</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">matrices</span><span class="o">.</span><span class="n">index_select</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">indices</span><span class="p">),</span>
+            <span class="n">is_global</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">is_global</span><span class="p">,</span>
+            <span class="n">inv</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">inv</span><span class="o">.</span><span class="n">index_select</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">indices</span><span class="p">),</span>
+            <span class="n">det</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">det</span><span class="o">.</span><span class="n">index_select</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">indices</span><span class="p">),</span>
+            <span class="n">is_identity</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">is_identity</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+            <span class="n">shape</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="ChangeOfFrames">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.frames.ChangeOfFrames.html#lloca.framesnet.frames.ChangeOfFrames">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ChangeOfFrames</span><span class="p">(</span><span class="n">Frames</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Change of frames between two Frames objects.</span>
+
+<span class="sd">    Formally, for L_start and L_end we have $L_change = L_end * L_start^{-1}$.</span>
+
+<span class="sd">    WARNING: This function does not mix the frames of different point clouds.</span>
+<span class="sd">    It is used in TFMessagePassing where this mixing is performed using the edge_index.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frames_start</span><span class="p">:</span> <span class="n">Frames</span><span class="p">,</span> <span class="n">frames_end</span><span class="p">:</span> <span class="n">Frames</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">frames_start</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">frames_end</span><span class="o">.</span><span class="n">shape</span>
+        <span class="k">if</span> <span class="n">frames_start</span><span class="o">.</span><span class="n">is_global</span><span class="p">:</span>
+            <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+                <span class="n">is_identity</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">shape</span><span class="o">=</span><span class="n">frames_start</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+                <span class="n">device</span><span class="o">=</span><span class="n">frames_start</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="n">frames_start</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+                <span class="n">matrices</span><span class="o">=</span><span class="n">frames_end</span><span class="o">.</span><span class="n">matrices</span> <span class="o">@</span> <span class="n">frames_start</span><span class="o">.</span><span class="n">inv</span><span class="p">,</span>
+                <span class="n">is_global</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">inv</span><span class="o">=</span><span class="n">frames_start</span><span class="o">.</span><span class="n">matrices</span> <span class="o">@</span> <span class="n">frames_end</span><span class="o">.</span><span class="n">inv</span><span class="p">,</span>
+                <span class="n">det</span><span class="o">=</span><span class="n">frames_start</span><span class="o">.</span><span class="n">det</span> <span class="o">*</span> <span class="n">frames_end</span><span class="o">.</span><span class="n">det</span><span class="p">,</span>
+            <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="LowerIndicesFrames">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.frames.LowerIndicesFrames.html#lloca.framesnet.frames.LowerIndicesFrames">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LowerIndicesFrames</span><span class="p">(</span><span class="n">Frames</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Frames with lower indices, obtained by multiplying with the metric.</span>
+<span class="sd">    Used in LLoCaAttention to lower the key indices.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frames</span><span class="p">):</span>
+        <span class="n">matrices</span> <span class="o">=</span> <span class="n">frames</span><span class="o">.</span><span class="n">matrices</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">matrices</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">*=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="n">inv</span> <span class="o">=</span> <span class="n">frames</span><span class="o">.</span><span class="n">inv</span><span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="n">inv</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">*=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="n">det</span> <span class="o">=</span> <span class="o">-</span><span class="n">frames</span><span class="o">.</span><span class="n">det</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">matrices</span><span class="o">=</span><span class="n">matrices</span><span class="p">,</span>
+            <span class="n">inv</span><span class="o">=</span><span class="n">inv</span><span class="p">,</span>
+            <span class="n">det</span><span class="o">=</span><span class="n">det</span><span class="p">,</span>
+            <span class="n">is_global</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">is_global</span><span class="p">,</span>
+            <span class="n">is_identity</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">is_identity</span><span class="p">,</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+            <span class="n">shape</span><span class="o">=</span><span class="n">frames</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

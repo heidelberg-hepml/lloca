@@ -1,0 +1,8 @@
+﻿lloca.framesnet.equi_frames.LearnedPDFrames
+===========================================
+
+.. autoclass:: lloca.framesnet.equi_frames.LearnedPDFrames
+   :members:
+   :inherited-members: False
+   :undoc-members:
+   :show-inheritance:

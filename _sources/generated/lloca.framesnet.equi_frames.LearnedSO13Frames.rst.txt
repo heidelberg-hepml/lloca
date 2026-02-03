@@ -1,0 +1,8 @@
+﻿lloca.framesnet.equi_frames.LearnedSO13Frames
+=============================================
+
+.. autoclass:: lloca.framesnet.equi_frames.LearnedSO13Frames
+   :members:
+   :inherited-members: False
+   :undoc-members:
+   :show-inheritance:

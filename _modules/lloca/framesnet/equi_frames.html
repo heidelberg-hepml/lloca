@@ -1,0 +1,744 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lloca.framesnet.equi_frames &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">lloca.framesnet.equi_frames</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for lloca.framesnet.equi_frames</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Equivariant local frames for various symmetry groups.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch_geometric.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">scatter</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils.lorentz</span><span class="w"> </span><span class="kn">import</span> <span class="n">lorentz_eye</span><span class="p">,</span> <span class="n">lorentz_squarednorm</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils.orthogonalize_4d</span><span class="w"> </span><span class="kn">import</span> <span class="n">orthogonalize_4d</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils.polar_decomposition</span><span class="w"> </span><span class="kn">import</span> <span class="n">polar_decomposition</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_batch_from_ptr</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.frames</span><span class="w"> </span><span class="kn">import</span> <span class="n">Frames</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.nonequi_frames</span><span class="w"> </span><span class="kn">import</span> <span class="n">FramesPredictor</span>
+
+
+<div class="viewcode-block" id="LearnedFrames">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedFrames.html#lloca.framesnet.equi_frames.LearnedFrames">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LearnedFrames</span><span class="p">(</span><span class="n">FramesPredictor</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Abstract base class for learnable local frames&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">equivectors</span><span class="p">,</span>
+        <span class="n">n_vectors</span><span class="p">,</span>
+        <span class="n">is_global</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">random</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">fix_params</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">ortho_kwargs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        equivectors: nn.Module</span>
+<span class="sd">            Network that equivariantly predicts vectors</span>
+<span class="sd">        n_vectors: int</span>
+<span class="sd">            Number of vectors to predict</span>
+<span class="sd">        is_global: bool</span>
+<span class="sd">            If True, average the predicted vectors to construct a global frame</span>
+<span class="sd">        random: bool</span>
+<span class="sd">            If True, re-initialize the equivectors at each forward pass.</span>
+<span class="sd">            This is equivalent to data augmentation for is_global=True.</span>
+<span class="sd">        fix_params: bool</span>
+<span class="sd">            Fix the Frames-Net parameters.</span>
+<span class="sd">            This is equivalent to random, but without the resampling.</span>
+<span class="sd">            We find that this can be useful to avoid overfitting.</span>
+<span class="sd">        ortho_kwargs: dict</span>
+<span class="sd">            Keyword arguments for orthogonalization</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ortho_kwargs</span> <span class="o">=</span> <span class="p">{}</span> <span class="k">if</span> <span class="n">ortho_kwargs</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">ortho_kwargs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">equivectors</span> <span class="o">=</span> <span class="n">equivectors</span><span class="p">(</span><span class="n">n_vectors</span><span class="o">=</span><span class="n">n_vectors</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_global</span> <span class="o">=</span> <span class="n">is_global</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">random</span> <span class="o">=</span> <span class="n">random</span>
+        <span class="k">if</span> <span class="n">random</span> <span class="ow">or</span> <span class="n">fix_params</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">equivectors</span><span class="o">.</span><span class="n">requires_grad_</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+
+<div class="viewcode-block" id="LearnedFrames.init_weights_or_not">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedFrames.html#lloca.framesnet.equi_frames.LearnedFrames.init_weights_or_not">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">init_weights_or_not</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">random</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">training</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">equivectors</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">init_weights</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="LearnedFrames.globalize_vecs_or_not">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedFrames.html#lloca.framesnet.equi_frames.LearnedFrames.globalize_vecs_or_not">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">globalize_vecs_or_not</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vecs</span><span class="p">,</span> <span class="n">ptr</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">average_event</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">ptr</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_global</span> <span class="k">else</span> <span class="n">vecs</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">classname</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span>
+        <span class="n">method</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ortho_kwargs</span><span class="p">[</span><span class="s2">&quot;method&quot;</span><span class="p">]</span>
+        <span class="n">string</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">classname</span><span class="si">}</span><span class="s2">(method=</span><span class="si">{</span><span class="n">method</span><span class="si">}</span><span class="s2">)&quot;</span>
+        <span class="k">return</span> <span class="n">string</span></div>
+
+
+
+<div class="viewcode-block" id="LearnedPDFrames">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedPDFrames.html#lloca.framesnet.equi_frames.LearnedPDFrames">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LearnedPDFrames</span><span class="p">(</span><span class="n">LearnedFrames</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Frames as learnable polar decompositions.</span>
+
+<span class="sd">    This is our default approach.</span>
+<span class="sd">    LearnedSO13Frames works similarly well, but is less flexible.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="n">args</span><span class="p">,</span>
+        <span class="n">gamma_max</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">gamma_hardness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">deterministic_boost</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="nb">compile</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        *args, **kwargs:</span>
+<span class="sd">            Passed to LearnedFrames</span>
+<span class="sd">        gamma_max: float | None</span>
+<span class="sd">            Maximum gamma factor for boost regularization.</span>
+<span class="sd">            If None, no regularization is applied.</span>
+<span class="sd">        gamma_hardness: float | None</span>
+<span class="sd">            Hardness, i.e. beta factor in the softplus regularization.</span>
+<span class="sd">            If None, a hard clamp is applied.</span>
+<span class="sd">        deterministic_boost: str or None</span>
+<span class="sd">            Deprecated option</span>
+<span class="sd">        compile: bool</span>
+<span class="sd">            Option to compile the orthonormalization procedure.</span>
+<span class="sd">            Does not yet give significant speedups in our tests.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">n_vectors</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gamma_max</span> <span class="o">=</span> <span class="n">gamma_max</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gamma_hardness</span> <span class="o">=</span> <span class="n">gamma_hardness</span>
+        <span class="k">assert</span> <span class="n">deterministic_boost</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;deterministic_boost option is deprecated&quot;</span>
+
+        <span class="k">if</span> <span class="nb">compile</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+                <span class="n">polar_decomposition</span><span class="p">,</span> <span class="n">dynamic</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fullgraph</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span> <span class="o">=</span> <span class="n">polar_decomposition</span>
+
+<div class="viewcode-block" id="LearnedPDFrames.forward">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedPDFrames.html#lloca.framesnet.equi_frames.LearnedPDFrames.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fourmomenta</span><span class="p">,</span> <span class="n">scalars</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ptr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_tracker</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        fourmomenta: torch.Tensor</span>
+<span class="sd">            Tensor of shape (..., 4) containing the four-momenta</span>
+<span class="sd">        scalars: torch.Tensor or None</span>
+<span class="sd">            Optional tensor of shape (..., n_scalars) containing additional scalar features</span>
+<span class="sd">        ptr: torch.Tensor or None</span>
+<span class="sd">            Pointer for sparse tensors, or None for dense tensors</span>
+<span class="sd">        return_tracker: bool</span>
+<span class="sd">            If True, return a tracker dictionary with regularization information</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Frames</span>
+<span class="sd">            Local frames constructed from the polar decomposition of the four-momenta</span>
+<span class="sd">        tracker: dict (optional)</span>
+<span class="sd">            Dictionary containing regularization information, if return_tracker is True</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_weights_or_not</span><span class="p">()</span>
+        <span class="n">vecs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">equivectors</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">,</span> <span class="n">scalars</span><span class="o">=</span><span class="n">scalars</span><span class="p">,</span> <span class="n">ptr</span><span class="o">=</span><span class="n">ptr</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">vecs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">globalize_vecs_or_not</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">ptr</span><span class="p">)</span>
+        <span class="n">boost</span> <span class="o">=</span> <span class="n">vecs</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">rotation_references</span> <span class="o">=</span> <span class="n">vecs</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span>
+        <span class="n">boost</span><span class="p">,</span> <span class="n">reg_gammamax</span><span class="p">,</span> <span class="n">gamma_mean</span><span class="p">,</span> <span class="n">gamma_max</span> <span class="o">=</span> <span class="n">clamp_boost</span><span class="p">(</span>
+            <span class="n">boost</span><span class="p">,</span> <span class="n">gamma_max</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">gamma_max</span><span class="p">,</span> <span class="n">gamma_hardness</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">gamma_hardness</span>
+        <span class="p">)</span>
+
+        <span class="n">trafo</span><span class="p">,</span> <span class="n">reg_lightlike</span><span class="p">,</span> <span class="n">reg_collinear</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span><span class="p">(</span>
+            <span class="n">boost</span><span class="p">,</span>
+            <span class="n">rotation_references</span><span class="p">,</span>
+            <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">ortho_kwargs</span><span class="p">,</span>
+            <span class="n">return_reg</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">tracker</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;reg_lightlike&quot;</span><span class="p">:</span> <span class="n">reg_lightlike</span><span class="p">,</span>
+            <span class="s2">&quot;reg_collinear&quot;</span><span class="p">:</span> <span class="n">reg_collinear</span><span class="p">,</span>
+            <span class="s2">&quot;gamma_mean&quot;</span><span class="p">:</span> <span class="n">gamma_mean</span><span class="p">,</span>
+            <span class="s2">&quot;gamma_max&quot;</span><span class="p">:</span> <span class="n">gamma_max</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">reg_gammamax</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">tracker</span><span class="p">[</span><span class="s2">&quot;reg_gammamax&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">reg_gammamax</span>
+        <span class="n">frames</span> <span class="o">=</span> <span class="n">Frames</span><span class="p">(</span><span class="n">trafo</span><span class="p">,</span> <span class="n">is_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_global</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="n">tracker</span><span class="p">)</span> <span class="k">if</span> <span class="n">return_tracker</span> <span class="k">else</span> <span class="n">frames</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="LearnedSO13Frames">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedSO13Frames.html#lloca.framesnet.equi_frames.LearnedSO13Frames">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LearnedSO13Frames</span><span class="p">(</span><span class="n">LearnedFrames</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Frames as orthonormal set of Lorentz vectors.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="n">args</span><span class="p">,</span>
+        <span class="nb">compile</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        *args, **kwargs:</span>
+<span class="sd">            Passed to LearnedFrames</span>
+<span class="sd">        compile: bool</span>
+<span class="sd">            Option to compile the orthonormalization procedure.</span>
+<span class="sd">            Does not yet give significant speedups in our tests.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">n_vectors</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">compile</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">orthogonalize_4d</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">orthogonalize_4d</span><span class="p">,</span> <span class="n">dynamic</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fullgraph</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">orthogonalize_4d</span> <span class="o">=</span> <span class="n">orthogonalize_4d</span>
+
+<div class="viewcode-block" id="LearnedSO13Frames.forward">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedSO13Frames.html#lloca.framesnet.equi_frames.LearnedSO13Frames.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fourmomenta</span><span class="p">,</span> <span class="n">scalars</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ptr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_tracker</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        fourmomenta: torch.Tensor</span>
+<span class="sd">            Tensor of shape (..., 4) containing the four-momenta</span>
+<span class="sd">        scalars: torch.Tensor or None</span>
+<span class="sd">            Optional tensor of shape (..., n_scalars) containing additional scalar features</span>
+<span class="sd">        ptr: torch.Tensor or None</span>
+<span class="sd">            Pointer for sparse tensors, or None for dense tensors</span>
+<span class="sd">        return_tracker: bool</span>
+<span class="sd">            If True, return a tracker dictionary with regularization information</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Frames</span>
+<span class="sd">            Local frames constructed from the polar decomposition of the four-momenta</span>
+<span class="sd">        tracker: dict (optional)</span>
+<span class="sd">            Dictionary containing regularization information, if return_tracker is True</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_weights_or_not</span><span class="p">()</span>
+        <span class="n">vecs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">equivectors</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">,</span> <span class="n">scalars</span><span class="o">=</span><span class="n">scalars</span><span class="p">,</span> <span class="n">ptr</span><span class="o">=</span><span class="n">ptr</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">vecs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">globalize_vecs_or_not</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">ptr</span><span class="p">)</span>
+
+        <span class="n">trafo</span><span class="p">,</span> <span class="n">reg_lightlike</span><span class="p">,</span> <span class="n">reg_coplanar</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">orthogonalize_4d</span><span class="p">(</span>
+            <span class="n">vecs</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">ortho_kwargs</span><span class="p">,</span> <span class="n">return_reg</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span>
+
+        <span class="n">tracker</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;reg_lightlike&quot;</span><span class="p">:</span> <span class="n">reg_lightlike</span><span class="p">,</span> <span class="s2">&quot;reg_coplanar&quot;</span><span class="p">:</span> <span class="n">reg_coplanar</span><span class="p">}</span>
+        <span class="n">frames</span> <span class="o">=</span> <span class="n">Frames</span><span class="p">(</span><span class="n">trafo</span><span class="p">,</span> <span class="n">is_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_global</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="n">tracker</span><span class="p">)</span> <span class="k">if</span> <span class="n">return_tracker</span> <span class="k">else</span> <span class="n">frames</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="LearnedRestFrames">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedRestFrames.html#lloca.framesnet.equi_frames.LearnedRestFrames">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LearnedRestFrames</span><span class="p">(</span><span class="n">LearnedFrames</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Rest frame transformation with learnable rotation.</span>
+
+<span class="sd">    This is a special case of LearnedPolarDecompositionFrames</span>
+<span class="sd">    where the boost vector is chosen to be the particle momentum.</span>
+<span class="sd">    Note that the rotation is constructed equivariantly to get</span>
+<span class="sd">    the correct transformation behaviour of local frames.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="n">args</span><span class="p">,</span>
+        <span class="nb">compile</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        *args, **kwargs:</span>
+<span class="sd">            Passed to LearnedFrames</span>
+<span class="sd">        compile: bool</span>
+<span class="sd">            Option to compile the orthonormalization procedure.</span>
+<span class="sd">            Does not yet give significant speedups in our tests.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">n_vectors</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">compile</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+                <span class="n">polar_decomposition</span><span class="p">,</span> <span class="n">dynamic</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fullgraph</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span> <span class="o">=</span> <span class="n">polar_decomposition</span>
+
+<div class="viewcode-block" id="LearnedRestFrames.forward">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedRestFrames.html#lloca.framesnet.equi_frames.LearnedRestFrames.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fourmomenta</span><span class="p">,</span> <span class="n">scalars</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ptr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_tracker</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        fourmomenta: torch.Tensor</span>
+<span class="sd">            Tensor of shape (..., 4) containing the four-momenta</span>
+<span class="sd">        scalars: torch.Tensor or None</span>
+<span class="sd">            Optional tensor of shape (..., n_scalars) containing additional scalar features</span>
+<span class="sd">        ptr: torch.Tensor or None</span>
+<span class="sd">            Pointer for sparse tensors, or None for dense tensors</span>
+<span class="sd">        return_tracker: bool</span>
+<span class="sd">            If True, return a tracker dictionary with regularization information</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Frames</span>
+<span class="sd">            Local frames constructed from the polar decomposition of the four-momenta</span>
+<span class="sd">        tracker: dict (optional)</span>
+<span class="sd">            Dictionary containing regularization information, if return_tracker is True</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_weights_or_not</span><span class="p">()</span>
+        <span class="n">references</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">equivectors</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">,</span> <span class="n">scalars</span><span class="o">=</span><span class="n">scalars</span><span class="p">,</span> <span class="n">ptr</span><span class="o">=</span><span class="n">ptr</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">references</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">globalize_vecs_or_not</span><span class="p">(</span><span class="n">references</span><span class="p">,</span> <span class="n">ptr</span><span class="p">)</span>
+
+        <span class="n">trafo</span><span class="p">,</span> <span class="n">reg_lightlike</span><span class="p">,</span> <span class="n">reg_collinear</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span><span class="p">(</span>
+            <span class="n">fourmomenta</span><span class="p">,</span>
+            <span class="n">references</span><span class="p">,</span>
+            <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">ortho_kwargs</span><span class="p">,</span>
+            <span class="n">return_reg</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">tracker</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;reg_lightlike&quot;</span><span class="p">:</span> <span class="n">reg_lightlike</span><span class="p">,</span> <span class="s2">&quot;reg_collinear&quot;</span><span class="p">:</span> <span class="n">reg_collinear</span><span class="p">}</span>
+        <span class="n">frames</span> <span class="o">=</span> <span class="n">Frames</span><span class="p">(</span><span class="n">trafo</span><span class="p">,</span> <span class="n">is_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_global</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="n">tracker</span><span class="p">)</span> <span class="k">if</span> <span class="n">return_tracker</span> <span class="k">else</span> <span class="n">frames</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="LearnedSO3Frames">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedSO3Frames.html#lloca.framesnet.equi_frames.LearnedSO3Frames">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LearnedSO3Frames</span><span class="p">(</span><span class="n">LearnedFrames</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Frames from SO(3) rotations.</span>
+
+<span class="sd">    This is a special case of LearnedPolarDecompositionFrames</span>
+<span class="sd">    where the first vector is trivial (1,0,0,0).&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="n">args</span><span class="p">,</span>
+        <span class="nb">compile</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        *args, **kwargs:</span>
+<span class="sd">            Passed to LearnedFrames</span>
+<span class="sd">        compile: bool</span>
+<span class="sd">            Option to compile the orthonormalization procedure.</span>
+<span class="sd">            Does not yet give significant speedups in our tests.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_vectors</span> <span class="o">=</span> <span class="mi">2</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="o">*</span><span class="n">args</span><span class="p">,</span>
+            <span class="n">n_vectors</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_vectors</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">compile</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+                <span class="n">polar_decomposition</span><span class="p">,</span> <span class="n">dynamic</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fullgraph</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span> <span class="o">=</span> <span class="n">polar_decomposition</span>
+
+<div class="viewcode-block" id="LearnedSO3Frames.forward">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedSO3Frames.html#lloca.framesnet.equi_frames.LearnedSO3Frames.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fourmomenta</span><span class="p">,</span> <span class="n">scalars</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ptr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_tracker</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        fourmomenta: torch.Tensor</span>
+<span class="sd">            Tensor of shape (..., 4) containing the four-momenta</span>
+<span class="sd">        scalars: torch.Tensor or None</span>
+<span class="sd">            Optional tensor of shape (..., n_scalars) containing additional scalar features</span>
+<span class="sd">        ptr: torch.Tensor or None</span>
+<span class="sd">            Pointer for sparse tensors, or None for dense tensors</span>
+<span class="sd">        return_tracker: bool</span>
+<span class="sd">            If True, return a tracker dictionary with regularization information</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Frames</span>
+<span class="sd">            Local frames constructed from the polar decomposition of the four-momenta</span>
+<span class="sd">        tracker: dict (optional)</span>
+<span class="sd">            Dictionary containing regularization information, if return_tracker is True</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_weights_or_not</span><span class="p">()</span>
+        <span class="n">references</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">equivectors</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">,</span> <span class="n">scalars</span><span class="o">=</span><span class="n">scalars</span><span class="p">,</span> <span class="n">ptr</span><span class="o">=</span><span class="n">ptr</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">references</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">globalize_vecs_or_not</span><span class="p">(</span><span class="n">references</span><span class="p">,</span> <span class="n">ptr</span><span class="p">)</span>
+        <span class="n">fourmomenta</span> <span class="o">=</span> <span class="n">lorentz_eye</span><span class="p">(</span>
+            <span class="n">fourmomenta</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">fourmomenta</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">fourmomenta</span><span class="o">.</span><span class="n">dtype</span>
+        <span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>  <span class="c1"># only difference compared to LearnedPolarDecompositionFrames</span>
+
+        <span class="n">trafo</span><span class="p">,</span> <span class="n">reg_lightlike</span><span class="p">,</span> <span class="n">reg_collinear</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span><span class="p">(</span>
+            <span class="n">fourmomenta</span><span class="p">,</span>
+            <span class="n">references</span><span class="p">,</span>
+            <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">ortho_kwargs</span><span class="p">,</span>
+            <span class="n">return_reg</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">tracker</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;reg_lightlike&quot;</span><span class="p">:</span> <span class="n">reg_lightlike</span><span class="p">,</span> <span class="s2">&quot;reg_collinear&quot;</span><span class="p">:</span> <span class="n">reg_collinear</span><span class="p">}</span>
+        <span class="n">frames</span> <span class="o">=</span> <span class="n">Frames</span><span class="p">(</span><span class="n">trafo</span><span class="p">,</span> <span class="n">is_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_global</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="n">tracker</span><span class="p">)</span> <span class="k">if</span> <span class="n">return_tracker</span> <span class="k">else</span> <span class="n">frames</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="LearnedZFrames">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedZFrames.html#lloca.framesnet.equi_frames.LearnedZFrames">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LearnedZFrames</span><span class="p">(</span><span class="n">LearnedFrames</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Frames from ztransform,</span>
+<span class="sd">    i.e. combination of boost along z and rotation around z axis,</span>
+<span class="sd">    or SO(1,1)_z x SO(2)_z.</span>
+
+<span class="sd">    This is a special case of LearnedPolarDecompositionFrames</span>
+<span class="sd">    where the boost vector is constrained to point along the z-axis</span>
+<span class="sd">    and one of the rotation references is (0,0,0,1).&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="n">args</span><span class="p">,</span>
+        <span class="n">gamma_max</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">gamma_hardness</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="nb">compile</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        *args, **kwargs:</span>
+<span class="sd">            Passed to LearnedFrames</span>
+<span class="sd">        gamma_max: float | None</span>
+<span class="sd">            Maximum gamma factor for boost regularization.</span>
+<span class="sd">            If None, no regularization is applied.</span>
+<span class="sd">        gamma_hardness: float | None</span>
+<span class="sd">            Hardness, i.e. beta factor in the softplus regularization.</span>
+<span class="sd">            If None, a hard clamp is applied.</span>
+<span class="sd">        compile: bool</span>
+<span class="sd">            Option to compile the orthonormalization procedure.</span>
+<span class="sd">            Does not yet give significant speedups in our tests.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">n_vectors</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gamma_max</span> <span class="o">=</span> <span class="n">gamma_max</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gamma_hardness</span> <span class="o">=</span> <span class="n">gamma_hardness</span>
+        <span class="k">if</span> <span class="nb">compile</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+                <span class="n">polar_decomposition</span><span class="p">,</span> <span class="n">dynamic</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fullgraph</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span> <span class="o">=</span> <span class="n">polar_decomposition</span>
+
+<div class="viewcode-block" id="LearnedZFrames.forward">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedZFrames.html#lloca.framesnet.equi_frames.LearnedZFrames.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fourmomenta</span><span class="p">,</span> <span class="n">scalars</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ptr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_tracker</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        fourmomenta: torch.Tensor</span>
+<span class="sd">            Tensor of shape (..., 4) containing the four-momenta</span>
+<span class="sd">        scalars: torch.Tensor or None</span>
+<span class="sd">            Optional tensor of shape (..., n_scalars) containing additional scalar features</span>
+<span class="sd">        ptr: torch.Tensor or None</span>
+<span class="sd">            Pointer for sparse tensors, or None for dense tensors</span>
+<span class="sd">        return_tracker: bool</span>
+<span class="sd">            If True, return a tracker dictionary with regularization information</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Frames</span>
+<span class="sd">            Local frames constructed from the polar decomposition of the four-momenta</span>
+<span class="sd">        tracker: dict (optional)</span>
+<span class="sd">            Dictionary containing regularization information, if return_tracker is True</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_weights_or_not</span><span class="p">()</span>
+        <span class="n">vecs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">equivectors</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">,</span> <span class="n">scalars</span><span class="o">=</span><span class="n">scalars</span><span class="p">,</span> <span class="n">ptr</span><span class="o">=</span><span class="n">ptr</span><span class="p">)</span>
+        <span class="n">vecs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">globalize_vecs_or_not</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">ptr</span><span class="p">)</span>
+        <span class="n">boost</span> <span class="o">=</span> <span class="n">vecs</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">boost</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]]</span> <span class="o">=</span> <span class="mf">0.0</span>  <span class="c1"># only z-boost (keeps timelike vectors timelike)</span>
+        <span class="n">rotation_references</span> <span class="o">=</span> <span class="n">vecs</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
+        <span class="n">boost</span><span class="p">,</span> <span class="n">reg_gammamax</span><span class="p">,</span> <span class="n">gamma_mean</span><span class="p">,</span> <span class="n">gamma_max</span> <span class="o">=</span> <span class="n">clamp_boost</span><span class="p">(</span>
+            <span class="n">boost</span><span class="p">,</span> <span class="n">gamma_max</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">gamma_max</span><span class="p">,</span> <span class="n">gamma_hardness</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">gamma_hardness</span>
+        <span class="p">)</span>
+
+        <span class="n">spurion_references</span> <span class="o">=</span> <span class="n">lorentz_eye</span><span class="p">(</span>
+            <span class="n">fourmomenta</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">fourmomenta</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">fourmomenta</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+        <span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>  <span class="c1"># difference 2 compared LearnedPolarDecompositionFrames</span>
+        <span class="n">rotation_references</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">rotation_references</span><span class="p">,</span> <span class="n">spurion_references</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="n">trafo</span><span class="p">,</span> <span class="n">reg_lightlike</span><span class="p">,</span> <span class="n">reg_collinear</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span><span class="p">(</span>
+            <span class="n">boost</span><span class="p">,</span>
+            <span class="n">rotation_references</span><span class="p">,</span>
+            <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">ortho_kwargs</span><span class="p">,</span>
+            <span class="n">return_reg</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">tracker</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">&quot;reg_lightlike&quot;</span><span class="p">:</span> <span class="n">reg_lightlike</span><span class="p">,</span>
+            <span class="s2">&quot;reg_collinear&quot;</span><span class="p">:</span> <span class="n">reg_collinear</span><span class="p">,</span>
+            <span class="s2">&quot;gamma_mean&quot;</span><span class="p">:</span> <span class="n">gamma_mean</span><span class="p">,</span>
+            <span class="s2">&quot;gamma_max&quot;</span><span class="p">:</span> <span class="n">gamma_max</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">reg_gammamax</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">tracker</span><span class="p">[</span><span class="s2">&quot;reg_gammamax&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">reg_gammamax</span>
+        <span class="n">frames</span> <span class="o">=</span> <span class="n">Frames</span><span class="p">(</span><span class="n">trafo</span><span class="p">,</span> <span class="n">is_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_global</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="n">tracker</span><span class="p">)</span> <span class="k">if</span> <span class="n">return_tracker</span> <span class="k">else</span> <span class="n">frames</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="LearnedSO2Frames">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedSO2Frames.html#lloca.framesnet.equi_frames.LearnedSO2Frames">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">LearnedSO2Frames</span><span class="p">(</span><span class="n">LearnedFrames</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Frames from SO(2) rotations around the beam axis.</span>
+
+<span class="sd">    This is a special case of LearnedPolarDecompositionFrames</span>
+<span class="sd">    where the firsts two vectors are trivial (1,0,0,0) and (0,0,0,1).&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="n">args</span><span class="p">,</span>
+        <span class="nb">compile</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        *args, **kwargs:</span>
+<span class="sd">            Passed to LearnedFrames</span>
+<span class="sd">        compile: bool</span>
+<span class="sd">            Option to compile the orthonormalization procedure.</span>
+<span class="sd">            Does not yet give significant speedups in our tests.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_vectors</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="o">*</span><span class="n">args</span><span class="p">,</span>
+            <span class="n">n_vectors</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n_vectors</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">compile</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+                <span class="n">polar_decomposition</span><span class="p">,</span> <span class="n">dynamic</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fullgraph</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span> <span class="o">=</span> <span class="n">polar_decomposition</span>
+
+<div class="viewcode-block" id="LearnedSO2Frames.forward">
+<a class="viewcode-back" href="../../../generated/lloca.framesnet.equi_frames.LearnedSO2Frames.html#lloca.framesnet.equi_frames.LearnedSO2Frames.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fourmomenta</span><span class="p">,</span> <span class="n">scalars</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ptr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_tracker</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        fourmomenta: torch.Tensor</span>
+<span class="sd">            Tensor of shape (..., 4) containing the four-momenta</span>
+<span class="sd">        scalars: torch.Tensor or None</span>
+<span class="sd">            Optional tensor of shape (..., n_scalars) containing additional scalar features</span>
+<span class="sd">        ptr: torch.Tensor or None</span>
+<span class="sd">            Pointer for sparse tensors, or None for dense tensors</span>
+<span class="sd">        return_tracker: bool</span>
+<span class="sd">            If True, return a tracker dictionary with regularization information</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        Frames</span>
+<span class="sd">            Local frames constructed from the polar decomposition of the four-momenta</span>
+<span class="sd">        tracker: dict (optional)</span>
+<span class="sd">            Dictionary containing regularization information, if return_tracker is True</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_weights_or_not</span><span class="p">()</span>
+        <span class="n">references</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">equivectors</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">,</span> <span class="n">scalars</span><span class="o">=</span><span class="n">scalars</span><span class="p">,</span> <span class="n">ptr</span><span class="o">=</span><span class="n">ptr</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">extra_references</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">globalize_vecs_or_not</span><span class="p">(</span><span class="n">references</span><span class="p">,</span> <span class="n">ptr</span><span class="p">)</span>
+        <span class="n">fourmomenta</span> <span class="o">=</span> <span class="n">lorentz_eye</span><span class="p">(</span>
+            <span class="n">fourmomenta</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">fourmomenta</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">fourmomenta</span><span class="o">.</span><span class="n">dtype</span>
+        <span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>  <span class="c1"># difference 1 compared LearnedPolarDecompositionFrames</span>
+        <span class="n">spurion_references</span> <span class="o">=</span> <span class="n">lorentz_eye</span><span class="p">(</span>
+            <span class="n">fourmomenta</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">device</span><span class="o">=</span><span class="n">fourmomenta</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">fourmomenta</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+        <span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>  <span class="c1"># difference 2 compared LearnedPolarDecompositionFrames</span>
+        <span class="n">references</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">spurion_references</span><span class="p">,</span> <span class="n">extra_references</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="n">trafo</span><span class="p">,</span> <span class="n">reg_lightlike</span><span class="p">,</span> <span class="n">reg_collinear</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">polar_decomposition</span><span class="p">(</span>
+            <span class="n">fourmomenta</span><span class="p">,</span>
+            <span class="n">references</span><span class="p">,</span>
+            <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">ortho_kwargs</span><span class="p">,</span>
+            <span class="n">return_reg</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">tracker</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;reg_lightlike&quot;</span><span class="p">:</span> <span class="n">reg_lightlike</span><span class="p">,</span> <span class="s2">&quot;reg_collinear&quot;</span><span class="p">:</span> <span class="n">reg_collinear</span><span class="p">}</span>
+        <span class="n">frames</span> <span class="o">=</span> <span class="n">Frames</span><span class="p">(</span><span class="n">trafo</span><span class="p">,</span> <span class="n">is_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">is_global</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">frames</span><span class="p">,</span> <span class="n">tracker</span><span class="p">)</span> <span class="k">if</span> <span class="n">return_tracker</span> <span class="k">else</span> <span class="n">frames</span></div>
+</div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">clamp_boost</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">gamma_max</span><span class="p">,</span> <span class="n">gamma_hardness</span><span class="p">):</span>
+    <span class="n">mass</span> <span class="o">=</span> <span class="n">lorentz_squarednorm</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">sqrt</span><span class="p">()</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">t0</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">narrow</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">beta</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">/</span> <span class="n">t0</span><span class="o">.</span><span class="n">clamp_min</span><span class="p">(</span><span class="mf">1e-10</span><span class="p">)</span>
+    <span class="n">gamma</span> <span class="o">=</span> <span class="n">t0</span> <span class="o">/</span> <span class="n">mass</span>
+    <span class="n">gamma_max_realized</span> <span class="o">=</span> <span class="n">gamma</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span>
+    <span class="n">gamma_mean</span> <span class="o">=</span> <span class="n">gamma</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">gamma_max</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">x</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">gamma_mean</span><span class="p">,</span> <span class="n">gamma_max_realized</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># carefully clamp gamma to keep boosts under control</span>
+        <span class="n">reg_gammamax</span> <span class="o">=</span> <span class="p">(</span><span class="n">gamma</span> <span class="o">&gt;</span> <span class="n">gamma_max</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span>
+        <span class="n">gamma_reg</span> <span class="o">=</span> <span class="n">soft_clamp</span><span class="p">(</span><span class="n">gamma</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="n">gamma_max</span><span class="p">,</span> <span class="n">hardness</span><span class="o">=</span><span class="n">gamma_hardness</span><span class="p">)</span>
+        <span class="n">beta_scaling</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">gamma_reg</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-10</span><span class="p">)</span><span class="o">.</span><span class="n">square</span><span class="p">(),</span> <span class="nb">min</span><span class="o">=</span><span class="mf">1e-10</span><span class="p">))</span>
+            <span class="o">/</span> <span class="p">(</span><span class="n">beta</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-10</span><span class="p">)</span><span class="o">.</span><span class="n">sqrt</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="n">beta_reg</span> <span class="o">=</span> <span class="n">beta</span> <span class="o">*</span> <span class="n">beta_scaling</span>
+        <span class="n">x_reg</span> <span class="o">=</span> <span class="n">mass</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">gamma_reg</span><span class="p">,</span> <span class="n">gamma_reg</span> <span class="o">*</span> <span class="n">beta_reg</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">x_reg</span><span class="p">,</span> <span class="n">reg_gammamax</span><span class="p">,</span> <span class="n">gamma_mean</span><span class="p">,</span> <span class="n">gamma_max_realized</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">average_event</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">ptr</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Average vectors across events and expand again.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    vecs: torch.Tensor</span>
+<span class="sd">        Tensor of shape (..., n_vectors, 4)</span>
+<span class="sd">        where the last dimension contains the vectors</span>
+<span class="sd">    ptr: torch.Tensor or None</span>
+<span class="sd">        Pointer to the batch of events, or None for global averaging</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    torch.Tensor</span>
+<span class="sd">        Averaged vectors of shape (..., n_vectors, 4).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">ptr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">vecs</span> <span class="o">=</span> <span class="n">vecs</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">expand_as</span><span class="p">(</span><span class="n">vecs</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">batch</span> <span class="o">=</span> <span class="n">get_batch_from_ptr</span><span class="p">(</span><span class="n">ptr</span><span class="p">)</span>
+        <span class="n">vecs</span> <span class="o">=</span> <span class="n">scatter</span><span class="p">(</span><span class="n">vecs</span><span class="p">,</span> <span class="n">batch</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">reduce</span><span class="o">=</span><span class="s2">&quot;mean&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">index_select</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">vecs</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">init_weights</span><span class="p">(</span><span class="n">module</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">&quot;reset_parameters&quot;</span><span class="p">):</span>
+        <span class="n">module</span><span class="o">.</span><span class="n">reset_parameters</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">soft_clamp</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">hardness</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">hardness</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># hard clamp</span>
+        <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="nb">min</span><span class="p">,</span> <span class="nb">max</span><span class="o">=</span><span class="nb">max</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># soft clamp (better gradients)</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="nb">max</span> <span class="o">-</span> <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">functional</span><span class="o">.</span><span class="n">softplus</span><span class="p">(</span><span class="nb">max</span> <span class="o">-</span> <span class="n">x</span><span class="p">,</span> <span class="n">beta</span><span class="o">=</span><span class="n">hardness</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="nb">min</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

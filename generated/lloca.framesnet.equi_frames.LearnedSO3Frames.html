@@ -1,0 +1,184 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lloca.framesnet.equi_frames.LearnedSO3Frames &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="lloca.framesnet.equi_frames.LearnedZFrames" href="lloca.framesnet.equi_frames.LearnedZFrames.html" />
+    <link rel="prev" title="lloca.framesnet.equi_frames.LearnedRestFrames" href="lloca.framesnet.equi_frames.LearnedRestFrames.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">API Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../api.html#equivariant-vector-prediction">Equivariant vector prediction</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../api.html#frames-net">Frames-Net</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="lloca.framesnet.equi_frames.LearnedFrames.html">lloca.framesnet.equi_frames.LearnedFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.framesnet.equi_frames.LearnedPDFrames.html">lloca.framesnet.equi_frames.LearnedPDFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.framesnet.equi_frames.LearnedSO13Frames.html">lloca.framesnet.equi_frames.LearnedSO13Frames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.framesnet.equi_frames.LearnedRestFrames.html">lloca.framesnet.equi_frames.LearnedRestFrames</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">lloca.framesnet.equi_frames.LearnedSO3Frames</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.framesnet.equi_frames.LearnedSO3Frames"><code class="docutils literal notranslate"><span class="pre">LearnedSO3Frames</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.framesnet.equi_frames.LearnedZFrames.html">lloca.framesnet.equi_frames.LearnedZFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.framesnet.equi_frames.LearnedSO2Frames.html">lloca.framesnet.equi_frames.LearnedSO2Frames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.framesnet.nonequi_frames.IdentityFrames.html">lloca.framesnet.nonequi_frames.IdentityFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.framesnet.nonequi_frames.RandomFrames.html">lloca.framesnet.nonequi_frames.RandomFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.framesnet.frames.Frames.html">lloca.framesnet.frames.Frames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.framesnet.frames.InverseFrames.html">lloca.framesnet.frames.InverseFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.framesnet.frames.IndexSelectFrames.html">lloca.framesnet.frames.IndexSelectFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.framesnet.frames.ChangeOfFrames.html">lloca.framesnet.frames.ChangeOfFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.framesnet.frames.LowerIndicesFrames.html">lloca.framesnet.frames.LowerIndicesFrames</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#backbone-networks">Backbone networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#lorentz-group-representations">Lorentz group representations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#utilities">Utilities</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../api.html">API Reference</a></li>
+      <li class="breadcrumb-item active">lloca.framesnet.equi_frames.LearnedSO3Frames</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/generated/lloca.framesnet.equi_frames.LearnedSO3Frames.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="lloca-framesnet-equi-frames-learnedso3frames">
+<h1>lloca.framesnet.equi_frames.LearnedSO3Frames<a class="headerlink" href="#lloca-framesnet-equi-frames-learnedso3frames" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="lloca.framesnet.equi_frames.LearnedSO3Frames">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">lloca.framesnet.equi_frames.</span></span><span class="sig-name descname"><span class="pre">LearnedSO3Frames</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/framesnet/equi_frames.html#LearnedSO3Frames"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.framesnet.equi_frames.LearnedSO3Frames" title="Link to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="lloca.framesnet.equi_frames.LearnedFrames.html#lloca.framesnet.equi_frames.LearnedFrames" title="lloca.framesnet.equi_frames.LearnedFrames"><code class="xref py py-class docutils literal notranslate"><span class="pre">LearnedFrames</span></code></a></p>
+<p>Frames from SO(3) rotations.</p>
+<p>This is a special case of LearnedPolarDecompositionFrames
+where the first vector is trivial (1,0,0,0).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>*args</strong> – Passed to LearnedFrames</p></li>
+<li><p><strong>**kwargs</strong> – Passed to LearnedFrames</p></li>
+<li><p><strong>compile</strong> (<em>bool</em>) – Option to compile the orthonormalization procedure.
+Does not yet give significant speedups in our tests.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="lloca.framesnet.equi_frames.LearnedSO3Frames.forward">
+<span class="sig-name descname"><span class="pre">forward</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fourmomenta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scalars</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ptr</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_tracker</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/framesnet/equi_frames.html#LearnedSO3Frames.forward"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.framesnet.equi_frames.LearnedSO3Frames.forward" title="Link to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>fourmomenta</strong> (<em>torch.Tensor</em>) – Tensor of shape (…, 4) containing the four-momenta</p></li>
+<li><p><strong>scalars</strong> (<em>torch.Tensor</em><em> or </em><em>None</em>) – Optional tensor of shape (…, n_scalars) containing additional scalar features</p></li>
+<li><p><strong>ptr</strong> (<em>torch.Tensor</em><em> or </em><em>None</em>) – Pointer for sparse tensors, or None for dense tensors</p></li>
+<li><p><strong>return_tracker</strong> (<em>bool</em>) – If True, return a tracker dictionary with regularization information</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><em>Frames</em> – Local frames constructed from the polar decomposition of the four-momenta</p></li>
+<li><p><strong>tracker</strong> (<em>dict (optional)</em>) – Dictionary containing regularization information, if return_tracker is True</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="lloca.framesnet.equi_frames.LearnedRestFrames.html" class="btn btn-neutral float-left" title="lloca.framesnet.equi_frames.LearnedRestFrames" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="lloca.framesnet.equi_frames.LearnedZFrames.html" class="btn btn-neutral float-right" title="lloca.framesnet.equi_frames.LearnedZFrames" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
