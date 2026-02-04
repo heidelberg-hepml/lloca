@@ -247,6 +247,8 @@ class Transformer(nn.Module):
         Dropout probability for output.
     compile : bool, optional
         Whether to compile the model with torch.compile, by default False.
+    compile_mode : str
+        torch.compile compilation mode, see torch docs for more information.
     """
 
     def __init__(
@@ -261,6 +263,7 @@ class Transformer(nn.Module):
         mlp_factor: int = 2,
         dropout_prob: float | None = None,
         compile: bool = False,
+        compile_mode: str = "default",
     ) -> None:
         super().__init__()
         attn_reps = TensorReps(attn_reps)
@@ -288,7 +291,7 @@ class Transformer(nn.Module):
             # ugly hack to make torch.compile convenient for users
             # the clean solution is model = torch.compile(model, **kwargs) outside of the constructor
             # note that we need fullgraph=False because of the torch.compiler.disable for attention
-            self.__class__ = torch.compile(self.__class__, dynamic=True, mode="default")
+            self.__class__ = torch.compile(self.__class__, dynamic=True, mode=compile_mode)
 
     def forward(self, inputs: torch.Tensor, frames, **attn_kwargs) -> torch.Tensor:
         """Forward pass.
