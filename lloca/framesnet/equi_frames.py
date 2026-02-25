@@ -21,6 +21,7 @@ class LearnedFrames(FramesPredictor):
         is_global=False,
         random=False,
         fix_params=False,
+        mass_reg=None,
         ortho_kwargs=None,
     ):
         """
@@ -39,6 +40,8 @@ class LearnedFrames(FramesPredictor):
             Fix the Frames-Net parameters.
             This is equivalent to random, but without the resampling.
             We find that this can be useful to avoid overfitting.
+        mass_reg: float | None
+
         ortho_kwargs: dict
             Keyword arguments for orthogonalization
         """
@@ -47,6 +50,7 @@ class LearnedFrames(FramesPredictor):
         self.equivectors = equivectors(n_vectors=n_vectors)
         self.is_global = is_global
         self.random = random
+        self.mass_reg = mass_reg
         if random or fix_params:
             self.equivectors.requires_grad_(False)
 
@@ -56,6 +60,15 @@ class LearnedFrames(FramesPredictor):
 
     def globalize_vecs_or_not(self, vecs, ptr):
         return average_event(vecs, ptr) if self.is_global else vecs
+
+    def mass_regularize(self, fourmomenta):
+        if self.mass_reg is not None:
+            mask = lorentz_squarednorm(fourmomenta) < self.mass_reg**2
+            fourmomenta[mask, 0] = (
+                (fourmomenta[mask, 1:] ** 2).sum(dim=-1).add(self.mass_reg**2).sqrt()
+            )
+
+        return fourmomenta
 
     def __repr__(self):
         classname = self.__class__.__name__
@@ -130,6 +143,7 @@ class LearnedPDFrames(LearnedFrames):
             Dictionary containing regularization information, if return_tracker is True
         """
         self.init_weights_or_not()
+        fourmomenta = self.mass_regularize(fourmomenta)
         vecs = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr, **kwargs)
         vecs = self.globalize_vecs_or_not(vecs, ptr)
         boost = vecs[..., 0, :]
@@ -201,6 +215,7 @@ class LearnedSO13Frames(LearnedFrames):
             Dictionary containing regularization information, if return_tracker is True
         """
         self.init_weights_or_not()
+        fourmomenta = self.mass_regularize(fourmomenta)
         vecs = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr, **kwargs)
         vecs = self.globalize_vecs_or_not(vecs, ptr)
 
@@ -266,6 +281,7 @@ class LearnedRestFrames(LearnedFrames):
             Dictionary containing regularization information, if return_tracker is True
         """
         self.init_weights_or_not()
+        fourmomenta = self.mass_regularize(fourmomenta)
         references = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr, **kwargs)
         references = self.globalize_vecs_or_not(references, ptr)
 
@@ -335,6 +351,7 @@ class LearnedSO3Frames(LearnedFrames):
             Dictionary containing regularization information, if return_tracker is True
         """
         self.init_weights_or_not()
+        fourmomenta = self.mass_regularize(fourmomenta)
         references = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr, **kwargs)
         references = self.globalize_vecs_or_not(references, ptr)
         fourmomenta = lorentz_eye(
@@ -415,6 +432,7 @@ class LearnedZFrames(LearnedFrames):
             Dictionary containing regularization information, if return_tracker is True
         """
         self.init_weights_or_not()
+        fourmomenta = self.mass_regularize(fourmomenta)
         vecs = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr)
         vecs = self.globalize_vecs_or_not(vecs, ptr)
         boost = vecs[..., 0, :]
@@ -504,6 +522,7 @@ class LearnedSO2Frames(LearnedFrames):
             Dictionary containing regularization information, if return_tracker is True
         """
         self.init_weights_or_not()
+        fourmomenta = self.mass_regularize(fourmomenta)
         references = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr, **kwargs)
         extra_references = self.globalize_vecs_or_not(references, ptr)
         fourmomenta = lorentz_eye(
