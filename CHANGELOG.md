@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- `mass_reg` option in FramesNet
+- `compile_mode` option in all compilable backbones
+
 ### Changed
 
-- Make ParT `ffn_ratio` and `embed_dims` more modular
+- Handle autocast-off regions more carefully
 
 ## [1.3.5] - 29.01.2026
 
@@ -25,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Disable `torch.compile` on custom attention kernels
 - Add `dtype` keyword argument to xformers attention to allow downcasting to float16/bfloat16 and enforcing flash-attention backends
 - Write generic `get_sparse_attention_mask` function that works for all variable-length kernels; used in `equivectors/lgatr.py`
+- Make ParT `ffn_ratio` and `embed_dims` more modular
 
 ## [1.3.4] - 07.01.2026
 
