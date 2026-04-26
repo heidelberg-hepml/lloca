@@ -5,16 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [1.3.6] - 27.04.2026
 
 ### Added
 
 - `mass_reg` option in FramesNet
-- `compile_mode` option in all compilable backbones
-
-### Changed
-
-- Handle autocast-off regions more carefully
+- `compile_mode` and `compile_dynamic` option in all compilable backbones
+- `minimum_autocast_precision` function and overall more careful `amp` handling
 
 ## [1.3.5] - 29.01.2026
 
