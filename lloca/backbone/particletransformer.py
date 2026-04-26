@@ -867,7 +867,7 @@ class ParticleTransformer(nn.Module):
         checkpoint_blocks=False,
         compile=False,
         compile_mode="default",
-        compile_dynamic=False,
+        compile_dynamic=False,  # ParT does not rely on dynamic shapes that much
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)

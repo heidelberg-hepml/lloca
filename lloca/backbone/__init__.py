@@ -5,3 +5,4 @@ from .mlp import MLP
 from .particlenet import ParticleNet
 from .particletransformer import ParticleTransformer
 from .transformer import Transformer
+from .transformer_v2 import Transformer as TransformerV2

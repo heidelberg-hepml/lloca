@@ -121,7 +121,7 @@ class RandomFrames(FramesPredictor):
 
     def __repr__(self):
         string = f"RandomFrames(transform_type={self.transform_type}, is_global={self.is_global}"
-        if self.transform_type in ["lorentz", "ztransform, general_lorentz"]:
+        if self.transform_type in ["lorentz", "ztransform", "general_lorentz"]:
             string += f", std_eta={self.std_eta}"
             string += f", n_max_std_eta={self.n_max_std_eta}"
         string += ")"
@@ -150,7 +150,7 @@ class COMRandomFrames(RandomFrames):
         shape = (
             torch.Size((*fourmomenta.shape[:-2], 1))
             if self.is_global
-            else torch.Size(*fourmomenta.shape[:-1])
+            else torch.Size(fourmomenta.shape[:-1])
         )
         matrix = self.transform(shape, device=fourmomenta.device, dtype=fourmomenta.dtype)
 

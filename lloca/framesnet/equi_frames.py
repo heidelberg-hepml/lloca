@@ -63,6 +63,7 @@ class LearnedFrames(FramesPredictor):
 
     def mass_regularize(self, fourmomenta):
         if self.mass_reg is not None:
+            fourmomenta = fourmomenta.clone()
             mask = lorentz_squarednorm(fourmomenta) < self.mass_reg**2
             fourmomenta[mask, 0] = (
                 (fourmomenta[mask, 1:] ** 2).sum(dim=-1).add(self.mass_reg**2).sqrt()
@@ -317,12 +318,8 @@ class LearnedSO3Frames(LearnedFrames):
             Option to compile the orthonormalization procedure.
             Does not yet give significant speedups in our tests.
         """
-        self.n_vectors = 2
-        super().__init__(
-            *args,
-            n_vectors=self.n_vectors,
-            **kwargs,
-        )
+        super().__init__(*args, n_vectors=2, **kwargs)
+
         if compile:
             self.polar_decomposition = torch.compile(
                 polar_decomposition, dynamic=True, fullgraph=True
@@ -488,12 +485,7 @@ class LearnedSO2Frames(LearnedFrames):
             Option to compile the orthonormalization procedure.
             Does not yet give significant speedups in our tests.
         """
-        self.n_vectors = 1
-        super().__init__(
-            *args,
-            n_vectors=self.n_vectors,
-            **kwargs,
-        )
+        super().__init__(*args, n_vectors=1, **kwargs)
         if compile:
             self.polar_decomposition = torch.compile(
                 polar_decomposition, dynamic=True, fullgraph=True
