@@ -867,6 +867,7 @@ class ParticleTransformer(nn.Module):
         checkpoint_blocks=False,
         compile=False,
         compile_mode="default",
+        compile_dynamic=False,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -986,7 +987,9 @@ class ParticleTransformer(nn.Module):
             self.fix_init_weight()
 
         if compile:
-            self.__class__ = torch.compile(self.__class__, dynamic=True, mode=compile_mode)
+            self.__class__ = torch.compile(
+                self.__class__, dynamic=compile_dynamic, mode=compile_mode
+            )
 
     def fix_init_weight(self):
         def rescale(param, _layer_id):
