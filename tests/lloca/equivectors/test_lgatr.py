@@ -30,6 +30,7 @@ _varlen_available = tuple(int(x) for x in _torch_version.split(".")[:2]) >= (2, 
     "sparse_mode, attention_backend",
     [(False, None), (True, "xformers"), (True, "flex"), (True, "flash"), (True, "varlen")],
 )
+@torch.no_grad()
 def test_equivariance(
     batch_dims,
     jet_size,
