@@ -8,6 +8,7 @@ from torch import Tensor
 from ..framesnet.frames import Frames, InverseFrames, LowerIndicesFrames
 from ..reps.tensorreps import TensorReps
 from ..reps.tensorreps_transform import TensorRepsTransform
+from ..utils.misc import minimum_autocast_precision
 from .attention_backends import get_attention_backend
 
 
@@ -30,6 +31,7 @@ class LLoCaAttention(torch.nn.Module):
         self.inv_frames = None
         self.lower_inv_frames = None
 
+    @minimum_autocast_precision(torch.float32)
     def prepare_frames(self, frames):
         """Prepare local frames for processing with LLoCa attention.
         For a single forward pass through the network, this method is

@@ -4,6 +4,7 @@ from .equi_frames import (
     LearnedSO2Frames,
     LearnedSO3Frames,
     LearnedSO13Frames,
+    LearnedZFrames,
 )
 from .frames import (
     ChangeOfFrames,

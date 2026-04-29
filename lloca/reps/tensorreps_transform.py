@@ -3,6 +3,7 @@
 import torch
 
 from ..framesnet.frames import Frames
+from ..utils.misc import minimum_autocast_precision
 from .tensorreps import TensorReps
 
 
@@ -61,7 +62,7 @@ class TensorRepsTransform(torch.nn.Module):
 
         self.has_higher_orders = self.reps.max_rep.rep.order > 0
 
-    @torch.autocast("cuda", enabled=False)
+    @minimum_autocast_precision(torch.float32)
     def forward(self, tensor: torch.Tensor, frames: Frames):
         """Apply a transformation to a tensor of a given representation.
 
@@ -111,7 +112,7 @@ class TensorRepsTransform(torch.nn.Module):
         """
         output = tensor.clone()
         frames = frames.matrices.clone().to(tensor.dtype)
-        for mul_rep, [idx_start, idx_end] in zip(self.reps, self.start_end_idx, strict=False):
+        for mul_rep, [idx_start, idx_end] in zip(self.reps, self.start_end_idx, strict=True):
             mul, rep = mul_rep
             if mul == 0 or rep.order == 0:
                 continue
