@@ -1,0 +1,17 @@
+﻿lloca.utils.utils
+=================
+
+.. automodule:: lloca.utils.utils
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      get_batch_from_ptr
+      get_edge_attr
+      get_edge_index_from_ptr
+      get_edge_index_from_shape
+      get_node_to_edge_ptr_fully_connected
+      get_ptr_from_batch
+   

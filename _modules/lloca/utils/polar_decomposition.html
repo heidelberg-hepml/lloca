@@ -1,0 +1,237 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lloca.utils.polar_decomposition &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">lloca.utils.polar_decomposition</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for lloca.utils.polar_decomposition</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Lorentz transformations from boosts and rotations.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.lorentz</span><span class="w"> </span><span class="kn">import</span> <span class="n">lorentz_squarednorm</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.orthogonalize_3d</span><span class="w"> </span><span class="kn">import</span> <span class="n">orthogonalize_3d</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.orthogonalize_4d</span><span class="w"> </span><span class="kn">import</span> <span class="n">regularize_lightlike</span>
+
+
+<div class="viewcode-block" id="restframe_boost">
+<a class="viewcode-back" href="../../../generated/lloca.utils.polar_decomposition.html#lloca.utils.polar_decomposition.restframe_boost">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">restframe_boost</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">,</span> <span class="n">checks</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Construct a Lorentz transformation that boosts four-momenta into their rest frame.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fourmomenta : torch.Tensor</span>
+<span class="sd">        Tensor of shape (..., 4) representing the four-momenta.</span>
+<span class="sd">    checks : bool</span>
+<span class="sd">        If True, perform additional assertion checks on predicted vectors.</span>
+<span class="sd">        It may cause slowdowns due to GPU/CPU synchronization, use only for debugging.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    trafo : torch.Tensor</span>
+<span class="sd">        Tensor of shape (..., 4, 4) representing the Lorentz transformation</span>
+<span class="sd">        that boosts the four-momenta into their rest frame.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">checks</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="p">(</span><span class="n">lorentz_squarednorm</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">(),</span> <span class="p">(</span>
+            <span class="s2">&quot;Trying to boost spacelike vectors into their restframe (not possible). Consider changing the nonlinearity in equivectors.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="c1"># compute relevant quantities</span>
+    <span class="n">t0</span> <span class="o">=</span> <span class="n">fourmomenta</span><span class="o">.</span><span class="n">narrow</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">beta</span> <span class="o">=</span> <span class="n">fourmomenta</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">/</span> <span class="n">t0</span><span class="o">.</span><span class="n">clamp_min</span><span class="p">(</span><span class="mf">1e-10</span><span class="p">)</span>
+    <span class="n">beta2</span> <span class="o">=</span> <span class="n">beta</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">one_minus_beta2</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp_min</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">beta2</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mf">1e-10</span><span class="p">)</span>
+    <span class="n">gamma</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">rsqrt</span><span class="p">(</span><span class="n">one_minus_beta2</span><span class="p">)</span>
+    <span class="n">boost</span> <span class="o">=</span> <span class="o">-</span><span class="n">gamma</span> <span class="o">*</span> <span class="n">beta</span>
+
+    <span class="c1"># prepare rotation part</span>
+    <span class="n">eye3</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">fourmomenta</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">fourmomenta</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="n">eye3</span> <span class="o">=</span> <span class="n">eye3</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="mi">1</span><span class="p">,)</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">fourmomenta</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span>
+        <span class="o">*</span><span class="n">fourmomenta</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span>
+    <span class="p">)</span>
+    <span class="n">scale</span> <span class="o">=</span> <span class="p">(</span><span class="n">gamma</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp_min</span><span class="p">(</span><span class="n">beta2</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mf">1e-10</span><span class="p">)</span>
+    <span class="n">outer</span> <span class="o">=</span> <span class="n">beta</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">beta</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">rot</span> <span class="o">=</span> <span class="n">eye3</span> <span class="o">+</span> <span class="n">scale</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">outer</span>
+
+    <span class="c1"># collect trafo</span>
+    <span class="n">row0</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">gamma</span><span class="p">,</span> <span class="n">boost</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">lower</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">boost</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">rot</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">trafo</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">row0</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="o">-</span><span class="mi">2</span><span class="p">),</span> <span class="n">lower</span><span class="p">),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">trafo</span></div>
+
+
+
+<div class="viewcode-block" id="polar_decomposition">
+<a class="viewcode-back" href="../../../generated/lloca.utils.polar_decomposition.html#lloca.utils.polar_decomposition.polar_decomposition">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">polar_decomposition</span><span class="p">(</span>
+    <span class="n">fourmomenta</span><span class="p">,</span>
+    <span class="n">references</span><span class="p">,</span>
+    <span class="n">use_float64</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">return_reg</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">eps_reg_lightlike</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">checks</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Construct a Lorentz transformation as a polar decomposition of a</span>
+<span class="sd">    boost and a rotation.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fourmomenta : torch.Tensor</span>
+<span class="sd">        Tensor of shape (..., 4) representing the four-momenta that define the rest frames.</span>
+<span class="sd">    references : torch.Tensor</span>
+<span class="sd">        Two tensors of shape (..., 2, 4) representing the reference four-momenta to construct the rotation.</span>
+<span class="sd">    use_float64 : bool</span>
+<span class="sd">        If True, use float64 for calculations to avoid numerical issues.</span>
+<span class="sd">    return_reg : bool</span>
+<span class="sd">        If True, return a tuple with the Lorentz transformation and regularization information.</span>
+<span class="sd">    eps_reg_lightlike : float or None</span>
+<span class="sd">        Epsilon value for regularization of lightlike four-momenta. The same value is used in the</span>
+<span class="sd">        orthogonalization step.</span>
+<span class="sd">    checks : bool</span>
+<span class="sd">        If True, perform additional assertion checks on predicted vectors</span>
+<span class="sd">    kwargs : dict</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    trafo : torch.Tensor</span>
+<span class="sd">        Tensor of shape (..., 4, 4) representing the Lorentz transformation.</span>
+<span class="sd">    reg_collinear : torch.Tensor, optional</span>
+<span class="sd">        Tensor indicating if the references were collinear (only returned if `return_reg` is True).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="n">fourmomenta</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">references</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">use_float64</span><span class="p">:</span>
+        <span class="n">original_dtype</span> <span class="o">=</span> <span class="n">fourmomenta</span><span class="o">.</span><span class="n">dtype</span>
+        <span class="n">fourmomenta</span> <span class="o">=</span> <span class="n">fourmomenta</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+        <span class="n">references</span> <span class="o">=</span> <span class="n">references</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+
+    <span class="c1"># fourmomenta for boost must be timelike</span>
+    <span class="n">fourmomenta</span><span class="p">,</span> <span class="n">reg_lightlike</span> <span class="o">=</span> <span class="n">regularize_lightlike</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">,</span> <span class="n">eps_reg_lightlike</span><span class="p">)</span>
+
+    <span class="c1"># construct rest frame transformation</span>
+    <span class="n">boost</span> <span class="o">=</span> <span class="n">restframe_boost</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">,</span> <span class="n">checks</span><span class="o">=</span><span class="n">checks</span><span class="p">)</span>
+
+    <span class="c1"># references go into rest frame</span>
+    <span class="n">ref_rest</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">references</span><span class="p">,</span> <span class="n">boost</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">2</span><span class="p">))</span>
+
+    <span class="c1"># construct rotation before orthogonalization</span>
+    <span class="n">ref3_rest</span> <span class="o">=</span> <span class="n">ref_rest</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:]</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">orthogonalize_3d</span><span class="p">(</span><span class="n">ref3_rest</span><span class="p">,</span> <span class="n">return_reg</span><span class="o">=</span><span class="n">return_reg</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">return_reg</span><span class="p">:</span>
+        <span class="n">orthogonal_vec3</span><span class="p">,</span> <span class="n">reg_collinear</span> <span class="o">=</span> <span class="n">out</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">orthogonal_vec3</span> <span class="o">=</span> <span class="n">out</span>
+    <span class="n">rotation</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">boost</span><span class="p">)</span>
+    <span class="n">rotation</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">rotation</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">=</span> <span class="n">orthogonal_vec3</span>
+
+    <span class="c1"># combine rotation and boost</span>
+    <span class="n">trafo</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">rotation</span><span class="p">,</span> <span class="n">boost</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">use_float64</span><span class="p">:</span>
+        <span class="n">trafo</span> <span class="o">=</span> <span class="n">trafo</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">original_dtype</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">trafo</span><span class="p">,</span> <span class="n">reg_lightlike</span><span class="p">,</span> <span class="n">reg_collinear</span><span class="p">)</span> <span class="k">if</span> <span class="n">return_reg</span> <span class="k">else</span> <span class="n">trafo</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

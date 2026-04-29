@@ -1,0 +1,15 @@
+﻿lloca.utils.orthogonalize\_3d
+=============================
+
+.. automodule:: lloca.utils.orthogonalize_3d
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      orthogonalize_3d
+      orthogonalize_cross_3d
+      orthogonalize_gramschmidt_3d
+      regularize_collinear
+   

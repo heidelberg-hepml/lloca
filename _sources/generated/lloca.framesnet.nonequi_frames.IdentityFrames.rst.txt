@@ -1,0 +1,8 @@
+﻿lloca.framesnet.nonequi_frames.IdentityFrames
+=============================================
+
+.. autoclass:: lloca.framesnet.nonequi_frames.IdentityFrames
+   :members:
+   :inherited-members: False
+   :undoc-members:
+   :show-inheritance:

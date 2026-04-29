@@ -1,0 +1,8 @@
+﻿lloca.reps.tensorreps.TensorReps
+================================
+
+.. autoclass:: lloca.reps.tensorreps.TensorReps
+   :members:
+   :inherited-members: False
+   :undoc-members:
+   :show-inheritance:

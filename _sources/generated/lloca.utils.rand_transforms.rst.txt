@@ -1,0 +1,21 @@
+﻿lloca.utils.rand\_transforms
+============================
+
+.. automodule:: lloca.utils.rand_transforms
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      get_trafo_type
+      rand_boost
+      rand_lorentz
+      rand_rotation
+      rand_wrapper
+      rand_xyrotation
+      rand_ztransform
+      randn_wrapper
+      sample_rapidity
+      transform
+   

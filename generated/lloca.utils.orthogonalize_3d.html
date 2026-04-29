@@ -1,0 +1,250 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lloca.utils.orthogonalize_3d &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="lloca.utils.orthogonalize_4d" href="lloca.utils.orthogonalize_4d.html" />
+    <link rel="prev" title="lloca.utils.rand_transforms" href="lloca.utils.rand_transforms.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">API Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../api.html#equivariant-vector-prediction">Equivariant vector prediction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#frames-net">Frames-Net</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#backbone-networks">Backbone networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api.html#lorentz-group-representations">Lorentz group representations</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../api.html#utilities">Utilities</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.utils.html">lloca.utils.utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.lorentz.html">lloca.utils.lorentz</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.rand_transforms.html">lloca.utils.rand_transforms</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">lloca.utils.orthogonalize_3d</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.orthogonalize_3d.orthogonalize_3d"><code class="docutils literal notranslate"><span class="pre">orthogonalize_3d()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.orthogonalize_3d.orthogonalize_cross_3d"><code class="docutils literal notranslate"><span class="pre">orthogonalize_cross_3d()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.orthogonalize_3d.orthogonalize_gramschmidt_3d"><code class="docutils literal notranslate"><span class="pre">orthogonalize_gramschmidt_3d()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#lloca.utils.orthogonalize_3d.regularize_collinear"><code class="docutils literal notranslate"><span class="pre">regularize_collinear()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.orthogonalize_4d.html">lloca.utils.orthogonalize_4d</a></li>
+<li class="toctree-l3"><a class="reference internal" href="lloca.utils.polar_decomposition.html">lloca.utils.polar_decomposition</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../api.html">API Reference</a></li>
+      <li class="breadcrumb-item active">lloca.utils.orthogonalize_3d</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/generated/lloca.utils.orthogonalize_3d.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-lloca.utils.orthogonalize_3d">
+<span id="lloca-utils-orthogonalize-3d"></span><h1>lloca.utils.orthogonalize_3d<a class="headerlink" href="#module-lloca.utils.orthogonalize_3d" title="Link to this heading"></a></h1>
+<p>Orthogonalization of euclidean vectors.</p>
+<p class="rubric">Functions</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#lloca.utils.orthogonalize_3d.orthogonalize_3d" title="lloca.utils.orthogonalize_3d.orthogonalize_3d"><code class="xref py py-obj docutils literal notranslate"><span class="pre">orthogonalize_3d</span></code></a>(vecs[, method, eps_norm, ...])</p></td>
+<td><p>Wrapper for orthogonalization of euclidean vectors.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#lloca.utils.orthogonalize_3d.orthogonalize_cross_3d" title="lloca.utils.orthogonalize_3d.orthogonalize_cross_3d"><code class="xref py py-obj docutils literal notranslate"><span class="pre">orthogonalize_cross_3d</span></code></a>(vecs[, eps_norm])</p></td>
+<td><p>Cross product orthogonalization algorithm for euclidean vectors.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#lloca.utils.orthogonalize_3d.orthogonalize_gramschmidt_3d" title="lloca.utils.orthogonalize_3d.orthogonalize_gramschmidt_3d"><code class="xref py py-obj docutils literal notranslate"><span class="pre">orthogonalize_gramschmidt_3d</span></code></a>(vecs[, eps_norm])</p></td>
+<td><p>Gram-Schmidt orthogonalization algorithm for euclidean vectors.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#lloca.utils.orthogonalize_3d.regularize_collinear" title="lloca.utils.orthogonalize_3d.regularize_collinear"><code class="xref py py-obj docutils literal notranslate"><span class="pre">regularize_collinear</span></code></a>(vecs[, eps_reg])</p></td>
+<td><p>If the cross product of two vectors is small, the vectors are collinear.</p></td>
+</tr>
+</tbody>
+</table>
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.orthogonalize_3d.orthogonalize_3d">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.orthogonalize_3d.</span></span><span class="sig-name descname"><span class="pre">orthogonalize_3d</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vecs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'gramschmidt'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_norm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_reg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_reg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/orthogonalize_3d.html#orthogonalize_3d"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.orthogonalize_3d.orthogonalize_3d" title="Link to this definition"></a></dt>
+<dd><p>Wrapper for orthogonalization of euclidean vectors.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>vecs</strong> (<em>list</em><em> of </em><em>torch.Tensor</em>) – List of torch.tensor of shape (…, 3)
+Vectors to be orthogonalized</p></li>
+<li><p><strong>method</strong> (<em>str</em>) – Method for orthogonalization. Options are “cross” and “gramschmidt”.</p></li>
+<li><p><strong>eps_norm</strong> (<em>float</em><em> or </em><em>None</em>) – Numerical regularization for the normalization of the vectors.
+If None, use the smallest representable value for the vectors dtype.</p></li>
+<li><p><strong>eps_reg</strong> (<em>float</em><em> or </em><em>None</em>) – Controls the scale of the regularization for collinear vectors.</p></li>
+<li><p><strong>return_reg</strong> (<em>bool</em>) – If True, additionally return the number of regularized vectors for collinearity.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>orthogonal_vecs</strong> (<em>list of torch.Tensor</em>) – List of orthogonalized vectors of shape (…, 3)</p></li>
+<li><p><strong>reg_collinear</strong> (<em>int</em>) – Number of vectors that were regularized due to collinearity.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.orthogonalize_3d.orthogonalize_cross_3d">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.orthogonalize_3d.</span></span><span class="sig-name descname"><span class="pre">orthogonalize_cross_3d</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vecs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_norm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/orthogonalize_3d.html#orthogonalize_cross_3d"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.orthogonalize_3d.orthogonalize_cross_3d" title="Link to this definition"></a></dt>
+<dd><p>Cross product orthogonalization algorithm for euclidean vectors.
+This approach is equivalent to the Gram-Schmidt procedure for unlimited precision,
+but for limited precision it is more stable.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>vecs</strong> (<em>torch.Tensor</em>) – Two vectors of shape (…, 2, 3).</p></li>
+<li><p><strong>eps_norm</strong> (<em>float</em><em> or </em><em>None</em>) – Numerical regularization for the normalization of the vectors.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>orthogonal_vecs</strong> – Three orthogonalized vectors of shape (…, 3, 3),
+where dim=-2 counts the vectors.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.Tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.orthogonalize_3d.orthogonalize_gramschmidt_3d">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.orthogonalize_3d.</span></span><span class="sig-name descname"><span class="pre">orthogonalize_gramschmidt_3d</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vecs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_norm</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/orthogonalize_3d.html#orthogonalize_gramschmidt_3d"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.orthogonalize_3d.orthogonalize_gramschmidt_3d" title="Link to this definition"></a></dt>
+<dd><p>Gram-Schmidt orthogonalization algorithm for euclidean vectors.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>vecs</strong> (<em>torch.Tensor</em>) – Two vectors of shape (…, 2, 3).</p></li>
+<li><p><strong>eps_norm</strong> (<em>float</em><em> or </em><em>None</em>) – Numerical regularization for the normalization of the vectors.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>orthogonal_vecs</strong> – Three orthogonalized vectors of shape (…, 3, 3),
+where dim=-2 counts the vectors.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>torch.Tensor</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="lloca.utils.orthogonalize_3d.regularize_collinear">
+<span class="sig-prename descclassname"><span class="pre">lloca.utils.orthogonalize_3d.</span></span><span class="sig-name descname"><span class="pre">regularize_collinear</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vecs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps_reg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/lloca/utils/orthogonalize_3d.html#regularize_collinear"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#lloca.utils.orthogonalize_3d.regularize_collinear" title="Link to this definition"></a></dt>
+<dd><p>If the cross product of two vectors is small, the vectors are collinear.
+In this case, we add a small amount of noise to the second vector to
+regularize the orthogonalization.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>vecs</strong> (<em>list</em><em> of </em><em>torch.Tensor</em>) – List with 2 vectors of shape (…, 3).</p></li>
+<li><p><strong>eps_reg</strong> (<em>float</em><em> or </em><em>None</em>) – Regularization epsilon, controls the scale of the noise added to the second vector.
+If None, use the smallest representable value for the vectors dtype.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>vecs</strong> (<em>list of torch.Tensor</em>) – List with 2 vectors of shape (…, 3), where the second vector is regularized if collinear.</p></li>
+<li><p><strong>reg_collinear</strong> (<em>int</em>) – Number of vectors that were regularized due to collinearity.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="lloca.utils.rand_transforms.html" class="btn btn-neutral float-left" title="lloca.utils.rand_transforms" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="lloca.utils.orthogonalize_4d.html" class="btn btn-neutral float-right" title="lloca.utils.orthogonalize_4d" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

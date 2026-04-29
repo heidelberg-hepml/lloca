@@ -1,0 +1,257 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quickstart &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="LLoCa vs L-GATr" href="lloca-vs-lgatr.html" />
+    <link rel="prev" title="LLoCa documentation" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Quickstart</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/quickstart.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="quickstart">
+<h1>Quickstart<a class="headerlink" href="#quickstart" title="Link to this heading"></a></h1>
+<p>This page sets you up for building and running LLoCa networks.</p>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h2>
+<p>Before using the package, install it via pip:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>lloca
+</pre></div>
+</div>
+<p>Alternatively, if you’re developing locally:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/heidelberg-hepml/lloca.git
+<span class="nb">cd</span><span class="w"> </span>lloca
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+</section>
+<section id="building-a-lloca-transformer">
+<h2>Building a LLoCa-Transformer<a class="headerlink" href="#building-a-lloca-transformer" title="Link to this heading"></a></h2>
+<a class="reference internal image-reference" href="_images/lloca.png"><img alt="_images/lloca.png" class="align-center" src="_images/lloca.png" style="width: 100%;" />
+</a>
+<p>We now demonstrate how to build a LLoCa-Transformer, the most efficient architecture based on our papers.
+We build the LLoCa-Transformer in three steps, following the picture above:</p>
+<ol class="arabic simple">
+<li><p>Construct local frames based on three equivariantly predicted vectors</p></li>
+<li><p>Transform particle features into local frames</p></li>
+<li><p>Process local particle features with any backbone architecture</p></li>
+</ol>
+</section>
+<section id="generate-particle-data">
+<h2>0. Generate particle data<a class="headerlink" href="#generate-particle-data" title="Link to this heading"></a></h2>
+<p>We start by generating toy particle data, for instance for an amplitude regression task.
+We describe particles by a four-momentum and one scalar feature, for instance the particle type.
+Using random numbers, we generate a batch of 128 events with 10 particles each.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="n">num_scalars</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">B</span><span class="p">,</span> <span class="n">N</span> <span class="o">=</span> <span class="mi">128</span><span class="p">,</span> <span class="mi">10</span>
+<span class="n">mass</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">p3</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="n">E</span> <span class="o">=</span> <span class="p">(</span><span class="n">mass</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">p3</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span><span class="o">.</span><span class="n">sqrt</span><span class="p">()</span>
+<span class="n">fourmomenta</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">E</span><span class="p">,</span> <span class="n">p3</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># (128, 10, 4)</span>
+<span class="n">scalars</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">num_scalars</span><span class="p">)</span> <span class="c1"># (128, 10, 1)</span>
+</pre></div>
+</div>
+</section>
+<section id="construct-local-frames-based-on-three-equivariantly-predicted-vectors">
+<h2>1. Construct local frames based on three equivariantly predicted vectors<a class="headerlink" href="#construct-local-frames-based-on-three-equivariantly-predicted-vectors" title="Link to this heading"></a></h2>
+<p>Given these particle features, we want to construct a local frame <span class="math notranslate nohighlight">\(L\)</span> for each particle.
+The local frames are Lorentz transformations, i.e. they satisfy <span class="math notranslate nohighlight">\(L^TgL=g\)</span> with <span class="math notranslate nohighlight">\(L\in \mathbb{R}^{4\times 4}\)</span>.
+We further design them to satisfy the transformation behavior <span class="math notranslate nohighlight">\(L\overset{\Lambda}{\to} L\Lambda^{-1}\)</span> under Lorentz transformations <span class="math notranslate nohighlight">\(\Lambda\)</span>,
+this ensures that particle features in the local frame are invariant.</p>
+<p>We construct the local frames in two steps. First, we use a simple Lorentz-equivariant <code class="docutils literal notranslate"><span class="pre">equivectors</span></code> network, <code class="xref py py-mod docutils literal notranslate"><span class="pre">MLPVectors</span></code>, to construct 3 vectors.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lloca.equivectors.mlp</span><span class="w"> </span><span class="kn">import</span> <span class="n">MLPVectors</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">equivectors_constructor</span><span class="p">(</span><span class="n">n_vectors</span><span class="p">):</span>
+   <span class="k">return</span> <span class="n">MLPVectors</span><span class="p">(</span>
+      <span class="n">n_vectors</span><span class="o">=</span><span class="n">n_vectors</span><span class="p">,</span>
+      <span class="n">num_scalars</span><span class="o">=</span><span class="n">num_scalars</span><span class="p">,</span>
+      <span class="n">hidden_channels</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+      <span class="n">num_layers_mlp</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+   <span class="p">)</span>
+
+<span class="c1"># quickly test it</span>
+<span class="n">equivectors_test</span> <span class="o">=</span> <span class="n">equivectors_constructor</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">equivectors_test</span><span class="o">.</span><span class="n">init_standardization</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">)</span>
+<span class="n">vectors</span> <span class="o">=</span> <span class="n">equivectors_test</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">,</span> <span class="n">scalars</span><span class="p">)</span> <span class="c1"># (128, 10, 3, 4)</span>
+</pre></div>
+</div>
+<p>Next, we define the <code class="docutils literal notranslate"><span class="pre">framesnet</span></code> class which calls the <code class="docutils literal notranslate"><span class="pre">equivectors</span></code> to predict a set of vectors
+and further performs the orthonormalization to construct the local <code class="docutils literal notranslate"><span class="pre">frames</span></code>.
+In our minimal example, we use the <a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedPDFrames.html#lloca.framesnet.equi_frames.LearnedPDFrames" title="lloca.framesnet.equi_frames.LearnedPDFrames"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LearnedPDFrames</span></code></a> <code class="docutils literal notranslate"><span class="pre">framesnet</span></code> and
+we pass the constructor as <code class="xref py py-mod docutils literal notranslate"><span class="pre">equivectors=equivectors_constructor</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lloca.framesnet.equi_frames</span><span class="w"> </span><span class="kn">import</span> <span class="n">LearnedPDFrames</span>
+
+<span class="n">framesnet</span> <span class="o">=</span> <span class="n">LearnedPDFrames</span><span class="p">(</span><span class="n">equivectors</span><span class="o">=</span><span class="n">equivectors_constructor</span><span class="p">)</span>
+<span class="n">framesnet</span><span class="o">.</span><span class="n">equivectors</span><span class="o">.</span><span class="n">init_standardization</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">)</span>
+<span class="n">frames</span> <span class="o">=</span> <span class="n">framesnet</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">,</span> <span class="n">scalars</span><span class="p">)</span> <span class="c1"># (128, 10, 4, 4)</span>
+</pre></div>
+</div>
+<p>The package implements many alternative <code class="docutils literal notranslate"><span class="pre">framesnet</span></code> choices:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedPDFrames.html#lloca.framesnet.equi_frames.LearnedPDFrames" title="lloca.framesnet.equi_frames.LearnedPDFrames"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LearnedPDFrames</span></code></a>: Construct a learned Lorentz transformation from a boost and a rotation, i.e. following a polar decomposition, with the rotation constructed using the Gram-Schmidt algorithm in the 3-dimensional euclidean space. This is the default Lorentz-equivariant <code class="docutils literal notranslate"><span class="pre">framesnet</span></code>.</p></li>
+<li><p><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedSO13Frames.html#lloca.framesnet.equi_frames.LearnedSO13Frames" title="lloca.framesnet.equi_frames.LearnedSO13Frames"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LearnedSO13Frames</span></code></a>: Construct a learned Lorentz transformation directly using the Gram-Schmidt algorithm in Minkowski space. The result is equivalent to <a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedPDFrames.html#lloca.framesnet.equi_frames.LearnedPDFrames" title="lloca.framesnet.equi_frames.LearnedPDFrames"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LearnedPDFrames</span></code></a>, but <a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedPDFrames.html#lloca.framesnet.equi_frames.LearnedPDFrames" title="lloca.framesnet.equi_frames.LearnedPDFrames"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LearnedPDFrames</span></code></a> has the advantage of providing direct access to the boost, which is useful in some cases.</p></li>
+<li><p><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedSO3Frames.html#lloca.framesnet.equi_frames.LearnedSO3Frames" title="lloca.framesnet.equi_frames.LearnedSO3Frames"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LearnedSO3Frames</span></code></a> and <a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedSO2Frames.html#lloca.framesnet.equi_frames.LearnedSO2Frames" title="lloca.framesnet.equi_frames.LearnedSO2Frames"><code class="xref py py-mod docutils literal notranslate"><span class="pre">LearnedSO2Frames</span></code></a>: Construct learned <span class="math notranslate nohighlight">\(SO(2)\)</span> and <span class="math notranslate nohighlight">\(SO(3)\)</span> transformations, embedded in the Lorentz group. The resulting architectures are <span class="math notranslate nohighlight">\(SO(2)\)</span>- and <span class="math notranslate nohighlight">\(SO(3)\)</span>-equivariant, respectively.</p></li>
+<li><p><a class="reference internal" href="generated/lloca.framesnet.nonequi_frames.RandomFrames.html#lloca.framesnet.nonequi_frames.RandomFrames" title="lloca.framesnet.nonequi_frames.RandomFrames"><code class="xref py py-mod docutils literal notranslate"><span class="pre">RandomFrames</span></code></a>: Random global frames, corresponding to data augmentation.</p></li>
+<li><p><a class="reference internal" href="generated/lloca.framesnet.nonequi_frames.IdentityFrames.html#lloca.framesnet.nonequi_frames.IdentityFrames" title="lloca.framesnet.nonequi_frames.IdentityFrames"><code class="xref py py-mod docutils literal notranslate"><span class="pre">IdentityFrames</span></code></a>: Frames from identity transforms, corresponding to the baseline non-equivariant architectures.</p></li>
+</ul>
+</section>
+<section id="transform-particle-features-into-local-frames">
+<h2>2. Transform particle features into local frames<a class="headerlink" href="#transform-particle-features-into-local-frames" title="Link to this heading"></a></h2>
+<p>Once the frames are constructed, we have to transform the particle features into their local frames.
+We use the local frames transformation for the four-momenta, whereas the scalar features are already invariant by definition.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lloca.reps.tensorreps_transform</span><span class="w"> </span><span class="kn">import</span> <span class="n">TensorReps</span><span class="p">,</span> <span class="n">TensorRepsTransform</span>
+
+<span class="n">fourmomenta_rep</span> <span class="o">=</span> <span class="n">TensorReps</span><span class="p">(</span><span class="s2">&quot;1x1n&quot;</span><span class="p">)</span>
+<span class="n">trafo_fourmomenta</span> <span class="o">=</span> <span class="n">TensorRepsTransform</span><span class="p">(</span><span class="n">fourmomenta_rep</span><span class="p">)</span>
+<span class="n">fourmomenta_local</span> <span class="o">=</span> <span class="n">trafo_fourmomenta</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">,</span> <span class="n">frames</span><span class="p">)</span> <span class="c1"># (128, 10, 4)</span>
+
+<span class="n">features_local</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">fourmomenta_local</span><span class="p">,</span> <span class="n">scalars</span><span class="p">],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="c1"># (128, 10, 5)</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">lloca</span></code> package implements arbitrary Lorentz tensors through the <a class="reference internal" href="generated/lloca.reps.tensorreps.TensorReps.html#lloca.reps.tensorreps.TensorReps" title="lloca.reps.tensorreps.TensorReps"><code class="xref py py-mod docutils literal notranslate"><span class="pre">TensorReps</span></code></a> class,
+and their transformation behavior with <a class="reference internal" href="generated/lloca.reps.tensorreps_transform.TensorRepsTransform.html#lloca.reps.tensorreps_transform.TensorRepsTransform" title="lloca.reps.tensorreps_transform.TensorRepsTransform"><code class="xref py py-mod docutils literal notranslate"><span class="pre">TensorRepsTransform</span></code></a>.
+We denote <code class="docutils literal notranslate"><span class="pre">0n</span></code> for scalar, <code class="docutils literal notranslate"><span class="pre">1n</span></code> for vector, <code class="docutils literal notranslate"><span class="pre">2n</span></code> for rank 2 tensor, and so on,
+where the <code class="docutils literal notranslate"><span class="pre">n</span></code> stands for <em>normal</em> in contrast to <em>parity-odd</em> (not fully supported).
+General representations can be obtained by linear combinations of these fundamentals, e.g. <code class="docutils literal notranslate"><span class="pre">4x0n+8x1n+3x2n+2x3n</span></code>.</p>
+</section>
+<section id="process-local-particle-features-with-any-backbone-architecture">
+<h2>3. Process local particle features with any backbone architecture<a class="headerlink" href="#process-local-particle-features-with-any-backbone-architecture" title="Link to this heading"></a></h2>
+<p>Given the particle features in the local frame, we can process them with any backbone architecture without violating Lorentz-equivariance.
+To obtain an equivariant prediction, we have to finally transform the output features from the local into the global frames,
+however this step is trivial if the output features are scalar.</p>
+<p>There is one caveat regarding the backbone architecture:
+To allow a meaningful message-passing, we have to properly transform particle features when they are communicated between particles.
+This manifests in a modification of the attention mechanism for transformers, and in the message-passing for graph networks.
+This aspect is already implemented in the backbones available in <code class="docutils literal notranslate"><span class="pre">lloca/backbone/</span></code>, and has to be added for new backbone architectures within LLoCa.
+This is already handled internally for the LLoCa <a class="reference internal" href="generated/lloca.backbone.transformer.Transformer.html#lloca.backbone.transformer.Transformer" title="lloca.backbone.transformer.Transformer"><code class="xref py py-mod docutils literal notranslate"><span class="pre">Transformer</span></code></a> and other architectures in <code class="docutils literal notranslate"><span class="pre">lloca/backbone/</span></code></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lloca.backbone.transformer</span><span class="w"> </span><span class="kn">import</span> <span class="n">Transformer</span>
+
+<span class="n">backbone</span> <span class="o">=</span> <span class="n">Transformer</span><span class="p">(</span>
+   <span class="n">in_channels</span><span class="o">=</span><span class="mi">4</span><span class="o">+</span><span class="n">num_scalars</span><span class="p">,</span>
+   <span class="n">attn_reps</span><span class="o">=</span><span class="s2">&quot;4x0n+1x1n&quot;</span><span class="p">,</span>
+   <span class="n">out_channels</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+   <span class="n">num_blocks</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+   <span class="n">num_heads</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">out</span> <span class="o">=</span> <span class="n">backbone</span><span class="p">(</span><span class="n">features_local</span><span class="p">,</span> <span class="n">frames</span><span class="p">)</span> <span class="c1"># (128, 10, 1)</span>
+</pre></div>
+</div>
+</section>
+<section id="next-steps">
+<h2>Next steps<a class="headerlink" href="#next-steps" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Have a look at the <a class="reference internal" href="api.html"><span class="doc">API Reference</span></a></p></li>
+<li><p>Consider using the orthogonal approach of Lorentz-equivariance through specialized layers, e.g. L-GATr.
+See <a class="reference internal" href="lloca-vs-lgatr.html"><span class="doc">LLoCa vs L-GATr</span></a> for a discussion, and the <a class="reference external" href="https://heidelberg-hepml.github.io/lgatr/index.html">L-GATr docs</a>.</p></li>
+<li><p>Instructions on how to <a class="reference internal" href="more-backbones/index.html"><span class="doc">Make any network Lorentz-equivariant</span></a></p></li>
+<li><p><a class="reference internal" href="numerics.html"><span class="doc">Tips and tricks for stable LLoCa training</span></a></p></li>
+<li><p>Custom <a class="reference external" href="https://heidelberg-hepml.github.io/lgatr/attention_backends.html">Attention Backends</a> (L-GATr docs)</p></li>
+<li><p>How to implement <a class="reference external" href="https://heidelberg-hepml.github.io/lgatr/symmetry_breaking.html">Lorentz Symmetry Breaking</a> (L-GATr docs)</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="LLoCa documentation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="lloca-vs-lgatr.html" class="btn btn-neutral float-right" title="LLoCa vs L-GATr" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,334 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>lloca.utils.utils &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">lloca.utils.utils</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for lloca.utils.utils</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Tools for graph construction and manipulation.&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.lorentz</span><span class="w"> </span><span class="kn">import</span> <span class="n">lorentz_squarednorm</span>
+
+
+<div class="viewcode-block" id="get_batch_from_ptr">
+<a class="viewcode-back" href="../../../generated/lloca.utils.utils.html#lloca.utils.utils.get_batch_from_ptr">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_batch_from_ptr</span><span class="p">(</span><span class="n">ptr</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reconstruct batch indices (batch) from pointer (ptr).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ptr : torch.Tensor</span>
+<span class="sd">        Pointer tensor indicating the start of each batch.</span>
+<span class="sd">        Tensor of shape (B+1,) where B is the number of batches.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    torch.Tensor</span>
+<span class="sd">        A tensor where each element indicates the batch index for each item.</span>
+<span class="sd">        Tensor of shape (N,) where N is the total number of items across all batches.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ptr</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">ptr</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat_interleave</span><span class="p">(</span>
+        <span class="n">ptr</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">ptr</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="get_ptr_from_batch">
+<a class="viewcode-back" href="../../../generated/lloca.utils.utils.html#lloca.utils.utils.get_ptr_from_batch">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_ptr_from_batch</span><span class="p">(</span><span class="n">batch</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reconstruct pointer (ptr) from batch indices (batch).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    batch : torch.Tensor</span>
+<span class="sd">        A tensor where each element indicates the batch index for each item.</span>
+<span class="sd">        Tensor of shape (N,) where N is the total number of items across all batches.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    torch.Tensor</span>
+<span class="sd">        A pointer tensor indicating the start of each batch.</span>
+<span class="sd">        Tensor of shape (B+1,) where B is the number of batches.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">ptr</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mi">0</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">batch</span><span class="o">.</span><span class="n">device</span><span class="p">),</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">batch</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">batch</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="n">batch</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span> <span class="n">device</span><span class="o">=</span><span class="n">batch</span><span class="o">.</span><span class="n">device</span><span class="p">),</span>
+        <span class="p">],</span>
+        <span class="mi">0</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">ptr</span></div>
+
+
+
+<div class="viewcode-block" id="get_node_to_edge_ptr_fully_connected">
+<a class="viewcode-back" href="../../../generated/lloca.utils.utils.html#lloca.utils.utils.get_node_to_edge_ptr_fully_connected">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_node_to_edge_ptr_fully_connected</span><span class="p">(</span><span class="n">ptr</span><span class="p">,</span> <span class="n">batch</span><span class="p">,</span> <span class="n">remove_self_loops</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Get pointer (ptr) mapping nodes to edges in a fully connected graph.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ptr : torch.Tensor</span>
+<span class="sd">        Pointer tensor indicating the start of each batch.</span>
+<span class="sd">        Tensor of shape (B+1,) where B is the number of batches.</span>
+<span class="sd">    batch : torch.Tensor</span>
+<span class="sd">        A tensor where each element indicates the batch index for each node.</span>
+<span class="sd">        Tensor of shape (N,) where N is the total number of nodes across all batches.</span>
+<span class="sd">    remove_self_loops : bool</span>
+<span class="sd">        Whether self-loops were removed when constructing the edge index, by default True.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    torch.Tensor</span>
+<span class="sd">        A pointer tensor mapping nodes to edges in a fully connected graph.</span>
+<span class="sd">        Tensor of shape (N,) where N is the total number of nodes across all batches.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">numel</span><span class="p">()</span>
+    <span class="n">diff</span> <span class="o">=</span> <span class="n">ptr</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">ptr</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">diff</span> <span class="o">-</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">remove_self_loops</span> <span class="k">else</span> <span class="n">diff</span>
+
+    <span class="n">delta</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">(</span><span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">delta</span><span class="o">.</span><span class="n">index_add_</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">ptr</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">w</span><span class="p">)</span>
+    <span class="n">delta</span><span class="o">.</span><span class="n">index_add_</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">ptr</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="o">-</span><span class="n">w</span><span class="p">)</span>
+
+    <span class="n">r</span> <span class="o">=</span> <span class="n">delta</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">(</span><span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">torch</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+    <span class="k">return</span> <span class="n">out</span></div>
+
+
+
+<div class="viewcode-block" id="get_edge_index_from_ptr">
+<a class="viewcode-back" href="../../../generated/lloca.utils.utils.html#lloca.utils.utils.get_edge_index_from_ptr">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_edge_index_from_ptr</span><span class="p">(</span><span class="n">ptr</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">remove_self_loops</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Construct edge index of fully connected graph from pointer (ptr).</span>
+<span class="sd">    This function should be used for graphs represented by sparse tensors,</span>
+<span class="sd">    i.e. graphs where the number of nodes per graph can vary.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ptr : torch.Tensor</span>
+<span class="sd">        Pointer tensor indicating the start of each batch.</span>
+<span class="sd">        Tensor of shape (B+1,) where B is the number of batches.</span>
+<span class="sd">    shape : torch.Size</span>
+<span class="sd">        Shape of the node tensor, expected to be (N, C)</span>
+<span class="sd">    remove_self_loops : bool, optional</span>
+<span class="sd">        Whether to remove self-loops from the edge index, by default True.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    torch.Tensor</span>
+<span class="sd">        A tensor of shape (2, E) where E is the number of edges, representing the edge index.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="n">diff</span> <span class="o">=</span> <span class="n">ptr</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">-</span> <span class="n">ptr</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">starts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">ptr</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+    <span class="n">starts</span><span class="o">.</span><span class="n">scatter_</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">ptr</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">ptr</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="n">node2graph</span> <span class="o">=</span> <span class="n">starts</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="n">counts</span> <span class="o">=</span> <span class="n">diff</span><span class="p">[</span><span class="n">node2graph</span><span class="p">]</span> <span class="o">-</span> <span class="p">(</span><span class="mi">1</span> <span class="k">if</span> <span class="n">remove_self_loops</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">E</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="n">row</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">repeat_interleave</span><span class="p">(</span><span class="n">counts</span><span class="p">,</span> <span class="n">output_size</span><span class="o">=</span><span class="n">E</span><span class="p">)</span>
+
+    <span class="n">g</span> <span class="o">=</span> <span class="n">node2graph</span><span class="p">[</span><span class="n">row</span><span class="p">]</span>
+    <span class="n">offset</span> <span class="o">=</span> <span class="n">ptr</span><span class="p">[</span><span class="n">g</span><span class="p">]</span>
+    <span class="n">row_local</span> <span class="o">=</span> <span class="n">row</span> <span class="o">-</span> <span class="n">offset</span>
+
+    <span class="n">start</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">-</span> <span class="n">counts</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">row</span><span class="o">.</span><span class="n">numel</span><span class="p">(),</span> <span class="n">device</span><span class="o">=</span><span class="n">ptr</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+    <span class="n">pos</span> <span class="o">=</span> <span class="n">idx</span> <span class="o">-</span> <span class="n">start</span><span class="p">[</span><span class="n">row</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">remove_self_loops</span><span class="p">:</span>
+        <span class="n">col_local</span> <span class="o">=</span> <span class="n">pos</span> <span class="o">+</span> <span class="p">(</span><span class="n">pos</span> <span class="o">&gt;=</span> <span class="n">row_local</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">col_local</span> <span class="o">=</span> <span class="n">pos</span>
+    <span class="n">col</span> <span class="o">=</span> <span class="n">col_local</span> <span class="o">+</span> <span class="n">offset</span>
+
+    <span class="n">edge_index</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">row</span><span class="p">,</span> <span class="n">col</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">edge_index</span></div>
+
+
+
+<div class="viewcode-block" id="get_edge_index_from_shape">
+<a class="viewcode-back" href="../../../generated/lloca.utils.utils.html#lloca.utils.utils.get_edge_index_from_shape">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_edge_index_from_shape</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">device</span><span class="p">,</span> <span class="n">remove_self_loops</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Construct edge index of fully connected graph from the shape of a corresponding dense tensor.</span>
+<span class="sd">    This function should be used for graphs represented by dense tensors,</span>
+<span class="sd">    i.e. graphs where the number of nodes per graph is fixed.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    shape : torch.Size</span>
+<span class="sd">        Shape of the dense node tensor, expected to be (B, N, C)</span>
+<span class="sd">        where B is the batch size and N is the number of nodes.</span>
+<span class="sd">    device : torch.device</span>
+<span class="sd">        Device on which the tensors are allocated.</span>
+<span class="sd">    remove_self_loops : bool, optional</span>
+<span class="sd">        Whether to remove self-loops from the edge index, by default True.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    torch.Tensor</span>
+<span class="sd">        A tensor of shape (2, E) where E is the number of edges, representing the edge index.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">B</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">shape</span>
+
+    <span class="n">nodes</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">remove_self_loops</span><span class="p">:</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="n">nodes</span><span class="o">.</span><span class="n">repeat_interleave</span><span class="p">(</span><span class="n">N</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="n">nodes</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">col_2d</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">col_2d</span> <span class="o">=</span> <span class="n">col_2d</span> <span class="o">+</span> <span class="p">(</span><span class="n">col_2d</span> <span class="o">&gt;=</span> <span class="n">i</span><span class="p">)</span>
+        <span class="n">col</span> <span class="o">=</span> <span class="n">col_2d</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="n">nodes</span><span class="o">.</span><span class="n">repeat_interleave</span><span class="p">(</span><span class="n">N</span><span class="p">)</span>
+        <span class="n">col</span> <span class="o">=</span> <span class="n">nodes</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">N</span><span class="p">)</span>
+
+    <span class="n">edge_base</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">row</span><span class="p">,</span> <span class="n">col</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">offsets</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">long</span><span class="p">)</span> <span class="o">*</span> <span class="n">N</span>
+    <span class="n">batched</span> <span class="o">=</span> <span class="n">edge_base</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">offsets</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">edge_index_global</span> <span class="o">=</span> <span class="n">batched</span><span class="o">.</span><span class="n">permute</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">batch</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">repeat_interleave</span><span class="p">(</span><span class="n">N</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">edge_index_global</span><span class="p">,</span> <span class="n">batch</span></div>
+
+
+
+<div class="viewcode-block" id="get_edge_attr">
+<a class="viewcode-back" href="../../../generated/lloca.utils.utils.html#lloca.utils.utils.get_edge_attr">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_edge_attr</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">,</span> <span class="n">edge_index</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-10</span><span class="p">,</span> <span class="n">use_float64</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Calculate edge attributes based on the squared Lorentz norm of the sum of four-momenta.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fourmomenta : torch.Tensor</span>
+<span class="sd">        A tensor of shape (B, N, 4) representing the four-momenta of particles.</span>
+<span class="sd">    edge_index : torch.Tensor</span>
+<span class="sd">        A tensor of shape (2, E) representing the edge index of the graph.</span>
+<span class="sd">    eps : float, optional</span>
+<span class="sd">        A small value to avoid log(0) issues, by default 1e-10.</span>
+<span class="sd">    use_float64 : bool, optional</span>
+<span class="sd">        Whether to use float64 precision for calculations, by default True.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    torch.Tensor</span>
+<span class="sd">        A tensor of shape (E,) representing the edge attributes, which are the logarithm of the squared Lorentz norm.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">use_float64</span><span class="p">:</span>
+        <span class="n">in_dtype</span> <span class="o">=</span> <span class="n">fourmomenta</span><span class="o">.</span><span class="n">dtype</span>
+        <span class="n">fourmomenta</span> <span class="o">=</span> <span class="n">fourmomenta</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">mij2</span> <span class="o">=</span> <span class="n">lorentz_squarednorm</span><span class="p">(</span><span class="n">fourmomenta</span><span class="p">[</span><span class="n">edge_index</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">+</span> <span class="n">fourmomenta</span><span class="p">[</span><span class="n">edge_index</span><span class="p">[</span><span class="mi">1</span><span class="p">]])</span>
+    <span class="n">edge_attr</span> <span class="o">=</span> <span class="n">mij2</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="n">eps</span><span class="p">)</span><span class="o">.</span><span class="n">log</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">use_float64</span><span class="p">:</span>
+        <span class="n">edge_attr</span> <span class="o">=</span> <span class="n">edge_attr</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">in_dtype</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">edge_attr</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

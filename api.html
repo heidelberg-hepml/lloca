@@ -1,0 +1,322 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Reference &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="lloca.equivectors.mlp" href="generated/lloca.equivectors.mlp.html" />
+    <link rel="prev" title="Tips and tricks for stable LLoCa training" href="numerics.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1"><a class="reference internal" href="more-backbones/index.html">Make any network Lorentz-equivariant</a></li>
+<li class="toctree-l1"><a class="reference internal" href="numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">API Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#equivariant-vector-prediction">Equivariant vector prediction</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.equivectors.mlp.html">lloca.equivectors.mlp</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.equivectors.lgatr.html">lloca.equivectors.lgatr</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.equivectors.pelican.html">lloca.equivectors.pelican</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#frames-net">Frames-Net</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedFrames.html">lloca.framesnet.equi_frames.LearnedFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedPDFrames.html">lloca.framesnet.equi_frames.LearnedPDFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedSO13Frames.html">lloca.framesnet.equi_frames.LearnedSO13Frames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedRestFrames.html">lloca.framesnet.equi_frames.LearnedRestFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedSO3Frames.html">lloca.framesnet.equi_frames.LearnedSO3Frames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedZFrames.html">lloca.framesnet.equi_frames.LearnedZFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedSO2Frames.html">lloca.framesnet.equi_frames.LearnedSO2Frames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.framesnet.nonequi_frames.IdentityFrames.html">lloca.framesnet.nonequi_frames.IdentityFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.framesnet.nonequi_frames.RandomFrames.html">lloca.framesnet.nonequi_frames.RandomFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.framesnet.frames.Frames.html">lloca.framesnet.frames.Frames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.framesnet.frames.InverseFrames.html">lloca.framesnet.frames.InverseFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.framesnet.frames.IndexSelectFrames.html">lloca.framesnet.frames.IndexSelectFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.framesnet.frames.ChangeOfFrames.html">lloca.framesnet.frames.ChangeOfFrames</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.framesnet.frames.LowerIndicesFrames.html">lloca.framesnet.frames.LowerIndicesFrames</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#backbone-networks">Backbone networks</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.backbone.mlp.MLP.html">lloca.backbone.mlp.MLP</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.backbone.lloca_message_passing.LLoCaMessagePassing.html">lloca.backbone.lloca_message_passing.LLoCaMessagePassing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.backbone.attention.LLoCaAttention.html">lloca.backbone.attention.LLoCaAttention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.backbone.graphnet.GraphNet.html">lloca.backbone.graphnet.GraphNet</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.backbone.transformer.Transformer.html">lloca.backbone.transformer.Transformer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.backbone.particlenet.ParticleNet.html">lloca.backbone.particlenet.ParticleNet</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.backbone.particletransformer.ParticleTransformer.html">lloca.backbone.particletransformer.ParticleTransformer</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#lorentz-group-representations">Lorentz group representations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.reps.tensorreps.TensorReps.html">lloca.reps.tensorreps.TensorReps</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.reps.tensorreps_transform.TensorRepsTransform.html">lloca.reps.tensorreps_transform.TensorRepsTransform</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#utilities">Utilities</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.utils.utils.html">lloca.utils.utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.utils.lorentz.html">lloca.utils.lorentz</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.utils.rand_transforms.html">lloca.utils.rand_transforms</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.utils.orthogonalize_3d.html">lloca.utils.orthogonalize_3d</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.utils.orthogonalize_4d.html">lloca.utils.orthogonalize_4d</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/lloca.utils.polar_decomposition.html">lloca.utils.polar_decomposition</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">API Reference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/api.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="api-reference">
+<h1>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading"></a></h1>
+<section id="equivariant-vector-prediction">
+<h2>Equivariant vector prediction<a class="headerlink" href="#equivariant-vector-prediction" title="Link to this heading"></a></h2>
+<p>The Frames-Net uses a small Lorentz-equivariant network to predict a list of vectors.
+We currently have only one option for this <code class="docutils literal notranslate"><span class="pre">equivectors</span></code> network, but we plan to add more options in the future.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.equivectors.mlp.html#module-lloca.equivectors.mlp" title="lloca.equivectors.mlp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.equivectors.mlp</span></code></a></p></td>
+<td><p>Edge convolution with a simple MLP.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/lloca.equivectors.lgatr.html#module-lloca.equivectors.lgatr" title="lloca.equivectors.lgatr"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.equivectors.lgatr</span></code></a></p></td>
+<td><p>Edge convolution with L-GATr.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.equivectors.pelican.html#module-lloca.equivectors.pelican" title="lloca.equivectors.pelican"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.equivectors.pelican</span></code></a></p></td>
+<td><p>Edge convolution with PELICAN.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="frames-net">
+<h2>Frames-Net<a class="headerlink" href="#frames-net" title="Link to this heading"></a></h2>
+<p>The equivariant vectors can be used in a range of Frames-Net procedures to construct local frames.
+We support three Lorentz-equivariant Frames-Net approaches, an SO(3)-equivariant approach and an SO(2)-equivariant approach.
+In addition, we implement non-equivariant networks as identity frames and data augmentation as random frames.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedFrames.html#lloca.framesnet.equi_frames.LearnedFrames" title="lloca.framesnet.equi_frames.LearnedFrames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.framesnet.equi_frames.LearnedFrames</span></code></a>(...)</p></td>
+<td><p>Abstract base class for learnable local frames</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedPDFrames.html#lloca.framesnet.equi_frames.LearnedPDFrames" title="lloca.framesnet.equi_frames.LearnedPDFrames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.framesnet.equi_frames.LearnedPDFrames</span></code></a>(*args)</p></td>
+<td><p>Frames as learnable polar decompositions.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedSO13Frames.html#lloca.framesnet.equi_frames.LearnedSO13Frames" title="lloca.framesnet.equi_frames.LearnedSO13Frames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.framesnet.equi_frames.LearnedSO13Frames</span></code></a>(*args)</p></td>
+<td><p>Frames as orthonormal set of Lorentz vectors.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedRestFrames.html#lloca.framesnet.equi_frames.LearnedRestFrames" title="lloca.framesnet.equi_frames.LearnedRestFrames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.framesnet.equi_frames.LearnedRestFrames</span></code></a>(*args)</p></td>
+<td><p>Rest frame transformation with learnable rotation.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedSO3Frames.html#lloca.framesnet.equi_frames.LearnedSO3Frames" title="lloca.framesnet.equi_frames.LearnedSO3Frames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.framesnet.equi_frames.LearnedSO3Frames</span></code></a>(*args)</p></td>
+<td><p>Frames from SO(3) rotations.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedZFrames.html#lloca.framesnet.equi_frames.LearnedZFrames" title="lloca.framesnet.equi_frames.LearnedZFrames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.framesnet.equi_frames.LearnedZFrames</span></code></a>(*args)</p></td>
+<td><p>Frames from ztransform, i.e. combination of boost along z and rotation around z axis, or SO(1,1)_z x SO(2)_z.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.framesnet.equi_frames.LearnedSO2Frames.html#lloca.framesnet.equi_frames.LearnedSO2Frames" title="lloca.framesnet.equi_frames.LearnedSO2Frames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.framesnet.equi_frames.LearnedSO2Frames</span></code></a>(*args)</p></td>
+<td><p>Frames from SO(2) rotations around the beam axis.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/lloca.framesnet.nonequi_frames.IdentityFrames.html#lloca.framesnet.nonequi_frames.IdentityFrames" title="lloca.framesnet.nonequi_frames.IdentityFrames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.framesnet.nonequi_frames.IdentityFrames</span></code></a>()</p></td>
+<td><p>Identity frames for non-equivariant networks</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.framesnet.nonequi_frames.RandomFrames.html#lloca.framesnet.nonequi_frames.RandomFrames" title="lloca.framesnet.nonequi_frames.RandomFrames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.framesnet.nonequi_frames.RandomFrames</span></code></a>([...])</p></td>
+<td><p>Random frames for data augmentation.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The resulting frames are stored in the <a class="reference internal" href="generated/lloca.framesnet.frames.Frames.html#lloca.framesnet.frames.Frames" title="lloca.framesnet.frames.Frames"><code class="xref py py-class docutils literal notranslate"><span class="pre">Frames</span></code></a> bookkeeping class.
+A range of derived class can be used for efficient access in the backbone architecture.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.framesnet.frames.Frames.html#lloca.framesnet.frames.Frames" title="lloca.framesnet.frames.Frames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.framesnet.frames.Frames</span></code></a>([matrices, ...])</p></td>
+<td><p>Bookkeeping class for local frames.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/lloca.framesnet.frames.InverseFrames.html#lloca.framesnet.frames.InverseFrames" title="lloca.framesnet.frames.InverseFrames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.framesnet.frames.InverseFrames</span></code></a>(frames)</p></td>
+<td><p>Inverse of a collection of frames.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.framesnet.frames.IndexSelectFrames.html#lloca.framesnet.frames.IndexSelectFrames" title="lloca.framesnet.frames.IndexSelectFrames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.framesnet.frames.IndexSelectFrames</span></code></a>(...)</p></td>
+<td><p>Index-controlled collection of frames.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/lloca.framesnet.frames.ChangeOfFrames.html#lloca.framesnet.frames.ChangeOfFrames" title="lloca.framesnet.frames.ChangeOfFrames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.framesnet.frames.ChangeOfFrames</span></code></a>(...)</p></td>
+<td><p>Change of frames between two Frames objects.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.framesnet.frames.LowerIndicesFrames.html#lloca.framesnet.frames.LowerIndicesFrames" title="lloca.framesnet.frames.LowerIndicesFrames"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.framesnet.frames.LowerIndicesFrames</span></code></a>(frames)</p></td>
+<td><p>Frames with lower indices, obtained by multiplying with the metric.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="backbone-networks">
+<h2>Backbone networks<a class="headerlink" href="#backbone-networks" title="Link to this heading"></a></h2>
+<p>The LLoCa framework can be used to make generic backbone architectures Lorentz-equivariant.</p>
+<ol class="arabic simple">
+<li><p>Transform the network inputs into their local frames to make them invariant.</p></li>
+<li><p>For message-passing architectures, transform the messages from the sender frame to the receiver frame using a non-trivial message representation, i.e. not only scalars.</p></li>
+<li><p>Transform the network outputs back to the global frame to obtain a Lorentz-equivariant output. This step is trivial in the case of Lorentz-invariant outputs.</p></li>
+</ol>
+<p>The <a class="reference internal" href="generated/lloca.backbone.mlp.MLP.html#lloca.backbone.mlp.MLP" title="lloca.backbone.mlp.MLP"><code class="xref py py-class docutils literal notranslate"><span class="pre">MLP</span></code></a> does not require any modifications to be used in the LLoCa framework.
+For message-passing architectures, we provide the <a class="reference internal" href="generated/lloca.backbone.lloca_message_passing.LLoCaMessagePassing.html#lloca.backbone.lloca_message_passing.LLoCaMessagePassing" title="lloca.backbone.lloca_message_passing.LLoCaMessagePassing"><code class="xref py py-class docutils literal notranslate"><span class="pre">LLoCaMessagePassing</span></code></a> class to conveniently adapt graph networks based on the <code class="docutils literal notranslate"><span class="pre">torch_geometric.nn.conv.MessagePassing</span></code> class to the LLoCa framework.
+For transformers, we provide the <a class="reference internal" href="generated/lloca.backbone.attention.LLoCaAttention.html#lloca.backbone.attention.LLoCaAttention" title="lloca.backbone.attention.LLoCaAttention"><code class="xref py py-class docutils literal notranslate"><span class="pre">LLoCaAttention</span></code></a> class as a drop-in replacement for <code class="docutils literal notranslate"><span class="pre">torch.nn.functional.scaled_dot_product_attention</span></code> and other attention backends.
+We demonstrate how to use these tools with a baseline <a class="reference internal" href="generated/lloca.backbone.graphnet.GraphNet.html#lloca.backbone.graphnet.GraphNet" title="lloca.backbone.graphnet.GraphNet"><code class="xref py py-class docutils literal notranslate"><span class="pre">GraphNet</span></code></a> and a <a class="reference internal" href="generated/lloca.backbone.transformer.Transformer.html#lloca.backbone.transformer.Transformer" title="lloca.backbone.transformer.Transformer"><code class="xref py py-class docutils literal notranslate"><span class="pre">Transformer</span></code></a>.
+For <a class="reference internal" href="generated/lloca.backbone.particlenet.ParticleNet.html#lloca.backbone.particlenet.ParticleNet" title="lloca.backbone.particlenet.ParticleNet"><code class="xref py py-class docutils literal notranslate"><span class="pre">ParticleNet</span></code></a> and <a class="reference internal" href="generated/lloca.backbone.particletransformer.ParticleTransformer.html#lloca.backbone.particletransformer.ParticleTransformer" title="lloca.backbone.particletransformer.ParticleTransformer"><code class="xref py py-class docutils literal notranslate"><span class="pre">ParticleTransformer</span></code></a>, we demonstrate how to use LLoCa with established architectures.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.backbone.mlp.MLP.html#lloca.backbone.mlp.MLP" title="lloca.backbone.mlp.MLP"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.backbone.mlp.MLP</span></code></a>(in_shape, out_shape, ...)</p></td>
+<td><p>A simple MLP.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/lloca.backbone.lloca_message_passing.LLoCaMessagePassing.html#lloca.backbone.lloca_message_passing.LLoCaMessagePassing" title="lloca.backbone.lloca_message_passing.LLoCaMessagePassing"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.backbone.lloca_message_passing.LLoCaMessagePassing</span></code></a>(...)</p></td>
+<td><p>Adaptation of the torch_geometric MessagePassing class using the LLoCa formalism.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.backbone.attention.LLoCaAttention.html#lloca.backbone.attention.LLoCaAttention" title="lloca.backbone.attention.LLoCaAttention"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.backbone.attention.LLoCaAttention</span></code></a>(...)</p></td>
+<td><p>Attention with frame-to-frame transformations.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/lloca.backbone.graphnet.GraphNet.html#lloca.backbone.graphnet.GraphNet" title="lloca.backbone.graphnet.GraphNet"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.backbone.graphnet.GraphNet</span></code></a>(...[, ...])</p></td>
+<td><p>Baseline LLoCa-GNN.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.backbone.transformer.Transformer.html#lloca.backbone.transformer.Transformer" title="lloca.backbone.transformer.Transformer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.backbone.transformer.Transformer</span></code></a>(...)</p></td>
+<td><p>Baseline LLoCa-Transformer.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/lloca.backbone.particlenet.ParticleNet.html#lloca.backbone.particlenet.ParticleNet" title="lloca.backbone.particlenet.ParticleNet"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.backbone.particlenet.ParticleNet</span></code></a>(...)</p></td>
+<td><p>ParticleNet with local frame transformations.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.backbone.particletransformer.ParticleTransformer.html#lloca.backbone.particletransformer.ParticleTransformer" title="lloca.backbone.particletransformer.ParticleTransformer"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.backbone.particletransformer.ParticleTransformer</span></code></a>(...)</p></td>
+<td><p>Particle Transformer (ParT) with local frame transformations.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="lorentz-group-representations">
+<h2>Lorentz group representations<a class="headerlink" href="#lorentz-group-representations" title="Link to this heading"></a></h2>
+<p>The LLoCa framework supports arbitrary Lorentz group representations for inputs, outputs and messages.
+The <a class="reference internal" href="generated/lloca.reps.tensorreps.TensorReps.html#lloca.reps.tensorreps.TensorReps" title="lloca.reps.tensorreps.TensorReps"><code class="xref py py-class docutils literal notranslate"><span class="pre">TensorReps</span></code></a> class organizes the properties of these representations,
+while the <a class="reference internal" href="generated/lloca.reps.tensorreps_transform.TensorRepsTransform.html#lloca.reps.tensorreps_transform.TensorRepsTransform" title="lloca.reps.tensorreps_transform.TensorRepsTransform"><code class="xref py py-class docutils literal notranslate"><span class="pre">TensorRepsTransform</span></code></a> class implements the actual transformations of features.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.reps.tensorreps.TensorReps.html#lloca.reps.tensorreps.TensorReps" title="lloca.reps.tensorreps.TensorReps"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.reps.tensorreps.TensorReps</span></code></a>(input[, ...])</p></td>
+<td><p>Generic tensor representations</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/lloca.reps.tensorreps_transform.TensorRepsTransform.html#lloca.reps.tensorreps_transform.TensorRepsTransform" title="lloca.reps.tensorreps_transform.TensorRepsTransform"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.reps.tensorreps_transform.TensorRepsTransform</span></code></a>(reps)</p></td>
+<td><p>Tensor representation transformation module.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="utilities">
+<h2>Utilities<a class="headerlink" href="#utilities" title="Link to this heading"></a></h2>
+<p>Finally, we provide a range of utility functions for Lorentz transformations, random transformations and orthogonalization.</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.utils.utils.html#module-lloca.utils.utils" title="lloca.utils.utils"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.utils.utils</span></code></a></p></td>
+<td><p>Tools for graph construction and manipulation.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/lloca.utils.lorentz.html#module-lloca.utils.lorentz" title="lloca.utils.lorentz"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.utils.lorentz</span></code></a></p></td>
+<td><p>Basic operations in Minkowski space.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.utils.rand_transforms.html#module-lloca.utils.rand_transforms" title="lloca.utils.rand_transforms"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.utils.rand_transforms</span></code></a></p></td>
+<td><p>Random Lorentz transformations.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/lloca.utils.orthogonalize_3d.html#module-lloca.utils.orthogonalize_3d" title="lloca.utils.orthogonalize_3d"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.utils.orthogonalize_3d</span></code></a></p></td>
+<td><p>Orthogonalization of euclidean vectors.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="generated/lloca.utils.orthogonalize_4d.html#module-lloca.utils.orthogonalize_4d" title="lloca.utils.orthogonalize_4d"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.utils.orthogonalize_4d</span></code></a></p></td>
+<td><p>Orthogonalization of Minkowski vectors.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="generated/lloca.utils.polar_decomposition.html#module-lloca.utils.polar_decomposition" title="lloca.utils.polar_decomposition"><code class="xref py py-obj docutils literal notranslate"><span class="pre">lloca.utils.polar_decomposition</span></code></a></p></td>
+<td><p>Lorentz transformations from boosts and rotations.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="numerics.html" class="btn btn-neutral float-left" title="Tips and tricks for stable LLoCa training" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="generated/lloca.equivectors.mlp.html" class="btn btn-neutral float-right" title="lloca.equivectors.mlp" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

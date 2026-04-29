@@ -1,0 +1,446 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLoCa-ParticleNet &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Tips and tricks for stable LLoCa training" href="../numerics.html" />
+    <link rel="prev" title="LLoCa-GraphNet" href="graphnet.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Make any network Lorentz-equivariant</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="transformer.html">LLoCa-Transformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="particletransformer.html">LLoCa-ParticleTransformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="graphnet.html">LLoCa-GraphNet</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">LLoCa-ParticleNet</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Make any network Lorentz-equivariant</a></li>
+      <li class="breadcrumb-item active">LLoCa-ParticleNet</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/more-backbones/particlenet.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="lloca-particlenet">
+<h1>LLoCa-ParticleNet<a class="headerlink" href="#lloca-particlenet" title="Link to this heading"></a></h1>
+<p>We start with the standard ParticleNet implementation, available at <a class="reference external" href="https://github.com/hqucms/weaver-core/blob/main/weaver/nn/model/ParticleNet.py">https://github.com/hqucms/weaver-core/blob/main/weaver/nn/model/ParticleNet.py</a>.</p>
+<p>We implement LLoCa with the <cite>change_local_frame</cite> function that is applied in each message-passing step
+to transform the features from the sender frame to the receiver frame.
+We now also require the representation structure of the features, which has to be propagated through the architecture.</p>
+<div class="highlight-diff notranslate"><div class="highlight"><pre><span></span>import torch
+import torch.nn as nn
+
+<span class="gi">+from ..framesnet.frames import ChangeOfFrames, IndexSelectFrames</span>
+<span class="gi">+from ..reps.tensorreps import TensorReps</span>
+<span class="gi">+from ..reps.tensorreps_transform import TensorRepsTransform</span>
+
+
+<span class="gi">+def change_local_frame(x_j_framej, idx, frames, trafo):</span>
+<span class="gi">+   &quot;&quot;&quot;Transform features x_j from frame &#39;j&#39; (&#39;x_j_framej&#39;) to frame &#39;i&#39; (&#39;x_j_framei&#39;).</span>
+
+<span class="gi">+   Parameters</span>
+<span class="gi">+   ----------</span>
+<span class="gi">+   x_j_framej : torch.Tensor</span>
+<span class="gi">+       Input features in local frame &#39;j&#39; of shape (batch_size, num_dims, num_points, k).</span>
+<span class="gi">+   idx : torch.Tensor</span>
+<span class="gi">+       Indices of the nearest neighbors in the batch of shape (batch_size*num_points*k).</span>
+<span class="gi">+   frames : Frames</span>
+<span class="gi">+       Local frames of reference for the particles, shape (num_points, 4, 4).</span>
+<span class="gi">+   trafo : TensorRepsTransform</span>
+<span class="gi">+       Transformation function to apply to the features.</span>
+
+<span class="gi">+   Returns</span>
+<span class="gi">+   -------</span>
+<span class="gi">+   torch.Tensor</span>
+<span class="gi">+   &quot;&quot;&quot;</span>
+<span class="gi">+   # we use batch_size*num_points with repeats of k for idx_i, e.g. for 2 points with 3 batch and k=2,</span>
+<span class="gi">+   # idx_i becomes (0,1,2,3,4,5) -&gt; (0,0,1,1,2,2,3,3,4,4,5,5).</span>
+<span class="gi">+   idx_i = torch.arange(</span>
+<span class="gi">+       x_j_framej.shape[2] * x_j_framej.shape[0], device=x_j_framej.device</span>
+<span class="gi">+   ).repeat_interleave(x_j_framej.shape[-1])  # identity (batch, num_points*k)</span>
+<span class="gi">+   idx_j = idx  # indices from knn (batch, num_points*k)</span>
+
+<span class="gi">+   frames_i = IndexSelectFrames(frames, idx_i)</span>
+<span class="gi">+   frames_j = IndexSelectFrames(frames, idx_j)</span>
+<span class="gi">+   trafo_j_to_i = ChangeOfFrames(frames_j, frames_i)  # convention: (frames_start, frames_end)</span>
+
+<span class="gi">+   # reshape and apply trafo</span>
+<span class="gi">+   x_j_framej_2 = x_j_framej.permute(0, 2, 3, 1)  # (batch_size, num_points, k, num_dims)</span>
+<span class="gi">+   pre = x_j_framej_2.reshape(-1, x_j_framej_2.shape[-1])  # (batch_size*num_points*k, num_dims)</span>
+<span class="gi">+   x_j_framei = trafo(pre, trafo_j_to_i)</span>
+<span class="gi">+   x_j_framei = x_j_framei.view(x_j_framej_2.shape).permute(</span>
+<span class="gi">+       0, 3, 1, 2</span>
+<span class="gi">+   )  # (batch_size, num_dims, num_points, k)</span>
+<span class="gi">+   return x_j_framei</span>
+
+
+def knn(x, k):
+<span class="w"> </span>   inner = -2 * torch.matmul(x.transpose(2, 1), x)
+<span class="w"> </span>   xx = torch.sum(x**2, dim=1, keepdim=True)
+<span class="w"> </span>   pairwise_distance = -xx - inner - xx.transpose(2, 1)
+<span class="w"> </span>   idx = pairwise_distance.topk(k=k + 1, dim=-1)[1][:, :, 1:]  # (batch_size, num_points, k)
+<span class="w"> </span>   return idx
+
+
+# v1 is faster on GPU
+<span class="gd">-def get_graph_feature_v1(x, k, idx):</span>
+<span class="gi">+def get_graph_feature_v1(x, k, idx, frames, trafo):</span>
+<span class="w"> </span>   batch_size, num_dims, num_points = x.size()
+
+<span class="w"> </span>   idx_base = torch.arange(0, batch_size, device=x.device).view(-1, 1, 1) * num_points
+<span class="w"> </span>   idx = idx + idx_base
+<span class="w"> </span>   idx = idx.view(-1)
+
+<span class="w"> </span>   fts = x.transpose(2, 1).reshape(
+<span class="w"> </span>       -1, num_dims
+<span class="w"> </span>   )  # -&gt; (batch_size, num_points, num_dims) -&gt; (batch_size*num_points, num_dims)
+<span class="w"> </span>   fts = fts[idx, :].view(
+<span class="w"> </span>       batch_size, num_points, k, num_dims
+<span class="w"> </span>   )  # neighbors: -&gt; (batch_size*num_points*k, num_dims) -&gt; ...
+<span class="w"> </span>   fts = fts.permute(0, 3, 1, 2).contiguous()  # (batch_size, num_dims, num_points, k)
+<span class="w"> </span>   x = x.view(batch_size, num_dims, num_points, 1).repeat(1, 1, 1, k)
+<span class="gi">+   fts = change_local_frame(fts, idx, frames, trafo)</span>
+<span class="w"> </span>   fts = torch.cat((x, fts - x), dim=1)  # -&gt;(batch_size, 2*num_dims, num_points, k)
+<span class="w"> </span>   return fts
+
+
+# v2 is faster on CPU
+<span class="gd">-def get_graph_feature_v2(x, k, idx):</span>
+<span class="gi">+def get_graph_feature_v2(x, k, idx, frames, trafo):</span>
+<span class="w"> </span>   batch_size, num_dims, num_points = x.size()
+
+<span class="w"> </span>   idx_base = torch.arange(0, batch_size, device=x.device).view(-1, 1, 1) * num_points
+<span class="w"> </span>   idx = idx + idx_base
+<span class="w"> </span>   idx = idx.view(-1)
+
+<span class="w"> </span>   fts = x.transpose(0, 1).reshape(
+<span class="w"> </span>       num_dims, -1
+<span class="w"> </span>   )  # -&gt; (num_dims, batch_size, num_points) -&gt; (num_dims, batch_size*num_points)
+<span class="w"> </span>   fts = fts[:, idx].view(
+<span class="w"> </span>       num_dims, batch_size, num_points, k
+<span class="w"> </span>   )  # neighbors: -&gt; (num_dims, batch_size*num_points*k) -&gt; ...
+<span class="w"> </span>   fts = fts.transpose(1, 0).contiguous()  # (batch_size, num_dims, num_points, k)
+<span class="gi">+   fts = change_local_frame(fts, idx, frames, trafo)</span>
+
+<span class="w"> </span>   x = x.view(batch_size, num_dims, num_points, 1).repeat(1, 1, 1, k)
+<span class="w"> </span>   fts = torch.cat((x, fts - x), dim=1)  # -&gt;(batch_size, 2*num_dims, num_points, k)
+
+<span class="w"> </span>   return fts
+
+
+class EdgeConvBlock(nn.Module):
+<span class="w"> </span>   r&quot;&quot;&quot;EdgeConv layer.
+<span class="w"> </span>   Introduced in &quot;`Dynamic Graph CNN for Learning on Point Clouds
+<span class="w"> </span>   &lt;https://arxiv.org/pdf/1801.07829&gt;`__&quot;.  Can be described as follows:
+<span class="w"> </span>   .. math::
+<span class="w"> </span>   x_i^{(l+1)} = \max_{j \in \mathcal{N}(i)} \mathrm{ReLU}(
+<span class="w"> </span>   \Theta \cdot (x_j^{(l)} - x_i^{(l)}) + \Phi \cdot x_i^{(l)})
+<span class="w"> </span>   where :math:`\mathcal{N}(i)` is the neighbor of :math:`i`.
+<span class="w"> </span>   Parameters
+<span class="w"> </span>   ----------
+<span class="w"> </span>   in_feat : int
+<span class="w"> </span>       Input feature size.
+<span class="w"> </span>   out_feat : int
+<span class="w"> </span>       Output feature size.
+<span class="w"> </span>   batch_norm : bool
+<span class="w"> </span>       Whether to include batch normalization on messages.
+<span class="w"> </span>   &quot;&quot;&quot;
+
+<span class="w"> </span>   def __init__(
+<span class="w"> </span>       self,
+<span class="w"> </span>       k,
+<span class="gd">-       in_feats</span>
+<span class="gi">+       in_reps,</span>
+<span class="w"> </span>       out_feats,
+<span class="w"> </span>       batch_norm=True,
+<span class="w"> </span>       activation=True,
+<span class="w"> </span>       cpu_mode=False,
+<span class="w"> </span>   ):
+<span class="w"> </span>       super(EdgeConvBlock, self).__init__()
+<span class="w"> </span>       self.k = k
+<span class="w"> </span>       self.batch_norm = batch_norm
+<span class="w"> </span>       self.activation = activation
+<span class="w"> </span>       self.num_layers = len(out_feats)
+<span class="w"> </span>       self.get_graph_feature = get_graph_feature_v2 if cpu_mode else get_graph_feature_v1
+<span class="gi">+       in_feat = in_reps.dim</span>
+<span class="gi">+       self.trafo = TensorRepsTransform(TensorReps(in_reps))</span>
+
+<span class="w"> </span>       self.convs = nn.ModuleList()
+<span class="w"> </span>       for i in range(self.num_layers):
+<span class="w"> </span>           self.convs.append(
+<span class="w"> </span>               nn.Conv2d(
+<span class="w"> </span>                   2 * in_feat if i == 0 else out_feats[i - 1],
+<span class="w"> </span>                   out_feats[i],
+<span class="w"> </span>                   kernel_size=1,
+<span class="w"> </span>                   bias=False if self.batch_norm else True,
+<span class="w"> </span>               )
+<span class="w"> </span>           )
+
+<span class="w"> </span>       if batch_norm:
+<span class="w"> </span>           self.bns = nn.ModuleList()
+<span class="w"> </span>           for i in range(self.num_layers):
+<span class="w"> </span>               self.bns.append(nn.BatchNorm2d(out_feats[i]))
+
+<span class="w"> </span>       if activation:
+<span class="w"> </span>           self.acts = nn.ModuleList()
+<span class="w"> </span>           for i in range(self.num_layers):
+<span class="w"> </span>               self.acts.append(nn.ReLU())
+
+<span class="w"> </span>       if in_feat == out_feats[-1]:
+<span class="w"> </span>           self.sc = None
+<span class="w"> </span>       else:
+<span class="w"> </span>           self.sc = nn.Conv1d(in_feat, out_feats[-1], kernel_size=1, bias=False)
+<span class="w"> </span>           self.sc_bn = nn.BatchNorm1d(out_feats[-1])
+
+<span class="w"> </span>       if activation:
+<span class="w"> </span>           self.sc_act = nn.ReLU()
+
+<span class="gd">-   def forward(self, points, features):</span>
+<span class="gi">+   def forward(self, points, features, frames):</span>
+<span class="w"> </span>       topk_indices = knn(points, self.k)
+<span class="gd">-       x = self.get_graph_feature(features, self.k, topk_indices)</span>
+<span class="gi">+       x = self.get_graph_feature(features, self.k, topk_indices, frames, self.trafo)</span>
+
+<span class="w"> </span>       for conv, bn, act in zip(self.convs, self.bns, self.acts, strict=False):
+<span class="w"> </span>           x = conv(x)  # (N, C&#39;, P, K)
+<span class="w"> </span>           if bn:
+<span class="w"> </span>               x = bn(x)
+<span class="w"> </span>           if act:
+<span class="w"> </span>               x = act(x)
+
+<span class="w"> </span>       fts = x.mean(dim=-1)  # (N, C, P)
+
+<span class="w"> </span>       # shortcut
+<span class="w"> </span>       if self.sc:
+<span class="w"> </span>           sc = self.sc(features)  # (N, C_out, P)
+<span class="w"> </span>           sc = self.sc_bn(sc)
+<span class="w"> </span>       else:
+<span class="w"> </span>           sc = features
+
+<span class="w"> </span>       return self.sc_act(sc + fts)  # (N, C_out, P)
+
+
+class ParticleNet(nn.Module):
+<span class="w"> </span>   &quot;&quot;&quot;ParticleNet with local frame transformations.&quot;&quot;&quot;
+
+<span class="w"> </span>   def __init__(
+<span class="w"> </span>       self,
+<span class="w"> </span>       input_dims,
+<span class="gi">+       hidden_reps_list,</span>
+<span class="w"> </span>       num_classes,
+<span class="w"> </span>       conv_params=[(7, (32, 32, 32)), (7, (64, 64, 64))],
+<span class="w"> </span>       fc_params=[(128, 0.1)],
+<span class="w"> </span>       use_fusion=True,
+<span class="w"> </span>       use_fts_bn=True,
+<span class="w"> </span>       use_counts=True,
+<span class="w"> </span>       for_inference=False,
+<span class="w"> </span>       for_segmentation=False,
+<span class="w"> </span>       **kwargs,
+<span class="w"> </span>   ):
+<span class="gi">+       # hidden_reps_list: hidden representation for message-passing at beginning of each layer</span>
+<span class="w"> </span>       super(ParticleNet, self).__init__(**kwargs)
+<span class="gi">+       hidden_reps_list = [TensorReps(x) for x in hidden_reps_list]</span>
+<span class="gi">+       assert input_dims == hidden_reps_list[0].dim</span>
+<span class="gi">+       assert len(hidden_reps_list) == len(conv_params)</span>
+
+<span class="w"> </span>       self.use_fts_bn = use_fts_bn
+<span class="w"> </span>       if self.use_fts_bn:
+<span class="w"> </span>           self.bn_fts = nn.BatchNorm1d(hidden_reps_list[0].dim)
+
+<span class="w"> </span>       self.use_counts = use_counts
+
+<span class="w"> </span>       self.edge_convs = nn.ModuleList()
+<span class="w"> </span>       for idx, layer_param in enumerate(conv_params):
+<span class="w"> </span>           k, channels = layer_param
+<span class="gd">-           in_feat = input_dims if idx == 0 else conv_params[idx - 1][1][-1]</span>
+<span class="gi">+           in_reps = hidden_reps_list[idx]</span>
+<span class="gi">+           assert (</span>
+<span class="gi">+               in_reps.dim == conv_params[idx - 1][1][-1] if idx &gt; 0 else hidden_reps_list[0].dim</span>
+<span class="gi">+           )</span>
+<span class="w"> </span>           self.edge_convs.append(
+<span class="gd">-               EdgeConvBlock(k=k, in_feat=in_feat, out_feats=channels, cpu_mode=for_inference)</span>
+<span class="gi">+               EdgeConvBlock(k=k, in_reps=in_reps, out_feats=channels, cpu_mode=for_inference)</span>
+<span class="w"> </span>           )
+
+<span class="w"> </span>       self.use_fusion = use_fusion
+<span class="w"> </span>       if self.use_fusion:
+<span class="w"> </span>           in_chn = sum(x[-1] for _, x in conv_params)
+<span class="w"> </span>           out_chn = max(128, min((in_chn // 128) * 128, 1024))
+<span class="w"> </span>           self.fusion_block = nn.Sequential(
+<span class="w"> </span>               nn.Conv1d(in_chn, out_chn, kernel_size=1, bias=False),
+<span class="w"> </span>               nn.BatchNorm1d(out_chn),
+<span class="w"> </span>               nn.ReLU(),
+<span class="w"> </span>           )
+
+<span class="w"> </span>       self.for_segmentation = for_segmentation
+
+<span class="w"> </span>       fcs = []
+<span class="w"> </span>       for idx, layer_param in enumerate(fc_params):
+<span class="w"> </span>           channels, drop_rate = layer_param
+<span class="w"> </span>           if idx == 0:
+<span class="w"> </span>               in_chn = out_chn if self.use_fusion else conv_params[-1][1][-1]
+<span class="w"> </span>           else:
+<span class="w"> </span>               in_chn = fc_params[idx - 1][0]
+<span class="w"> </span>           if self.for_segmentation:
+<span class="w"> </span>               fcs.append(
+<span class="w"> </span>                   nn.Sequential(
+<span class="w"> </span>                       nn.Conv1d(in_chn, channels, kernel_size=1, bias=False),
+<span class="w"> </span>                       nn.BatchNorm1d(channels),
+<span class="w"> </span>                       nn.ReLU(),
+<span class="w"> </span>                       nn.Dropout(drop_rate),
+<span class="w"> </span>                   )
+<span class="w"> </span>               )
+<span class="w"> </span>           else:
+<span class="w"> </span>               fcs.append(
+<span class="w"> </span>                   nn.Sequential(nn.Linear(in_chn, channels), nn.ReLU(), nn.Dropout(drop_rate))
+<span class="w"> </span>               )
+<span class="w"> </span>       if self.for_segmentation:
+<span class="w"> </span>           fcs.append(nn.Conv1d(fc_params[-1][0], num_classes, kernel_size=1))
+<span class="w"> </span>       else:
+<span class="w"> </span>           fcs.append(nn.Linear(fc_params[-1][0], num_classes))
+<span class="w"> </span>       self.fc = nn.Sequential(*fcs)
+
+<span class="w"> </span>       self.for_inference = for_inference
+
+<span class="gd">-   def forward(self, points, features, mask=None):</span>
+<span class="gi">+   def forward(self, points, features, frames, mask=None):</span>
+<span class="w"> </span>       #         print(&#39;points:\n&#39;, points)
+<span class="w"> </span>       #         print(&#39;features:\n&#39;, features)
+<span class="w"> </span>       if mask is None:
+<span class="w"> </span>           mask = features.abs().sum(dim=1, keepdim=True) != 0  # (N, 1, P)
+<span class="w"> </span>       points *= mask
+<span class="w"> </span>       features *= mask
+<span class="w"> </span>       coord_shift = (mask == 0) * 1e9
+<span class="w"> </span>       if self.use_counts:
+<span class="w"> </span>           counts = mask.float().sum(dim=-1)
+<span class="w"> </span>           counts = torch.max(counts, torch.ones_like(counts))  # &gt;=1
+
+<span class="w"> </span>       if self.use_fts_bn:
+<span class="w"> </span>           fts = self.bn_fts(features) * mask
+<span class="w"> </span>       else:
+<span class="w"> </span>           fts = features
+<span class="w"> </span>       outputs = []
+<span class="w"> </span>       for idx, conv in enumerate(self.edge_convs):
+<span class="w"> </span>           pts = (points if idx == 0 else fts) + coord_shift
+<span class="gd">-           fts = conv(pts, fts) * mask</span>
+<span class="gi">+           fts = conv(pts, fts, frames) * mask</span>
+<span class="w"> </span>           if self.use_fusion:
+<span class="w"> </span>               outputs.append(fts)
+<span class="w"> </span>       if self.use_fusion:
+<span class="w"> </span>           fts = self.fusion_block(torch.cat(outputs, dim=1)) * mask
+
+<span class="w"> </span>       #         assert(((fts.abs().sum(dim=1, keepdim=True) != 0).float() - mask.float()).abs().sum().item() == 0)
+
+<span class="w"> </span>       if self.for_segmentation:
+<span class="w"> </span>           x = fts
+<span class="w"> </span>       else:
+<span class="w"> </span>           if self.use_counts:
+<span class="w"> </span>               x = fts.sum(dim=-1) / counts  # divide by the real counts
+<span class="w"> </span>           else:
+<span class="w"> </span>               x = fts.mean(dim=-1)
+
+<span class="w"> </span>       output = self.fc(x)
+<span class="w"> </span>       if self.for_inference:
+<span class="w"> </span>           output = torch.softmax(output, dim=1)
+<span class="w"> </span>       # print(&#39;output:\n&#39;, output)
+<span class="w"> </span>       return output
+</pre></div>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="graphnet.html" class="btn btn-neutral float-left" title="LLoCa-GraphNet" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../numerics.html" class="btn btn-neutral float-right" title="Tips and tricks for stable LLoCa training" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

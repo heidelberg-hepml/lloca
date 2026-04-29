@@ -1,0 +1,527 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLoCa-Transformer &mdash; LLoCa  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="LLoCa-ParticleTransformer" href="particletransformer.html" />
+    <link rel="prev" title="Make any network Lorentz-equivariant" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Make any network Lorentz-equivariant</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">LLoCa-Transformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="particletransformer.html">LLoCa-ParticleTransformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="graphnet.html">LLoCa-GraphNet</a></li>
+<li class="toctree-l2"><a class="reference internal" href="particlenet.html">LLoCa-ParticleNet</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Make any network Lorentz-equivariant</a></li>
+      <li class="breadcrumb-item active">LLoCa-Transformer</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/more-backbones/transformer.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="lloca-transformer">
+<h1>LLoCa-Transformer<a class="headerlink" href="#lloca-transformer" title="Link to this heading"></a></h1>
+<p>We start with a vanilla transformer, adapted from <a class="reference external" href="https://github.com/Qualcomm-AI-research/geometric-algebra-transformer/blob/main/gatr/baselines/transformer.py">https://github.com/Qualcomm-AI-research/geometric-algebra-transformer/blob/main/gatr/baselines/transformer.py</a>.</p>
+<p>Tensorial message-passing is implemented conveniently with the <a class="reference internal" href="../generated/lloca.backbone.attention.LLoCaAttention.html#lloca.backbone.attention.LLoCaAttention" title="lloca.backbone.attention.LLoCaAttention"><code class="xref py py-class docutils literal notranslate"><span class="pre">LLoCaAttention</span></code></a> class
+that is initialized globally and then passed to each attention block.
+It first loads the local frames and performs a few preprocessing operations on them.
+In each attention operation, this class is then called to transform queries, keys, and values
+into the global frame, perform attention there, and then transform the features back into the local frames.
+See <a class="reference external" href="https://arxiv.org/abs/2505.20280">Eq. (12) in the ML paper</a> and
+<a class="reference external" href="https://arxiv.org/abs/2508.14898">Eq. (19) in the HEP paper</a> for details.</p>
+<div class="highlight-diff notranslate"><div class="highlight"><pre><span></span>from functools import partial
+
+import torch
+from torch import nn
+from torch.utils.checkpoint import checkpoint
+
+<span class="gd">-from .attention_backends import get_attention_backend</span>
+<span class="gi">+from ..reps.tensorreps import TensorReps</span>
+<span class="gi">+from .attention import LLoCaAttention</span>
+
+
+class BaselineLayerNorm(nn.Module):
+<span class="w"> </span>   &quot;&quot;&quot;Baseline layer norm over all dimensions except the first.&quot;&quot;&quot;
+
+<span class="w"> </span>   @staticmethod
+<span class="w"> </span>   def forward(inputs: torch.Tensor) -&gt; torch.Tensor:
+<span class="w"> </span>       &quot;&quot;&quot;Forward pass.
+
+<span class="w"> </span>       Parameters
+<span class="w"> </span>       ----------
+<span class="w"> </span>       inputs : Tensor
+<span class="w"> </span>           Input data
+
+<span class="w"> </span>       Returns
+<span class="w"> </span>       -------
+<span class="w"> </span>       outputs : Tensor
+<span class="w"> </span>           Normalized inputs.
+<span class="w"> </span>       &quot;&quot;&quot;
+<span class="w"> </span>       return torch.nn.functional.layer_norm(inputs, normalized_shape=inputs.shape[-1:])
+
+
+class MultiHeadQKVLinear(nn.Module):
+<span class="w"> </span>   &quot;&quot;&quot;Compute queries, keys, and values via multi-head attention.
+
+<span class="w"> </span>   Parameters
+<span class="w"> </span>   ----------
+<span class="w"> </span>   in_channels : int
+<span class="w"> </span>       Number of input channels.
+<span class="w"> </span>   hidden_channels : int
+<span class="w"> </span>       Number of hidden channels = size of query, key, and value.
+<span class="w"> </span>   num_heads : int
+<span class="w"> </span>       Number of attention heads.
+<span class="w"> </span>   &quot;&quot;&quot;
+
+<span class="w"> </span>   def __init__(self, in_channels, hidden_channels, num_heads):
+<span class="w"> </span>       super().__init__()
+<span class="w"> </span>       self.num_heads = num_heads
+<span class="w"> </span>       self.linear = nn.Linear(in_channels, 3 * hidden_channels)
+
+<span class="w"> </span>   def forward(self, inputs):
+<span class="w"> </span>       &quot;&quot;&quot;Forward pass.
+
+<span class="w"> </span>       Returns
+<span class="w"> </span>       -------
+<span class="w"> </span>       q : Tensor
+<span class="w"> </span>           Queries
+<span class="w"> </span>       k : Tensor
+<span class="w"> </span>           Keys
+<span class="w"> </span>       v : Tensor
+<span class="w"> </span>           Values
+<span class="w"> </span>       &quot;&quot;&quot;
+<span class="w"> </span>       qkv = self.linear(inputs)  # (..., num_items, 3 * hidden_channels)
+
+<span class="w"> </span>       *leading, items, last = qkv.shape
+<span class="w"> </span>       hidden_channels = last // (3 * self.num_heads)
+<span class="w"> </span>       qkv = qkv.view(*leading, items, 3, hidden_channels, self.num_heads)
+<span class="w"> </span>       qkv = qkv.movedim(-3, 0).movedim(-1, len(leading) + 1)
+<span class="w"> </span>       q, k, v = qkv.unbind(dim=0)  # 3x (..., num_heads, num_items, hidden_channels // num_heads)
+<span class="w"> </span>       return q, k, v
+
+
+class MultiQueryQKVLinear(nn.Module):
+<span class="w"> </span>   &quot;&quot;&quot;Compute queries, keys, and values via multi-query attention.
+
+<span class="w"> </span>   Parameters
+<span class="w"> </span>   ----------
+<span class="w"> </span>   in_channels : int
+<span class="w"> </span>       Number of input channels.
+<span class="w"> </span>   hidden_channels : int
+<span class="w"> </span>       Number of hidden channels = size of query, key, and value.
+<span class="w"> </span>   num_heads : int
+<span class="w"> </span>       Number of attention heads.
+<span class="w"> </span>   &quot;&quot;&quot;
+
+<span class="w"> </span>   def __init__(self, in_channels, hidden_channels, num_heads):
+<span class="w"> </span>       super().__init__()
+<span class="w"> </span>       self.num_heads = num_heads
+<span class="w"> </span>       self.q_linear = nn.Linear(in_channels, hidden_channels)
+<span class="w"> </span>       self.k_linear = nn.Linear(in_channels, hidden_channels // num_heads)
+<span class="w"> </span>       self.v_linear = nn.Linear(in_channels, hidden_channels // num_heads)
+
+<span class="w"> </span>   def forward(self, inputs):
+<span class="w"> </span>       &quot;&quot;&quot;Forward pass.
+
+<span class="w"> </span>       Parameters
+<span class="w"> </span>       ----------
+<span class="w"> </span>       inputs : Tensor
+<span class="w"> </span>           Input data
+
+<span class="w"> </span>       Returns
+<span class="w"> </span>       -------
+<span class="w"> </span>       q : Tensor
+<span class="w"> </span>           Queries
+<span class="w"> </span>       k : Tensor
+<span class="w"> </span>           Keys
+<span class="w"> </span>       v : Tensor
+<span class="w"> </span>           Values
+<span class="w"> </span>       &quot;&quot;&quot;
+<span class="w"> </span>       q = self.q_linear(inputs)
+
+<span class="w"> </span>       *leading, items, hidden_channels = q.shape
+<span class="w"> </span>       q = q.reshape(*leading, items, self.num_heads, hidden_channels // self.num_heads)
+<span class="w"> </span>       q = q.movedim(-2, -3)
+
+<span class="w"> </span>       k = self.k_linear(inputs)[
+<span class="w"> </span>           ..., None, :, :
+<span class="w"> </span>       ]  # (..., head=1, item, hidden_channels // num_heads)
+<span class="w"> </span>       v = self.v_linear(inputs)[..., None, :, :]
+<span class="w"> </span>       return q, k, v
+
+
+class BaselineSelfAttention(nn.Module):
+<span class="w"> </span>   &quot;&quot;&quot;Baseline self-attention layer.
+
+<span class="w"> </span>   Parameters
+<span class="w"> </span>   ----------
+<span class="w"> </span>   in_channels : int
+<span class="w"> </span>       Number of input channels.
+<span class="w"> </span>   out_channels : int
+<span class="w"> </span>       Number of input channels.
+<span class="w"> </span>   hidden_channels : int
+<span class="w"> </span>       Number of hidden channels = size of query, key, and value.
+<span class="gi">+   attention</span>
+<span class="w"> </span>   num_heads : int
+<span class="w"> </span>       Number of attention heads.
+<span class="w"> </span>   multi_query : bool
+<span class="w"> </span>       Use multi-query attention instead of multi-head attention.
+<span class="w"> </span>   dropout_prob : float
+<span class="w"> </span>       Dropout probability for output.
+<span class="w"> </span>   &quot;&quot;&quot;
+
+<span class="w"> </span>   def __init__(
+<span class="w"> </span>       self,
+<span class="w"> </span>       in_channels: int,
+<span class="w"> </span>       out_channels: int,
+<span class="w"> </span>       hidden_channels: int,
+<span class="gi">+       attention,</span>
+<span class="w"> </span>       num_heads: int = 8,
+<span class="w"> </span>       multi_query: bool = True,
+<span class="w"> </span>       dropout_prob=None,
+<span class="w"> </span>   ) -&gt; None:
+<span class="w"> </span>       super().__init__()
+
+<span class="w"> </span>       # Store settings
+<span class="w"> </span>       self.num_heads = num_heads
+<span class="w"> </span>       self.hidden_channels = hidden_channels
+
+<span class="gi">+       self.attention = attention</span>
+
+<span class="w"> </span>       # Linear maps
+<span class="w"> </span>       qkv_class = MultiQueryQKVLinear if multi_query else MultiHeadQKVLinear
+<span class="w"> </span>       self.qkv_linear = qkv_class(in_channels, hidden_channels, num_heads)
+<span class="w"> </span>       self.out_linear = nn.Linear(hidden_channels, out_channels)
+
+<span class="w"> </span>       if dropout_prob is not None:
+<span class="w"> </span>           self.dropout = nn.Dropout(dropout_prob)
+<span class="w"> </span>       else:
+<span class="w"> </span>           self.dropout = None
+
+<span class="w"> </span>   def forward(self, inputs: torch.Tensor, **attn_kwargs) -&gt; torch.Tensor:
+<span class="w"> </span>       &quot;&quot;&quot;Forward pass.
+
+<span class="w"> </span>       Parameters
+<span class="w"> </span>       ----------
+<span class="w"> </span>       inputs : Tensor
+<span class="w"> </span>           Input data
+<span class="w"> </span>       **attn_kwargs
+
+<span class="w"> </span>       Returns
+<span class="w"> </span>       -------
+<span class="w"> </span>       outputs : Tensor
+<span class="w"> </span>           Outputs
+<span class="w"> </span>       &quot;&quot;&quot;
+<span class="w"> </span>       q, k, v = self.qkv_linear(inputs)  # each: (..., num_heads, num_items, num_channels)
+
+<span class="w"> </span>       # Attention layer
+<span class="gd">-       attention_fn = get_attention_backend(**attn_kwargs)</span>
+<span class="gd">-       h = attention_fn(</span>
+<span class="gi">+       h = self.attention(</span>
+<span class="w"> </span>           q.contiguous(),
+<span class="w"> </span>           k.expand_as(q).contiguous(),
+<span class="w"> </span>           v.expand_as(q),
+<span class="w"> </span>           **attn_kwargs,
+<span class="w"> </span>       )
+
+<span class="w"> </span>       # Concatenate heads and transform linearly
+<span class="w"> </span>       *leading, num_heads, num_items, channels_per_head = h.shape
+<span class="w"> </span>       h = h.permute(*range(len(leading)), -2, -3, -1)
+<span class="w"> </span>       h = h.reshape(*leading, num_items, num_heads * channels_per_head)
+
+<span class="w"> </span>       outputs = self.out_linear(h)  # (..., num_items, out_channels)
+
+<span class="w"> </span>       if self.dropout is not None:
+<span class="w"> </span>           outputs = self.dropout(outputs)
+
+<span class="w"> </span>       return outputs
+
+
+class BaselineTransformerBlock(nn.Module):
+<span class="w"> </span>   &quot;&quot;&quot;Baseline transformer block.
+
+<span class="w"> </span>   Inputs are first processed by a block consisting of LayerNorm, multi-head self-attention, and
+<span class="w"> </span>   residual connection. Then the data is processed by a block consisting of another LayerNorm, an
+<span class="w"> </span>   item-wise two-layer MLP with GeLU activations, and another residual connection.
+
+<span class="w"> </span>   Parameters
+<span class="w"> </span>   ----------
+<span class="w"> </span>   channels : int
+<span class="w"> </span>       Number of input and output channels.
+<span class="gi">+   attention</span>
+<span class="w"> </span>   num_heads : int
+<span class="w"> </span>       Number of attention heads.
+<span class="w"> </span>   attention_factor : int
+<span class="w"> </span>       Factor by which the key, query, and value size is increased over the default value of
+<span class="w"> </span>       hidden_channels / num_heads.
+<span class="w"> </span>   mlp_factor : int
+<span class="w"> </span>       Factor by which the activation size is increased over the default value of hidden_channels.
+<span class="w"> </span>   multi_query : bool
+<span class="w"> </span>       Use multi-query attention instead of multi-head attention.
+<span class="w"> </span>   dropout_prob : float
+<span class="w"> </span>       Dropout probability for output.
+<span class="w"> </span>   &quot;&quot;&quot;
+
+<span class="w"> </span>   def __init__(
+<span class="w"> </span>       self,
+<span class="w"> </span>       hidden_channels,
+<span class="w"> </span>       attention,
+<span class="w"> </span>       num_heads: int = 8,
+<span class="w"> </span>       attention_factor: int = 1,
+<span class="w"> </span>       multi_query: bool = True,
+<span class="w"> </span>       mlp_factor: int = 4,
+<span class="w"> </span>       dropout_prob=None,
+<span class="w"> </span>   ) -&gt; None:
+<span class="w"> </span>       super().__init__()
+
+<span class="w"> </span>       self.norm1 = BaselineLayerNorm()
+<span class="w"> </span>       self.norm2 = BaselineLayerNorm()
+
+<span class="w"> </span>       hidden_channels_attn = hidden_channels * attention_factor
+
+<span class="w"> </span>       self.attention = BaselineSelfAttention(
+<span class="w"> </span>           hidden_channels,
+<span class="w"> </span>           hidden_channels,
+<span class="w"> </span>           hidden_channels_attn,
+<span class="gi">+           attention,</span>
+<span class="w"> </span>           num_heads=num_heads,
+<span class="w"> </span>           multi_query=multi_query,
+<span class="w"> </span>           dropout_prob=dropout_prob,
+<span class="w"> </span>       )
+
+<span class="w"> </span>       self.mlp = nn.Sequential(
+<span class="w"> </span>           nn.Linear(hidden_channels, mlp_factor * hidden_channels),
+<span class="w"> </span>           nn.Dropout(dropout_prob) if dropout_prob is not None else nn.Identity(),
+<span class="w"> </span>           nn.GELU(),
+<span class="w"> </span>           nn.Linear(mlp_factor * hidden_channels, hidden_channels),
+<span class="w"> </span>           nn.Dropout(dropout_prob) if dropout_prob is not None else nn.Identity(),
+<span class="w"> </span>       )
+
+<span class="w"> </span>   def forward(self, inputs: torch.Tensor, **attn_kwargs) -&gt; torch.Tensor:
+<span class="w"> </span>       &quot;&quot;&quot;Forward pass.
+
+<span class="w"> </span>       Parameters
+<span class="w"> </span>       ----------
+<span class="w"> </span>       inputs : Tensor
+<span class="w"> </span>           Input data
+<span class="w"> </span>       **attn_kwargs
+
+<span class="w"> </span>       Returns
+<span class="w"> </span>       -------
+<span class="w"> </span>       outputs : Tensor
+<span class="w"> </span>           Outputs
+<span class="w"> </span>       &quot;&quot;&quot;
+
+<span class="w"> </span>       # Residual attention
+<span class="w"> </span>       h = self.norm1(inputs)
+<span class="w"> </span>       h = self.attention(h, **attn_kwargs)
+<span class="w"> </span>       outputs = inputs + h
+
+<span class="w"> </span>       # Residual MLP
+<span class="w"> </span>       h = self.norm2(outputs)
+<span class="w"> </span>       h = self.mlp(h)
+<span class="w"> </span>       outputs = outputs + h
+
+<span class="w"> </span>       return outputs
+
+
+class Transformer(nn.Module):
+<span class="w"> </span>   &quot;&quot;&quot;Baseline LLoCa-Transformer.
+
+<span class="w"> </span>   Combines transformer blocks, each consisting of multi-head self-attention layers, an
+<span class="w"> </span>   MLP, residual connections, and normalization layers.
+
+<span class="w"> </span>   Parameters
+<span class="w"> </span>   ----------
+<span class="w"> </span>   in_channels : int
+<span class="w"> </span>       Number of input channels.
+<span class="gd">-   hidden_channels : int</span>
+<span class="gd">-       Number of hidden channels.</span>
+<span class="gi">+   attn_reps : str</span>
+<span class="gi">+       Representation of each attention head.</span>
+<span class="w"> </span>   out_channels : int
+<span class="w"> </span>       Number of output channels.
+<span class="w"> </span>   num_blocks : int
+<span class="w"> </span>       Number of transformer blocks.
+<span class="w"> </span>   num_heads : int
+<span class="w"> </span>       Number of attention heads.
+<span class="w"> </span>   checkpoint_blocks : bool
+<span class="w"> </span>       Use gradient checkpointing for transformer blocks.
+<span class="w"> </span>   attention_factor : int
+<span class="w"> </span>       Factor by which the key, query, and value size is increased over the default value of
+<span class="w"> </span>       hidden_channels / num_heads.
+<span class="w"> </span>   mlp_factor : int
+<span class="w"> </span>       Factor by which the activation size is increased over the default value of hidden_channels.
+<span class="w"> </span>   multi_query : bool
+<span class="w"> </span>       Use multi-query attention instead of multi-head attention.
+<span class="w"> </span>   dropout_prob : float
+<span class="w"> </span>       Dropout probability for output.
+<span class="w"> </span>   &quot;&quot;&quot;
+
+<span class="w"> </span>   def __init__(
+<span class="w"> </span>       self,
+<span class="w"> </span>       in_channels: int,
+<span class="gd">-       hidden_channels: int,</span>
+<span class="gi">+       attn_reps: str,</span>
+<span class="w"> </span>       out_channels: int,
+<span class="w"> </span>       num_blocks: int,
+<span class="w"> </span>       num_heads: int,
+<span class="w"> </span>       checkpoint_blocks: bool = False,
+<span class="w"> </span>       attention_factor: int = 1,
+<span class="w"> </span>       mlp_factor: int = 4,
+<span class="w"> </span>       multi_query: bool = False,
+<span class="w"> </span>       dropout_prob=None,
+<span class="w"> </span>   ) -&gt; None:
+<span class="w"> </span>       super().__init__()
+<span class="gd">-       self.hidden_channels = hidden_channels</span>
+<span class="gi">+       attn_reps = TensorReps(attn_reps)</span>
+<span class="gi">+       self.hidden_channels = attn_reps.dim * num_heads // attention_factor</span>
+<span class="w"> </span>       self.checkpoint_blocks = checkpoint_blocks
+<span class="gi">+       self.attention = LLoCaAttention(attn_reps, num_heads)</span>
+
+<span class="w"> </span>       self.linear_in = nn.Linear(in_channels, self.hidden_channels)
+<span class="w"> </span>       self.blocks = nn.ModuleList(
+<span class="w"> </span>           [
+<span class="w"> </span>               BaselineTransformerBlock(
+<span class="w"> </span>                   self.hidden_channels,
+<span class="gi">+                   attention=self.attention,</span>
+<span class="w"> </span>                   num_heads=num_heads,
+<span class="w"> </span>                   attention_factor=attention_factor,
+<span class="w"> </span>                   mlp_factor=mlp_factor,
+<span class="w"> </span>                   multi_query=multi_query,
+<span class="w"> </span>                   dropout_prob=dropout_prob,
+<span class="w"> </span>               )
+<span class="w"> </span>               for _ in range(num_blocks)
+<span class="w"> </span>           ]
+<span class="w"> </span>       )
+<span class="w"> </span>       self.linear_out = nn.Linear(self.hidden_channels, out_channels)
+
+<span class="w"> </span>   def forward(self, inputs: torch.Tensor, frames, **attn_kwargs) -&gt; torch.Tensor:
+<span class="w"> </span>       &quot;&quot;&quot;Forward pass.
+
+<span class="w"> </span>       Parameters
+<span class="w"> </span>       ----------
+<span class="w"> </span>       inputs : Tensor
+<span class="w"> </span>           Input data with shape (..., num_items, in_channels)
+<span class="w"> </span>       frames : Frames
+<span class="w"> </span>           Local frames used for invariant particle attention
+<span class="w"> </span>       **attn_kwargs
+
+<span class="w"> </span>       Returns
+<span class="w"> </span>       -------
+<span class="w"> </span>       outputs : Tensor
+<span class="w"> </span>           Outputs with shape (..., num_items, out_channels)
+<span class="w"> </span>       &quot;&quot;&quot;
+<span class="w"> </span>       +self.attention.prepare_frames(frames)
+
+<span class="w"> </span>       h = self.linear_in(inputs)
+<span class="w"> </span>       for block in self.blocks:
+<span class="w"> </span>           if self.checkpoint_blocks:
+<span class="w"> </span>               fn = partial(block, **attn_kwargs)
+<span class="w"> </span>               h = checkpoint(fn, h, use_reentrant=False)
+<span class="w"> </span>           else:
+<span class="w"> </span>               h = block(h, **attn_kwargs)
+<span class="w"> </span>       outputs = self.linear_out(h)
+<span class="w"> </span>       return outputs
+</pre></div>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Make any network Lorentz-equivariant" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="particletransformer.html" class="btn btn-neutral float-right" title="LLoCa-ParticleTransformer" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Jonas Spinner.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
