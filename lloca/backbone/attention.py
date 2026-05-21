@@ -8,7 +8,7 @@ from torch import Tensor
 from ..framesnet.frames import Frames, InverseFrames, LowerIndicesFrames
 from ..reps.tensorreps import TensorReps
 from ..reps.tensorreps_transform import TensorRepsTransform
-from ..utils.misc import minimum_autocast_precision
+from ..utils.autocast import minimum_autocast_precision
 from .attention_backends import get_attention_backend
 
 

@@ -3,7 +3,7 @@
 import torch
 
 from ..framesnet.frames import Frames
-from ..utils.misc import minimum_autocast_precision
+from ..utils.autocast import minimum_autocast_precision
 from .tensorreps import TensorReps
 
 
