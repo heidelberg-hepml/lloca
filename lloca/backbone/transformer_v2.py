@@ -204,12 +204,12 @@ class BaselineTransformerBlock(nn.Module):
         """
 
         # Residual attention
-        h = self.norm(inputs)
+        h = self.norm(inputs).to(inputs.dtype)
         h = self.attention(h, **attn_kwargs)
         outputs = inputs + h
 
         # Residual MLP with GatedLinearUnit
-        h = self.norm(outputs)
+        h = self.norm(outputs).to(outputs.dtype)
         h1, h2 = self.mlp_in(h).chunk(2, dim=-1)
         h = self.act(h1) * h2
         h = self.mlp_out(h)
