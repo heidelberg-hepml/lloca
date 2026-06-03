@@ -4,3 +4,4 @@
 docs/build/
 docs/source/generated
 dist/
+*.egg-info/

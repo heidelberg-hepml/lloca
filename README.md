@@ -46,6 +46,7 @@ Please have a look at the [LLoCa documentation](https://heidelberg-hepml.github.
 - Equivariant vector predictors in `lloca/equivectors`: `MLPVectors`, `LGATrVectors`, `PELICANVectors`
 - Local frames for equivariant architectures on several symmetry groups: SO(1,3) (`LearnedPDFrames`, `LearnedSO13Frames`, `LearnedRestFrames`), SO(3) (`LearnedSO3Frames`), SO(1,1)xSO(2) (`LearnedZFrames`) and SO(2) (`LearnedSO2Frames`); as well as the corresponding random global frames for data augmentation
 - Support for arbitrary higher-order representations with the `TensorReps` class
+- Optional self-contained [Maximal Update Parametrization (μP)](https://arxiv.org/abs/2203.03466) via `pip install lloca[mup]`: pass `parametrization="mup"` to the `Transformer`, `TransformerV2`, `MLP` or `GraphNet` backbones to make hyperparameters (notably the learning rate) transfer across model widths. See the [μP guide](docs/source/mup.rst).
 
 Coming soon:
 

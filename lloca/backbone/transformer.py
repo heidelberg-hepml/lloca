@@ -4,6 +4,7 @@ import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
+from ..mup import make_readout, mup_parametrized, normal_fanin_
 from ..reps.tensorreps import TensorReps
 from .attention import LLoCaAttention
 
@@ -46,6 +47,19 @@ class MultiHeadQKVLinear(nn.Module):
         self.num_heads = num_heads
         self.linear = nn.Linear(in_channels, 3 * hidden_channels)
 
+    def mup_reset_parameters(self):
+        """μP init: fan-in normal weights, then zero the query block.
+
+        ``self.linear`` produces ``[q | k | v]`` along its output features (the
+        leading ``3`` axis of the ``(..., 3, hidden, heads)`` view), so the queries
+        are the first third of the output rows. Zeroing them makes the initial
+        attention logits vanish (uniform attention at init), which stabilizes μP
+        width transfer.
+        """
+        normal_fanin_(self.linear)
+        n_q = self.linear.out_features // 3
+        nn.init.zeros_(self.linear.weight[:n_q])
+
     def forward(self, inputs):
         """Forward pass.
 
@@ -87,6 +101,14 @@ class MultiQueryQKVLinear(nn.Module):
         self.q_linear = nn.Linear(in_channels, hidden_channels)
         self.k_linear = nn.Linear(in_channels, hidden_channels // num_heads)
         self.v_linear = nn.Linear(in_channels, hidden_channels // num_heads)
+
+    def mup_reset_parameters(self):
+        """μP init: fan-in normal keys/values, zero queries (see MultiHeadQKVLinear)."""
+        normal_fanin_(self.k_linear)
+        normal_fanin_(self.v_linear)
+        nn.init.zeros_(self.q_linear.weight)
+        if self.q_linear.bias is not None:
+            nn.init.zeros_(self.q_linear.bias)
 
     def forward(self, inputs):
         """Forward pass.
@@ -291,6 +313,7 @@ class BaselineTransformerBlock(nn.Module):
         return outputs
 
 
+@mup_parametrized
 class Transformer(nn.Module):
     """Baseline LLoCa-Transformer.
 
@@ -326,7 +349,20 @@ class Transformer(nn.Module):
         torch.compile compilation mode, see torch docs for more information.
     compile_dynamic : bool
         Whether to use dynamic shapes with torch.compile, by default True.
+    parametrization : str
+        ``"sp"`` (standard, default) or ``"mup"``. Under μP the width axis is
+        ``num_heads`` (``hidden_channels = attn_reps.dim * num_heads``); the readout
+        becomes a :class:`mup.MuReadout`, the attention is scaled by ``1/d``, the
+        weights are μP-initialized, and the base shapes are computed automatically
+        from the base/delta widths -- no ``.bsh`` file or manual base/delta models.
+        See :mod:`lloca.mup`.
+    mup_base_shapes, mup_delta_shapes : dict, optional
+        Constructor-argument overrides defining the base/delta widths used to compute
+        the μP base shapes. Default to ``{"num_heads": 2}`` / ``{"num_heads": 4}``.
     """
+
+    # Default base/delta width overrides for μP base-shape computation.
+    DEFAULT_MUP_SHAPES = ({"num_heads": 2}, {"num_heads": 4})
 
     def __init__(
         self,
@@ -343,12 +379,17 @@ class Transformer(nn.Module):
         compile: bool = False,
         compile_mode: str = "default",
         compile_dynamic: bool = True,
+        *,
+        parametrization: str = "sp",
+        mup_base_shapes: dict | None = None,
+        mup_delta_shapes: dict | None = None,
     ) -> None:
         super().__init__()
+        self.parametrization = parametrization
         attn_reps = TensorReps(attn_reps)
         self.hidden_channels = attn_reps.dim * num_heads // attention_factor
         self.checkpoint_blocks = checkpoint_blocks
-        self.attention = LLoCaAttention(attn_reps, num_heads)
+        self.attention = LLoCaAttention(attn_reps, num_heads, parametrization=parametrization)
 
         self.linear_in = nn.Linear(in_channels, self.hidden_channels)
         self.blocks = nn.ModuleList(
@@ -365,7 +406,10 @@ class Transformer(nn.Module):
                 for _ in range(num_blocks)
             ]
         )
-        self.linear_out = nn.Linear(self.hidden_channels, out_channels)
+        self.linear_out = make_readout(self.hidden_channels, out_channels, parametrization)
+
+        if parametrization == "mup":
+            self._mup_reset_parameters()
 
         if compile:
             # ugly hack to make torch.compile convenient for users
@@ -374,6 +418,25 @@ class Transformer(nn.Module):
             self.__class__ = torch.compile(
                 self.__class__, dynamic=compile_dynamic, mode=compile_mode
             )
+
+    def _mup_reset_parameters(self) -> None:
+        """μP base initialization (applied before ``set_base_shapes`` rescales).
+
+        Hidden/input/value/key linears get a fan-in normal; queries and the readout
+        are zero-initialized. ``mup.set_base_shapes(rescale_params=True)`` then
+        applies the width-dependent rescaling on top of this width-independent base.
+        """
+        normal_fanin_(self.linear_in)
+        for block in self.blocks:
+            block.attention.qkv_linear.mup_reset_parameters()
+            normal_fanin_(block.attention.out_linear)
+            for layer in block.mlp:
+                if isinstance(layer, nn.Linear):
+                    normal_fanin_(layer)
+        # linear_out is a MuReadout (readout_zero_init=True already zeros the weight)
+        nn.init.zeros_(self.linear_out.weight)
+        if self.linear_out.bias is not None:
+            nn.init.zeros_(self.linear_out.bias)
 
     def forward(self, inputs: torch.Tensor, frames, **attn_kwargs) -> torch.Tensor:
         """Forward pass.
