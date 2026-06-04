@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
-from ..mup import make_readout, mup_parametrized, reinitialize_mup, scale_reps
+from ..mup import make_readout, mup_parametrized, reinitialize_mup
 from ..reps.tensorreps import TensorReps
 from .lloca_message_passing import LLoCaMessagePassing
 from .mlp import MLP
@@ -132,10 +132,15 @@ class GraphNet(nn.Module):
     **kwargs
     """
 
-    # Default base/delta width overrides for μP base-shape computation.
+    # Default base/delta widths for μP base-shape computation. These are FIXED
+    # absolute reps (not relative to the target): the width multiplier must grow with
+    # the target width for μP to transfer across widths, so the base/delta cannot scale
+    # with the target. The base must share the target's rep structure (here the standard
+    # scalars+vectors family, c * (8x0n+2x1n)); for other structures pass
+    # mup_base_shapes / mup_delta_shapes explicitly (e.g. via lloca.mup.scale_reps).
     DEFAULT_MUP_SHAPES = (
-        {"hidden_reps": lambda r: scale_reps(r, 0.5)},
-        {"hidden_reps": lambda r: scale_reps(r, 1.0)},
+        {"hidden_reps": "8x0n+2x1n"},
+        {"hidden_reps": "16x0n+4x1n"},
     )
 
     def __init__(
