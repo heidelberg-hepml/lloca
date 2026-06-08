@@ -36,7 +36,8 @@ def transform(
     ----------
     axes : list[int]
         List of axes along which the transformations are performed.
-        Each element is a tensor of shape (2, ...).
+        Each element is a tensor of shape (2, ...). The axis is assumed
+        to be constant across the batch dimensions.
     angles : list[torch.Tensor]
         List of angles used for the transformations.
         Each element is a tensor of shape (...,).
@@ -63,7 +64,10 @@ def transform(
         trafo = lorentz_eye(dims, angle.device, angle.dtype).clone()
         trafo_type = get_trafo_type(axis)
 
-        i, j = axis.to(dtype=torch.long).tolist()
+        # Scalar i, j (per docstring, axis is constant across the batch).
+        # Per-batch lists would trigger fancy-indexing broadcasts below.
+        i = int(axis[0].flatten()[0])
+        j = int(axis[1].flatten()[0])
         c = torch.where(trafo_type, torch.cosh(angle), torch.cos(angle))
         s = torch.where(trafo_type, torch.sinh(angle), torch.sin(angle))
 

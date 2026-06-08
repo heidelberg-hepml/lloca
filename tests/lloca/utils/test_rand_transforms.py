@@ -39,6 +39,11 @@ def test_rand_transform(batch_dims, std_eta, transform_type):
     # test that this is a valid Lorentz transform
     lorentz_test(transform, **MILD_TOLERANCES)
 
+    # test that batch entries are actually distinct (catches indexing bugs
+    # that would silently collapse all batches to the same transform)
+    flat = transform.reshape(-1, 4, 4)
+    assert flat.shape[0] == 1 or not torch.allclose(flat[0], flat[-1])
+
     # test specific properties of the transform
     if transform_type in [rand_rotation, rand_xyrotation]:
         should_zero = torch.cat([transform[..., 0, 1:].flatten(), transform[..., 1:, 0].flatten()])
