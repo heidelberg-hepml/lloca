@@ -195,7 +195,11 @@ def _apply_base_shapes(model):
     delta_model = _rebuild_variant(cls, sig, bound, delta_over)
 
     base_shapes = make_base_shapes(base_model, delta_model)
-    set_base_shapes(model, base_shapes, rescale_params=True)
+    # do_assert checks every finite-fan-out / infinite-fan-in module is a MuReadout.
+    # A backbone whose readout is not an nn.Linear (e.g. a geometric EquiLinear that
+    # applies the 1/width output scaling itself) can opt out via MUP_DO_ASSERT = False.
+    set_base_shapes(model, base_shapes, rescale_params=True,
+                    do_assert=getattr(model, "MUP_DO_ASSERT", True))
     model._mup_base_shapes = base_shapes
 
 
