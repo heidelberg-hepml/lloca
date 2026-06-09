@@ -13,7 +13,7 @@ from .attention_backends import get_attention_backend
 
 
 class LLoCaAttention(torch.nn.Module):
-    def __init__(self, attn_reps, num_heads):
+    def __init__(self, attn_reps, num_heads, parametrization="sp"):
         """Attention with frame-to-frame transformations.
 
         Parameters
@@ -22,14 +22,28 @@ class LLoCaAttention(torch.nn.Module):
             Tensor representation of a single attention head.
         num_heads : int
             Number of attention heads
+        parametrization : str
+            Either ``"sp"`` (standard) or ``"mup"``. Under μP the attention logits
+            are scaled by ``1 / d`` instead of the usual ``1 / sqrt(d)`` (``d`` is
+            the per-head channel dimension). This is implemented by pre-scaling the
+            queries by ``d ** -0.5`` so that the backend's default ``d ** -0.5``
+            scaling composes to ``1 / d`` -- backend-agnostic (works for flash and
+            varlen kernels that do not accept an explicit ``scale``).
         """
         super().__init__()
         self.transform = TensorRepsTransform(TensorReps(attn_reps))
         self.num_heads = num_heads
+        self.parametrization = parametrization
 
         self.frames = None
         self.inv_frames = None
         self.lower_inv_frames = None
+
+    def _mup_scale_query(self, q_local):
+        """Pre-scale queries for μP attention (no-op under standard parametrization)."""
+        if self.parametrization == "mup":
+            return q_local * q_local.shape[-1] ** -0.5
+        return q_local
 
     @minimum_autocast_precision(torch.float32)
     def prepare_frames(self, frames):
@@ -124,13 +138,15 @@ class LLoCaAttention(torch.nn.Module):
         if self.frames.is_global:
             # fallback to standard attention for global frames
             return scaled_dot_product_attention(
-                q_local,
+                self._mup_scale_query(q_local),
                 k_local,
                 v_local,
                 **attn_kwargs,
             )
 
-        q_global, k_global, v_global = self._local_to_global(q_local, k_local, v_local)
+        q_global, k_global, v_global = self._local_to_global(
+            self._mup_scale_query(q_local), k_local, v_local
+        )
 
         # (B, H, N, C) format required for scaled_dot_product_attention
         shape_q, shape_k = q_global.shape, k_global.shape

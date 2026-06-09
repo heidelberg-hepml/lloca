@@ -4,6 +4,7 @@ import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
+from ..mup import make_readout, mup_parametrized, reinitialize_mup
 from ..reps.tensorreps import TensorReps
 from .lloca_message_passing import LLoCaMessagePassing
 from .mlp import MLP
@@ -97,6 +98,7 @@ class EdgeConv(LLoCaMessagePassing):
         return x
 
 
+@mup_parametrized
 class GraphNet(nn.Module):
     """Baseline LLoCa-GNN.
 
@@ -115,8 +117,31 @@ class GraphNet(nn.Module):
     *args
     checkpoint_blocks : bool
         Whether to use gradient checkpointing in the EdgeConv blocks.
+    parametrization : str
+        ``"sp"`` (standard, default) or ``"mup"``. Under μP the width axis is the
+        multiplicity of ``hidden_reps``: the readout becomes a :class:`mup.MuReadout`,
+        the weights are μP-initialized, and the base shapes are computed automatically
+        by scaling the ``hidden_reps`` multiplicities. The internal EdgeConv MLPs stay
+        in standard parametrization (they are hidden layers, not readouts), but their
+        width-scaling parameters are tracked. Note: μP-correctness for the GNN backbone
+        is *not* validated by the coordinate-check test -- use with care. See
+        :mod:`lloca.mup`.
+    mup_base_shapes, mup_delta_shapes : dict, optional
+        Base/delta width overrides; default scales ``hidden_reps`` multiplicities by
+        ``0.5`` (base) and ``1.0`` (delta).
     **kwargs
     """
+
+    # Default base/delta widths for μP base-shape computation. These are FIXED
+    # absolute reps (not relative to the target): the width multiplier must grow with
+    # the target width for μP to transfer across widths, so the base/delta cannot scale
+    # with the target. The base must share the target's rep structure (here the standard
+    # scalars+vectors family, c * (8x0n+2x1n)); for other structures pass
+    # mup_base_shapes / mup_delta_shapes explicitly (e.g. via lloca.mup.scale_reps).
+    DEFAULT_MUP_SHAPES = (
+        {"hidden_reps": "8x0n+2x1n"},
+        {"hidden_reps": "16x0n+4x1n"},
+    )
 
     def __init__(
         self,
@@ -126,14 +151,18 @@ class GraphNet(nn.Module):
         num_blocks: int,
         *args,
         checkpoint_blocks=False,
+        parametrization: str = "sp",
+        mup_base_shapes: dict | None = None,
+        mup_delta_shapes: dict | None = None,
         **kwargs,
     ):
         super().__init__()
+        self.parametrization = parametrization
         hidden_reps = TensorReps(hidden_reps)
         self.checkpoint_blocks = checkpoint_blocks
 
         self.linear_in = nn.Linear(in_channels, hidden_reps.dim)
-        self.linear_out = nn.Linear(hidden_reps.dim, out_channels)
+        self.linear_out = make_readout(hidden_reps.dim, out_channels, parametrization)
         self.blocks = nn.ModuleList(
             [
                 EdgeConv(
@@ -144,6 +173,9 @@ class GraphNet(nn.Module):
                 for _ in range(num_blocks)
             ]
         )
+
+        if parametrization == "mup":
+            reinitialize_mup(self)
 
     def forward(self, inputs, frames, edge_index, batch=None, edge_attr=None):
         """Forward pass.

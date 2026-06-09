@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Self-contained Maximal Update Parametrization (μP) support via the new `lloca.mup`
+  subpackage and a `parametrization="mup"` flag on the `Transformer`, `TransformerV2`,
+  `MLP` and `GraphNet` backbones. Backbones compute their own base shapes at
+  construction time (no `.bsh` files or manual base/delta models); `lloca.mup.finalize`
+  marks parameters living outside μP backbones as standard parametrization, and
+  `lloca.mup.MuAdam`/`MuAdamW`/`MuSGD` are re-exported. Optional dependency: `lloca[mup]`.
+- `parametrization` argument on `LLoCaAttention` (μP scales attention logits by `1/d`).
+
 ## [1.3.6] - 27.04.2026
 
 ### Added
