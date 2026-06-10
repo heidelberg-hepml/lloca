@@ -193,7 +193,7 @@ class EquiEdgeConv(MessagePassing):
         prefactor = torch.cat([s_i, s_j], dim=-1)
         if edge_attr is not None:
             prefactor = torch.cat([prefactor, edge_attr], dim=-1)
-        with torch.autocast("cuda", enabled=self.use_amp):
+        with torch.autocast(prefactor.device.type, enabled=self.use_amp):
             prefactor = self.mlp(prefactor)
         prefactor = self.nonlinearity(
             prefactor, index=edge_index[0], node_ptr=node_ptr, node_batch=node_batch

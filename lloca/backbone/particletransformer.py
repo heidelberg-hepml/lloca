@@ -1020,7 +1020,7 @@ class ParticleTransformer(nn.Module):
             x, v, mask, uu = self.trimmer(x, v, mask, uu)
             padding_mask = ~mask.squeeze(1)  # (batch_size, seq_len)
 
-        with torch.autocast("cuda", enabled=self.use_amp):
+        with torch.autocast(x.device.type, enabled=self.use_amp):
             # input embedding
             x = self.embed(x).masked_fill(
                 ~mask.transpose(1, 2), 0
@@ -1050,7 +1050,7 @@ class ParticleTransformer(nn.Module):
         return x, padding_mask
 
     def _forward_aggregator(self, x, padding_mask):
-        with torch.autocast("cuda", enabled=self.use_amp):
+        with torch.autocast(x.device.type, enabled=self.use_amp):
             if self.cls_blocks is not None:
                 # for classification: extract using class token
                 cls_tokens = self.cls_token.expand(x.size(0), 1, -1)  # (batch, 1, embed_dim)
@@ -1094,7 +1094,7 @@ class ParticleTransformer(nn.Module):
             # padding_mask: (batch, seq_len)
             return x, padding_mask
 
-        with torch.autocast("cuda", enabled=self.use_amp):
+        with torch.autocast(x.device.type, enabled=self.use_amp):
             # === for segmentation ===
             if self.for_segmentation:
                 x = self.norm(x)

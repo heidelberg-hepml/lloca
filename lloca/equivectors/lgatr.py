@@ -73,7 +73,7 @@ class _LGATrVectorsBase(EquiVectors, MessagePassing):
 
         # get query and key from the underlying L-GATr network
         net_input = self._embed_input(fourmomenta).to(scalars.dtype)
-        with torch.autocast("cuda", enabled=self.use_amp):
+        with torch.autocast(net_input.device.type, enabled=self.use_amp):
             qk_v, qk_s = self.net(net_input, scalars, **attn_kwargs)
         if self.lgatr_norm is not None:
             qk_v, qk_s = self.lgatr_norm(qk_v, qk_s)
