@@ -582,7 +582,7 @@ def average_event(vecs, ptr=None):
     if ptr is None:
         vecs = vecs.mean(dim=1, keepdim=True).expand_as(vecs)
     else:
-        batch = get_batch_from_ptr(ptr)
+        batch = get_batch_from_ptr(ptr, num_items=vecs.shape[0])
         vecs = scatter(vecs, batch, dim=0, reduce="mean").index_select(0, batch)
     return vecs
 

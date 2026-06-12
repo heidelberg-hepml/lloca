@@ -373,7 +373,7 @@ def get_edge_index_and_batch(fourmomenta, ptr, remove_self_loops=True):
         edge_index, batch = get_edge_index_from_shape(
             fourmomenta.shape, fourmomenta.device, remove_self_loops=remove_self_loops
         )
-        ptr = get_ptr_from_batch(batch)
+        ptr = get_ptr_from_batch(batch, num_graphs=in_shape[0])
     else:
         if ptr is None:
             # assume batch contains only one particle
@@ -381,5 +381,5 @@ def get_edge_index_and_batch(fourmomenta, ptr, remove_self_loops=True):
         edge_index = get_edge_index_from_ptr(
             ptr, shape=fourmomenta.shape, remove_self_loops=remove_self_loops
         )
-        batch = get_batch_from_ptr(ptr)
+        batch = get_batch_from_ptr(ptr, num_items=fourmomenta.shape[0])
     return edge_index, batch, ptr

@@ -62,7 +62,7 @@ class _LGATrVectorsBase(EquiVectors, MessagePassing):
 
         attn_kwargs = {}
         if ptr is not None:
-            batch = get_batch_from_ptr(ptr)
+            batch = get_batch_from_ptr(ptr, num_items=fourmomenta.shape[0])
             attn_kwargs = get_sparse_attention_mask(
                 batch, attention_backend=self.attention_backend, dtype=scalars.dtype
             )
