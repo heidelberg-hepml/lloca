@@ -63,11 +63,10 @@ class LearnedFrames(FramesPredictor):
 
     def mass_regularize(self, fourmomenta):
         if self.mass_reg is not None:
-            fourmomenta = fourmomenta.clone()
             mask = lorentz_squarednorm(fourmomenta) < self.mass_reg**2
-            fourmomenta[mask, 0] = (
-                (fourmomenta[mask, 1:] ** 2).sum(dim=-1).add(self.mass_reg**2).sqrt()
-            )
+            energy_reg = (fourmomenta[..., 1:] ** 2).sum(dim=-1).add(self.mass_reg**2).sqrt()
+            energy = torch.where(mask, energy_reg, fourmomenta[..., 0])
+            fourmomenta = torch.cat([energy.unsqueeze(-1), fourmomenta[..., 1:]], dim=-1)
 
         return fourmomenta
 
