@@ -194,15 +194,15 @@ class TensorRepsTransform(torch.nn.Module):
         if mats.dtype != vectors.dtype:
             mats = mats.to(vectors.dtype)
 
-        out_vecs = torch.matmul(vectors, mats.transpose(1, 2))
+        out_vecs = (mats.unsqueeze(1) * vectors.unsqueeze(-2)).sum(-1)
 
         if vec_start == 0 and vec_end == D:
-            out = out_vecs.view(N, D)
+            out = out_vecs.reshape(N, D)
         else:
             out = torch.empty_like(tensor)
             if vec_start > 0:
                 out[:, :vec_start] = tensor[:, :vec_start]
-            out[:, vec_start:vec_end] = out_vecs.view(N, vec_width)
+            out[:, vec_start:vec_end] = out_vecs.reshape(N, vec_width)
         return out
 
     def transform_parity(self, tensor, frames):
