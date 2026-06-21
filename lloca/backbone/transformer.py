@@ -5,6 +5,7 @@ from torch import nn
 from torch.utils.checkpoint import checkpoint
 
 from ..reps.tensorreps import TensorReps
+from ..utils.compile import compile_model
 from .attention import LLoCaAttention
 
 
@@ -322,10 +323,9 @@ class Transformer(nn.Module):
         Dropout probability for output.
     compile : bool, optional
         Whether to compile the model with torch.compile, by default False.
-    compile_mode : str
-        torch.compile compilation mode, see torch docs for more information.
-    compile_dynamic : bool
-        Whether to use dynamic shapes with torch.compile, by default True.
+    **compile_kwargs
+        Forwarded to :func:`lloca.utils.compile.compile_model` when ``compile=True``;
+        supported keys: ``compile_mode``, ``compile_dynamic``, ``compile_fullgraph``.
     """
 
     def __init__(
@@ -341,8 +341,7 @@ class Transformer(nn.Module):
         multi_query: bool = False,
         dropout_prob: float | None = None,
         compile: bool = False,
-        compile_mode: str = "default",
-        compile_dynamic: bool = True,
+        **compile_kwargs,
     ) -> None:
         super().__init__()
         attn_reps = TensorReps(attn_reps)
@@ -368,12 +367,7 @@ class Transformer(nn.Module):
         self.linear_out = nn.Linear(self.hidden_channels, out_channels)
 
         if compile:
-            # ugly hack to make torch.compile convenient for users
-            # the clean solution is model = torch.compile(model, **kwargs) outside of the constructor
-            # note that we need fullgraph=False because of the torch.compiler.disable for attention
-            self.__class__ = torch.compile(
-                self.__class__, dynamic=compile_dynamic, mode=compile_mode
-            )
+            compile_model(self, **compile_kwargs)
 
     def forward(self, inputs: torch.Tensor, frames, **attn_kwargs) -> torch.Tensor:
         """Forward pass.
