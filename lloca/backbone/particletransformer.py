@@ -1041,9 +1041,7 @@ class ParticleTransformer(nn.Module):
             self.fix_init_weight()
 
         if compile:
-            self.__class__ = torch.compile(
-                self.__class__, dynamic=compile_dynamic, mode=compile_mode
-            )
+            self.forward = torch.compile(self.forward, dynamic=compile_dynamic, mode=compile_mode)
 
     def fix_init_weight(self):
         def rescale(param, _layer_id):
