@@ -21,7 +21,6 @@ You can use 'git diff --no-index' to compare this file with the original particl
 
 import copy
 import math
-import random
 from collections.abc import Callable
 from functools import partial
 from typing import Any, Optional, Tuple
@@ -35,25 +34,32 @@ from ..reps.tensorreps import TensorReps
 from .attention import LLoCaAttention
 
 
-@torch.jit.script
 def delta_phi(a, b):
     return (a - b + math.pi) % (2 * math.pi) - math.pi
 
 
-@torch.jit.script
 def delta_r2(eta1, phi1, eta2, phi2):
     return (eta1 - eta2) ** 2 + delta_phi(phi1, phi2) ** 2
 
 
 def to_pt2(x, eps=1e-8):
+    assert x.size(1) >= 2
     pt2 = x[:, :2].square().sum(dim=1, keepdim=True)
     if eps is not None:
         pt2 = pt2.clamp(min=eps)
     return pt2
 
 
+def to_p2(x, eps=1e-8):
+    assert x.size(1) >= 3
+    p2 = x[:, :3].square().sum(dim=1, keepdim=True)
+    if eps is not None:
+        p2 = p2.clamp(min=eps)
+    return p2
+
+
 def to_m2(x, eps=1e-8):
-    m2 = x[:, 3:4].square() - x[:, :3].square().sum(dim=1, keepdim=True)
+    m2 = x[:, 3:4].square() - to_p2(x, eps=None)
     if eps is not None:
         m2 = m2.clamp(min=eps)
     return m2
@@ -92,8 +98,7 @@ def p3_norm(p, eps=1e-8):
 
 def to_energy_momentum(x, return_unit_vector=True):
     energy = x[:, 3:4]
-    p2 = x[:, :3].square().sum(dim=1, keepdim=True)
-    mom = torch.sqrt(p2)
+    mom = torch.sqrt(to_p2(x, eps=None))
     if return_unit_vector:
         return energy, mom, x[:, :3] / mom.clamp(min=1e-8)
     else:
@@ -204,11 +209,15 @@ def tril_indices(row, col, offset=0, *, dtype=torch.long, device="cpu"):
 
 
 class SequenceTrimmer(nn.Module):
-    def __init__(self, enabled=False, target=(0.9, 1.02), warmup_steps=5, **kwargs) -> None:
+    def __init__(
+        self, enabled=False, target=(0.9, 1.02), warmup_steps=5, round_to_32=False, num_extra_tokens=0, **kwargs
+    ) -> None:
         super().__init__(**kwargs)
         self.enabled = enabled
         self.target = target
         self.warmup_steps = warmup_steps
+        self.round_to_32 = round_to_32
+        self.num_extra_tokens = num_extra_tokens
         self.register_buffer("_counter", torch.LongTensor([0]), persistent=False)
 
     def forward(self, x, v=None, mask=None, uu=None):
@@ -224,12 +233,21 @@ class SequenceTrimmer(nn.Module):
             if self._counter < self.warmup_steps:
                 self._counter.add_(1)
             else:
+                seq_len = mask.size(-1)
                 if v is not None:
                     if not isinstance(v, (list, tuple)):
                         v = [v]
                 if self.training:
-                    q = min(1, random.uniform(*self.target))
+                    # Use torch RNG instead of Python random to avoid graph breaks
+                    q = torch.empty(1, device=mask.device).uniform_(*self.target).clamp_(max=1)
                     maxlen = torch.quantile(mask.float().sum(dim=-1), q).long()
+                    if self.round_to_32:
+                        # Round up to next multiple of 32
+                        # effectively: ceil(x / 32) * 32
+                        target_len = maxlen + self.num_extra_tokens
+                        target_len = ((target_len + 31) // 32) * 32
+                        target_len = torch.clamp(target_len, min=32)
+                        maxlen = torch.clamp(target_len, max=seq_len) - self.num_extra_tokens
                     rand = torch.rand_like(mask.float())
                     rand.masked_fill_(~mask, -1)
                     perm = rand.argsort(dim=-1, descending=True)  # (N, 1, P)
@@ -242,8 +260,8 @@ class SequenceTrimmer(nn.Module):
                         uu = torch.gather(uu, -1, perm.unsqueeze(-2).expand_as(uu))
                 else:
                     maxlen = mask.sum(dim=-1).max()
-                maxlen = max(maxlen, 1)
-                if maxlen < mask.size(-1):
+                maxlen = maxlen.clamp(min=1)
+                if maxlen < seq_len:
                     mask = mask[:, :, :maxlen]
                     x = x[:, :, :maxlen]
                     if v is not None:
@@ -282,26 +300,44 @@ class SwiGLUFFN(nn.Module):
 
 
 class Embed(nn.Module):
-    def __init__(self, input_dim, dims, normalize_input=True, activation="gelu"):
+    def __init__(self, input_dim, dims, normalize_input=True, activation="gelu", use_conv_embed=False):
         super().__init__()
 
         self.input_bn = nn.BatchNorm1d(input_dim) if normalize_input else None
-        module_list = []
-        for dim in dims:
-            module_list.extend(
-                [
-                    nn.LayerNorm(input_dim),
-                    nn.Linear(input_dim, dim),
-                    nn.GELU() if activation == "gelu" else nn.ReLU(),
-                ]
-            )
-            input_dim = dim
-        self.embed = nn.Sequential(*module_list)
+        self.use_conv_embed = bool(use_conv_embed)
+        if self.use_conv_embed:
+            assert normalize_input == True
+            module_list = []
+            for dim in dims:
+                module_list.extend(
+                    [
+                        nn.Conv1d(input_dim, dim, 1, bias=False),
+                        nn.BatchNorm1d(dim),
+                        nn.GELU() if activation == "gelu" else nn.ReLU(),
+                    ]
+                )
+                input_dim = dim
+            self.conv_embed = nn.Sequential(*module_list[:-1])
+            self.embed = nn.Identity()
+        else:
+            module_list = []
+            for dim in dims:
+                module_list.extend(
+                    [
+                        nn.LayerNorm(input_dim),
+                        nn.Linear(input_dim, dim),
+                        nn.GELU() if activation == "gelu" else nn.ReLU(),
+                    ]
+                )
+                input_dim = dim
+            self.conv_embed = nn.Identity()
+            self.embed = nn.Sequential(*module_list)
 
     def forward(self, x):
         if self.input_bn is not None:
             # x: (batch, embed_dim, seq_len)
             x = self.input_bn(x)
+            x = self.conv_embed(x)
             x = x.transpose(1, 2).contiguous()
         # x: (batch, seq_len, embed_dim)
         return self.embed(x)
@@ -318,6 +354,7 @@ class PairEmbed(nn.Module):
         use_pre_activation_pair=True,
         normalize_input=True,
         activation="gelu",
+        use_bias=True,
         eps=1e-8,
         for_onnx=False,
         sparse_eval=None,
@@ -329,6 +366,7 @@ class PairEmbed(nn.Module):
         self.remove_self_pair = remove_self_pair
         self.for_onnx = for_onnx
         self.sparse_eval = (not for_onnx) if sparse_eval is None else sparse_eval
+        self.tril_indices_fn = tril_indices if self.for_onnx else torch.tril_indices
         self.out_dim = dims[-1]
 
         if pairwise_lv_type == "pp":
@@ -346,7 +384,7 @@ class PairEmbed(nn.Module):
             for dim in dims:
                 module_list.extend(
                     [
-                        nn.Conv1d(input_dim, dim, 1),
+                        nn.Conv1d(input_dim, dim, 1, bias=use_bias),
                         nn.BatchNorm1d(dim),
                         nn.GELU() if activation == "gelu" else nn.ReLU(),
                     ]
@@ -362,7 +400,7 @@ class PairEmbed(nn.Module):
             for dim in dims:
                 module_list.extend(
                     [
-                        nn.Conv1d(input_dim, dim, 1),
+                        nn.Conv1d(input_dim, dim, 1, bias=use_bias),
                         nn.BatchNorm1d(dim),
                         nn.GELU() if activation == "gelu" else nn.ReLU(),
                     ]
@@ -372,96 +410,84 @@ class PairEmbed(nn.Module):
                 module_list = module_list[:-1]
             self.fts_embed = nn.Sequential(*module_list)
 
+    def _embed_pairs(self, x, uu):
+        """Run embedding networks on pair features. Returns (batch_or_1, out_dim, num_pairs)."""
+        elements = None
+        if x is not None:
+            elements = self.embed(x)
+        if uu is not None:
+            fts = self.fts_embed(uu)
+            elements = fts if elements is None else elements + fts
+        return elements
+
     def _forward_dense(self, x, uu=None, mask=None):
         # x: (batch, v_dim, seq_len)
         # uu: (batch, v_dim, seq_len, seq_len)
-        assert x is not None or uu is not None
-        with torch.no_grad():
-            if x is not None:
-                batch_size, _, seq_len = x.size()
-            else:
-                batch_size, _, seq_len, _ = uu.size()
-            if self.is_symmetric:
-                tril_indices_fn = tril_indices if self.for_onnx else torch.tril_indices
-                i, j = tril_indices_fn(
-                    seq_len,
-                    seq_len,
-                    offset=-1 if self.remove_self_pair else 0,
-                    device=(x if x is not None else uu).device,
-                )
-                if x is not None:
-                    x = x.unsqueeze(-1).repeat(1, 1, 1, seq_len)
-                    xi = x[:, :, i, j]  # (batch, dim, seq_len*(seq_len+1)/2)
-                    xj = x[:, :, j, i]
-                    x = self.pairwise_lv_fts(xi, xj)
-                if uu is not None:
-                    # (batch, dim, seq_len*(seq_len+1)/2)
-                    uu = uu[:, :, i, j]
-            else:
-                if x is not None:
-                    x = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2))
-                    if self.remove_self_pair:
-                        i = torch.arange(0, seq_len, device=x.device)
-                        x[:, :, i, i] = 0
-                    x = x.reshape(-1, self.pairwise_lv_dim, seq_len * seq_len)
-                if uu is not None:
-                    uu = uu.reshape(-1, self.pairwise_input_dim, seq_len * seq_len)
-
-        # with grad
-        elements = 0
         if x is not None:
-            elements = elements + self.embed(x)
-        if uu is not None:
-            elements = elements + self.fts_embed(uu)
+            batch_size, _, seq_len = x.size()
+        else:
+            batch_size, _, seq_len, _ = uu.size()
 
         if self.is_symmetric:
-            y = torch.zeros(
-                batch_size,
-                self.out_dim,
+            i, j = self.tril_indices_fn(
                 seq_len,
                 seq_len,
-                dtype=elements.dtype,
-                device=elements.device,
+                offset=-1 if self.remove_self_pair else 0,
+                device=(x if x is not None else uu).device,
             )
+            if x is not None:
+                xi = x[:, :, i]  # (batch, dim, num_tril_pairs)
+                xj = x[:, :, j]
+                x = self.pairwise_lv_fts(xi, xj)
+            if uu is not None:
+                # (batch, dim, num_tril_pairs)
+                uu = uu[:, :, i, j]
+        else:
+            if x is not None:
+                x = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2))
+                if self.remove_self_pair:
+                    diag_idx = torch.arange(0, seq_len, device=x.device)
+                    x[:, :, diag_idx, diag_idx] = 0
+                x = x.reshape(batch_size, self.pairwise_lv_dim, seq_len * seq_len)
+            if uu is not None:
+                uu = uu.reshape(batch_size, self.pairwise_input_dim, seq_len * seq_len)
+
+        elements = self._embed_pairs(x, uu)
+
+        if self.is_symmetric:
+            y = elements.new_zeros(batch_size, self.out_dim, seq_len, seq_len)
             y[:, :, i, j] = elements
             y[:, :, j, i] = elements
         else:
-            y = elements.reshape(-1, self.out_dim, seq_len, seq_len)
+            y = elements.reshape(batch_size, self.out_dim, seq_len, seq_len)
         return y
 
     def _forward_sparse(self, x, uu=None, mask=None):
         # x: (batch, v_dim, seq_len)
         # uu: (batch, v_dim, seq_len, seq_len)
-        assert x is not None or uu is not None
-        with torch.no_grad():
-            if x is not None:
-                batch_size, _, seq_len = x.size()
-            else:
-                batch_size, _, seq_len, _ = uu.size()
-
-            i0, i1, i2, i3 = (Ellipsis,) * 4
-            if mask is not None:
-                mask = mask.unsqueeze(-1) * mask.unsqueeze(-2)  # (batch_size, 1, seq_len, seq_len)
-                if self.is_symmetric:
-                    offset = -1 if self.remove_self_pair else 0
-                    i0, _, i2, i3 = mask.float().tril(offset).nonzero(as_tuple=True)
-                else:
-                    i0, _, i2, i3 = mask.nonzero(as_tuple=True)
-
-            if x is not None:
-                x = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2))
-                x = x.permute(0, 2, 3, 1)[i0, i2, i3, :]  # (num_elements, pairwise_lv_dim)
-                x = x.T.unsqueeze(0).contiguous()  # (1, pairwise_lv_dim, num_elements)
-            if uu is not None:
-                uu = uu.permute(0, 2, 3, 1)[i0, i2, i3, :]  # (num_elements, pairwise_input_dim)
-                uu = uu.T.unsqueeze(0).contiguous()  # (1, pairwise_input_dim, num_elements)
-
-        # with grad
-        elements = 0
         if x is not None:
-            elements = elements + self.embed(x)
+            batch_size, _, seq_len = x.size()
+        else:
+            batch_size, _, seq_len, _ = uu.size()
+
+        i0, i2, i3 = (Ellipsis,) * 3
+        if mask is not None:
+            pair_mask = mask.unsqueeze(-1) * mask.unsqueeze(-2)  # (batch_size, 1, seq_len, seq_len)
+            if self.is_symmetric:
+                offset = -1 if self.remove_self_pair else 0
+                i0, _, i2, i3 = pair_mask.float().tril(offset).nonzero(as_tuple=True)
+            else:
+                i0, _, i2, i3 = pair_mask.nonzero(as_tuple=True)
+
+        if x is not None:
+            x = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2))
+            x = x.permute(0, 2, 3, 1)[i0, i2, i3, :]  # (num_elements, pairwise_lv_dim)
+            x = x.T.unsqueeze(0)  # (1, pairwise_lv_dim, num_elements)
         if uu is not None:
-            elements = elements + self.fts_embed(uu)
+            uu = uu.permute(0, 2, 3, 1)[i0, i2, i3, :]  # (num_elements, pairwise_input_dim)
+            uu = uu.T.unsqueeze(0)  # (1, pairwise_input_dim, num_elements)
+
+        elements = self._embed_pairs(x, uu)
         elements = elements.squeeze(0).T  # (num_elements, out_dim)
 
         y = torch.zeros(
@@ -479,9 +505,8 @@ class PairEmbed(nn.Module):
 
         return y
 
-    @torch.compiler.disable()  # torch.compile fails to make this seqlen-dynamic
     def forward(self, x, uu=None, mask=None):
-        if self.sparse_eval:
+        if self.sparse_eval and mask is not None:
             return self._forward_sparse(x, uu=uu, mask=mask)
         else:
             return self._forward_dense(x, uu=uu, mask=mask)
@@ -548,7 +573,7 @@ class Attention(torch.nn.Module):
         unexpected_keys,
         error_msgs,
     ):
-        for k in state_dict.keys():
+        for k in list(state_dict.keys()):
             if k.endswith("in_proj_weight"):
                 state_dict[k.replace("_weight", ".weight")] = state_dict.pop(k)
             elif k.endswith("in_proj_bias"):
@@ -625,9 +650,9 @@ class Attention(torch.nn.Module):
         q, k, v = F._in_projection_packed(query, key, value, self.in_proj.weight, self.in_proj.bias)
 
         # -> (bsz, num_heads, src/tgt_len, head_dim)
-        q = q.reshape(bsz, tgt_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
-        k = k.reshape(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
-        v = v.reshape(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
+        q = q.reshape(bsz, tgt_len, self.num_heads, self.head_dim).transpose(1, 2)
+        k = k.reshape(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2)
+        v = v.reshape(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2)
 
         dropout_p = self.dropout if self.training else 0.0
 
@@ -710,6 +735,8 @@ class Block(nn.Module):
         attn_dropout=0.1,
         activation_dropout=0.1,
         activation="gelu",
+        use_rmsnorm=False,
+        use_bias=True,
         layer_scale_init_values=None,
         drop_path_rate=0.0,
         scale_attn_mask=False,
@@ -725,9 +752,10 @@ class Block(nn.Module):
         self.head_dim = embed_dim // num_heads
         self.ffn_dim = embed_dim * ffn_ratio
 
-        self.pre_attn_norm = nn.LayerNorm(embed_dim)
-        self.attn = Attention(attention, embed_dim, num_heads, dropout=attn_dropout)
-        self.post_attn_norm = nn.LayerNorm(embed_dim) if scale_attn else nn.Identity()
+        norm_layer = nn.RMSNorm if use_rmsnorm else nn.LayerNorm
+        self.pre_attn_norm = norm_layer(embed_dim)
+        self.attn = Attention(attention, embed_dim, num_heads, dropout=attn_dropout, bias=use_bias)
+        self.post_attn_norm = norm_layer(embed_dim) if scale_attn else nn.Identity()
         self.dropout = nn.Dropout(dropout)
         self.ls1 = (
             LayerScale(embed_dim, init_values=layer_scale_init_values)
@@ -736,17 +764,17 @@ class Block(nn.Module):
         )
         self.drop_path1 = DropPath(drop_path_rate) if drop_path_rate > 0.0 else nn.Identity()
 
-        self.pre_fc_norm = nn.LayerNorm(embed_dim)
-        self.fc1 = nn.Linear(embed_dim, self.ffn_dim)
+        self.pre_fc_norm = norm_layer(embed_dim)
+        self.fc1 = nn.Linear(embed_dim, self.ffn_dim, bias=use_bias)
         if activation == "swiglu":
-            self.fc1_g = nn.Linear(embed_dim, self.ffn_dim)
+            self.fc1_g = nn.Linear(embed_dim, self.ffn_dim, bias=use_bias)
             self.act = nn.SiLU()
         else:
             self.fc1_g = None
             self.act = nn.GELU() if activation == "gelu" else nn.ReLU()
         self.act_dropout = nn.Dropout(activation_dropout)
-        self.post_fc_norm = nn.LayerNorm(self.ffn_dim) if scale_fc else nn.Identity()
-        self.fc2 = nn.Linear(self.ffn_dim, embed_dim)
+        self.post_fc_norm = norm_layer(self.ffn_dim) if scale_fc else nn.Identity()
+        self.fc2 = nn.Linear(self.ffn_dim, embed_dim, bias=use_bias)
         self.ls2 = (
             LayerScale(embed_dim, init_values=layer_scale_init_values)
             if layer_scale_init_values
@@ -805,12 +833,12 @@ class Block(nn.Module):
         if self.c_attn is not None:
             bsz, tgt_len, _ = x.size()
             x = x.reshape(bsz, tgt_len, self.num_heads, self.head_dim)
-            x = torch.einsum("bthd,h->btdh", x, self.c_attn)
+            x = x * self.c_attn.view(1, 1, self.num_heads, 1)
             x = x.reshape(bsz, tgt_len, self.embed_dim)
         x = self.post_attn_norm(x)
         x = self.dropout(x)
         x = self.drop_path1(self.ls1(x))
-        x += residual
+        x = x + residual
 
         residual = x
         x = self.pre_fc_norm(x)
@@ -827,7 +855,7 @@ class Block(nn.Module):
         x = self.drop_path2(self.ls2(x))
         if self.w_resid is not None:
             residual = torch.mul(self.w_resid, residual)
-        x += residual
+        x = x + residual
 
         return x
 
@@ -846,6 +874,7 @@ class ParticleTransformer(nn.Module):
         pair_extra_dim=0,
         remove_self_pair=False,
         use_pre_activation_pair=True,
+        use_conv_embed=False,
         embed_dims=(128, 512, 128),
         ffn_ratio=4,
         pair_embed_dims=(64, 64, 64),
@@ -853,6 +882,7 @@ class ParticleTransformer(nn.Module):
         num_layers=8,
         num_cls_layers=2,
         block_params=None,
+        block_ids_with_attn_mask=None,
         cls_block_params=None,
         fc_params=(),
         activation="gelu",
@@ -872,7 +902,7 @@ class ParticleTransformer(nn.Module):
     ) -> None:
         super().__init__(**kwargs)
 
-        self.trimmer = SequenceTrimmer(enabled=trim and not for_inference)
+        self.trimmer = SequenceTrimmer(enabled=trim and not for_inference, round_to_32=compile)
         self.for_inference = for_inference
         self.for_segmentation = for_segmentation
         self.use_amp = use_amp
@@ -889,6 +919,8 @@ class ParticleTransformer(nn.Module):
             attn_dropout=0.1,
             activation_dropout=0.1,
             activation=activation,
+            use_rmsnorm=False,
+            use_bias=True,
             layer_scale_init_values=None,
             drop_path_rate=0.0,
             scale_attn_mask=False,
@@ -905,20 +937,41 @@ class ParticleTransformer(nn.Module):
                 scale_heads=False,
                 scale_resids=False,
             )
+        if version > 2:
+            # NB: qk-norm and gated attention (used by ParT v3 in weaver) are intentionally
+            # omitted here as they are incompatible with LLoCa's frame-equivariant attention.
+            default_cfg.update(
+                use_rmsnorm=True,
+                use_bias=False,
+                dropout=0,
+                attn_dropout=0,
+                activation_dropout=0,
+                drop_path_rate=0.1,
+            )
+        norm_layer = nn.RMSNorm if default_cfg["use_rmsnorm"] else nn.LayerNorm
 
         cfg_block = copy.deepcopy(default_cfg)
         if block_params is not None:
             cfg_block.update(block_params)
 
-        cfg_cls_block = copy.deepcopy(default_cfg)
-        cfg_cls_block.update({"dropout": 0, "attn_dropout": 0, "activation_dropout": 0})
-        if cls_block_params is not None:
-            cfg_cls_block.update(cls_block_params)
+        if num_cls_layers > 0:
+            cfg_cls_block = copy.deepcopy(default_cfg)
+            cfg_cls_block.update({"dropout": 0, "attn_dropout": 0, "activation_dropout": 0})
+            if cls_block_params is not None:
+                cfg_cls_block.update(cls_block_params)
+
+        if block_ids_with_attn_mask is None:
+            self.block_ids_with_attn_mask = [True] * num_layers
+        else:
+            self.block_ids_with_attn_mask = [False] * num_layers
+            for idx in block_ids_with_attn_mask:
+                self.block_ids_with_attn_mask[idx] = True
 
         self.embed = Embed(
             input_dim,
             embed_dims if len(embed_dims) > 0 else [self.embed_dim],
             activation=activation,
+            use_conv_embed=use_conv_embed,
         )
 
         if pair_input_dim is None:
@@ -932,6 +985,7 @@ class ParticleTransformer(nn.Module):
                 pairwise_lv_type=pair_input_type,
                 remove_self_pair=remove_self_pair,
                 use_pre_activation_pair=use_pre_activation_pair,
+                use_bias=default_cfg["use_bias"],
                 for_onnx=for_inference,
             )
             if pair_embed_dims is not None and pair_input_dim + pair_extra_dim > 0
@@ -945,7 +999,7 @@ class ParticleTransformer(nn.Module):
             if num_cls_layers > 0
             else None
         )
-        self.norm = nn.LayerNorm(self.embed_dim)
+        self.norm = norm_layer(self.embed_dim)
 
         if fc_params is not None:
             fcs = []
@@ -957,12 +1011,12 @@ class ParticleTransformer(nn.Module):
                     (out_dim, drop_rate), act = param, "relu"
                 if act == "swiglu":
                     layer = nn.Sequential(
-                        SwiGLUFFN(in_dim, out_dim * 4, out_dim, drop=drop_rate),
-                        nn.LayerNorm(out_dim),
+                        SwiGLUFFN(in_dim, out_dim * 4, out_dim, drop=drop_rate, bias=default_cfg["use_bias"]),
+                        norm_layer(out_dim),
                     )
                 else:
                     layer = nn.Sequential(
-                        nn.Linear(in_dim, out_dim),
+                        nn.Linear(in_dim, out_dim, bias=default_cfg["use_bias"]),
                         nn.GELU() if act == "gelu" else nn.ReLU(),
                         nn.Dropout(drop_rate),
                     )
@@ -1013,70 +1067,67 @@ class ParticleTransformer(nn.Module):
         }
 
     def _forward_encoder(self, x, v=None, mask=None, uu=None, uu_idx=None):
-        with torch.no_grad():
+        with torch.set_grad_enabled(x.requires_grad):
             if not self.for_inference:
                 if uu_idx is not None:
                     uu = build_sparse_tensor(uu, uu_idx, x.size(-1))
             x, v, mask, uu = self.trimmer(x, v, mask, uu)
             padding_mask = ~mask.squeeze(1)  # (batch_size, seq_len)
 
-        with torch.autocast("cuda", enabled=self.use_amp):
-            # input embedding
-            x = self.embed(x).masked_fill(
-                ~mask.transpose(1, 2), 0
-            )  # (batch_size, seq_len, num_fts)
-            attn_mask = None
-            if (v is not None or uu is not None) and self.pair_embed is not None:
-                attn_mask = self.pair_embed(
-                    v, uu=uu, mask=mask
-                )  # (batch_size, num_heads, seq_len, seq_len)
+        # input embedding
+        x = self.embed(x).masked_fill(
+            ~mask.transpose(1, 2), 0
+        )  # (batch_size, seq_len, num_fts)
+        attn_mask = None
+        if (v is not None or uu is not None) and self.pair_embed is not None:
+            attn_mask = self.pair_embed(
+                v, uu=uu, mask=mask
+            )  # (batch_size, num_heads, seq_len, seq_len)
 
-            # transform
-            for block in self.blocks:
-                if self.checkpoint_blocks:
-                    x = checkpoint(
-                        block,
-                        x,
-                        x_cls=None,
-                        padding_mask=padding_mask,
-                        attn_mask=attn_mask,
-                        use_reentrant=False,
-                    )
-                else:
-                    x = block(x, x_cls=None, padding_mask=padding_mask, attn_mask=attn_mask)
+        # transform
+        for idx, block in enumerate(self.blocks):
+            block_attn_mask = attn_mask if self.block_ids_with_attn_mask[idx] else None
+            if self.checkpoint_blocks:
+                x = checkpoint(
+                    block,
+                    x,
+                    x_cls=None,
+                    padding_mask=padding_mask,
+                    attn_mask=block_attn_mask,
+                    use_reentrant=False,
+                )
+            else:
+                x = block(x, x_cls=None, padding_mask=padding_mask, attn_mask=block_attn_mask)
 
         # x: (batch, seq_len, embed_dim)
         # padding_mask: (batch, seq_len)
         return x, padding_mask
 
     def _forward_aggregator(self, x, padding_mask):
-        with torch.autocast("cuda", enabled=self.use_amp):
-            if self.cls_blocks is not None:
-                # for classification: extract using class token
-                cls_tokens = self.cls_token.expand(x.size(0), 1, -1)  # (batch, 1, embed_dim)
-                for block in self.cls_blocks:
-                    if self.checkpoint_blocks:
-                        cls_tokens = checkpoint(
-                            block,
-                            x,
-                            x_cls=cls_tokens,
-                            padding_mask=padding_mask,
-                            use_reentrant=False,
-                        )  # (batch, 1, embed_dim)
-                    else:
-                        cls_tokens = block(
-                            x, x_cls=cls_tokens, padding_mask=padding_mask
-                        )  # (batch, 1, embed_dim)
-                cls_tokens = cls_tokens.squeeze(1)  # (batch, embed_dim)
-            else:
-                # for classification: simple average pooling
-                mask = ~padding_mask.unsqueeze(1)  # (batch, 1, seq_len)
-                x = x.transpose(1, 2).contiguous()  # (batch, embed_dim, seq_len)
-                counts = mask.float().sum(-1)  # (batch, 1)
-                counts = torch.max(counts, torch.ones_like(counts))  # >=1
-                cls_tokens = (x * mask).sum(-1) / counts  # (batch, embed_dim)
+        if self.cls_blocks is not None:
+            # for classification: extract using class token
+            cls_tokens = self.cls_token.expand(x.size(0), 1, -1)  # (batch, 1, embed_dim)
+            for block in self.cls_blocks:
+                if self.checkpoint_blocks:
+                    cls_tokens = checkpoint(
+                        block,
+                        x,
+                        x_cls=cls_tokens,
+                        padding_mask=padding_mask,
+                        use_reentrant=False,
+                    )  # (batch, 1, embed_dim)
+                else:
+                    cls_tokens = block(
+                        x, x_cls=cls_tokens, padding_mask=padding_mask
+                    )  # (batch, 1, embed_dim)
+            cls_tokens = cls_tokens.squeeze(1)  # (batch, embed_dim)
+        else:
+            # for classification: simple average pooling
+            mask = ~padding_mask.unsqueeze(-1)  # (batch, seq_len, 1)
+            counts = mask.float().sum(dim=1).clamp(min=1)  # (batch, 1)
+            cls_tokens = (x * mask).sum(dim=1) / counts  # (batch, embed_dim)
 
-            x_cls = self.norm(cls_tokens)  # (batch, embed_dim)
+        x_cls = self.norm(cls_tokens)  # (batch, embed_dim)
         return x_cls
 
     def forward(self, x, frames, v=None, mask=None, uu=None, uu_idx=None):
@@ -1094,29 +1145,28 @@ class ParticleTransformer(nn.Module):
             # padding_mask: (batch, seq_len)
             return x, padding_mask
 
-        with torch.autocast("cuda", enabled=self.use_amp):
-            # === for segmentation ===
-            if self.for_segmentation:
-                x = self.norm(x)
-                if self.fc is not None:
-                    x = self.fc(x)
-                # x: (P, N, C) -> output: (N, C, P)
-                output = x.transpose(1, 2).contiguous()
-                if self.for_inference:
-                    output = torch.softmax(output, dim=1)
-                # print('output:\n', output)
-                return output
-
-            x_cls = self._forward_aggregator(x, padding_mask)
-            if self.fc is None:
-                return x_cls
-
-            # fc
-            output = self.fc(x_cls)
+        # === for segmentation ===
+        if self.for_segmentation:
+            x = self.norm(x)
+            if self.fc is not None:
+                x = self.fc(x)
+            # x: (P, N, C) -> output: (N, C, P)
+            output = x.transpose(1, 2).contiguous()
             if self.for_inference:
                 output = torch.softmax(output, dim=1)
             # print('output:\n', output)
             return output
+
+        x_cls = self._forward_aggregator(x, padding_mask)
+        if self.fc is None:
+            return x_cls
+
+        # fc
+        output = self.fc(x_cls)
+        if self.for_inference:
+            output = torch.softmax(output, dim=1)
+        # print('output:\n', output)
+        return output
 
 
 ### weight initialization methods ###
