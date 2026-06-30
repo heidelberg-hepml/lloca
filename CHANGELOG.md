@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- `LGATrSlimVectors` option
+
+### Changed
+
+- Replace the `compile_mode`/`compile_dynamic`/`compile_fullgraph` arguments with a single `compile_kwargs` dict forwarded to `torch.compile`
+- Align attention with the `lgatr` package
+- Pull ParT changes from weaver-core main branch
+- Improve `amp` handling (now also covers CPU); re-import autocast code from `lgatr`
+- Handle shapes in `rand_transforms.py` more carefully
+- Bump minimum torch version to 2.4 (lgatr requirement)
+
+### Removed
+
+- `compile` option from the FramesNet classes
+
+### Fixed
+
+- Micro optimizations to make code faster; for instance frame-to-frame transform
+- Fix `torch.compile` calls to compile the `forward`, not the whole class
+- Remove more CPU-GPU syncs (`num_items`/`num_graphs` options in `get_batch_from_ptr`/`get_ptr_from_batch`, sync-free `mass_regularize`, one-time `edge_inited` assert in `EquiMLP.forward`)
+- Memory leak from `nn.RMSNorm` when using `amp`
+
 ## [1.3.6] - 27.04.2026
 
 ### Added
