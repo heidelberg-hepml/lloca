@@ -16,7 +16,8 @@ Changes compared to the official version:
 - pairwise_lv_fts_pp returns lnm2 as the first feature (only Lorentz scalars is most
   conservative).
 - Exposed ffn_ratio, added checkpoint_blocks, and an in-model torch.compile option
-  (compile, plus **compile_kwargs forwarded to lloca.utils.compile.compile_model).
+  (compile, plus a compile_kwargs dict forwarded verbatim to torch.compile via
+  lloca.utils.compile.compile_model).
 - The Embed module is always created (maps input_dim to embed_dim also for embed_dims=[]).
 - include_global_token (ParT v3.6) raises NotImplementedError: the global token has no
   associated local frame yet.
@@ -29,6 +30,7 @@ Changes compared to the official version:
 import math
 
 import copy
+from collections.abc import Mapping
 from functools import partial
 from typing import Optional, Tuple, Any, Callable
 
@@ -974,7 +976,7 @@ class ParticleTransformer(nn.Module):
         for_segmentation=False,
         checkpoint_blocks=False,
         compile=False,
-        **compile_kwargs,
+        compile_kwargs: Mapping | None = None,
     ) -> None:
         super().__init__()
 
@@ -1156,7 +1158,7 @@ class ParticleTransformer(nn.Module):
             self.fix_init_weight()
 
         if compile:
-            compile_model(self, **compile_kwargs)
+            compile_model(self, compile_kwargs=compile_kwargs)
 
     def fix_init_weight(self):
         def rescale(param, _layer_id):

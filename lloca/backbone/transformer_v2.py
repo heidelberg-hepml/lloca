@@ -1,5 +1,6 @@
 """LLoCa-Transformer with RMSNorm and GLU."""
 
+from collections.abc import Mapping
 from functools import partial
 
 import torch
@@ -248,9 +249,10 @@ class Transformer(nn.Module):
         Dropout probability for output.
     compile : bool, optional
         Whether to compile the model with torch.compile, by default False.
-    **compile_kwargs
-        Forwarded to :func:`lloca.utils.compile.compile_model` when ``compile=True``;
-        supported keys: ``compile_mode``, ``compile_dynamic``, ``compile_fullgraph``.
+    compile_kwargs : Mapping, optional
+        Dict forwarded verbatim to :func:`torch.compile` (via
+        :func:`lloca.utils.compile.compile_model`) when ``compile=True`` (e.g. ``mode``,
+        ``dynamic``, ``fullgraph``). Omitted keys fall back to torch's own defaults.
     """
 
     def __init__(
@@ -265,7 +267,7 @@ class Transformer(nn.Module):
         mlp_factor: int = 2,
         dropout_prob: float | None = None,
         compile: bool = False,
-        **compile_kwargs,
+        compile_kwargs: Mapping | None = None,
     ) -> None:
         super().__init__()
         attn_reps = TensorReps(attn_reps)
@@ -290,7 +292,7 @@ class Transformer(nn.Module):
         self.linear_out = nn.Linear(self.hidden_channels, out_channels)
 
         if compile:
-            compile_model(self, **compile_kwargs)
+            compile_model(self, compile_kwargs=compile_kwargs)
 
     def forward(self, inputs: torch.Tensor, frames, **attn_kwargs) -> torch.Tensor:
         """Forward pass.

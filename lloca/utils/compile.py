@@ -1,5 +1,7 @@
 """Helpers for using lloca networks with :func:`torch.compile`."""
 
+from collections.abc import Mapping
+
 import torch
 from torch import nn
 
@@ -7,9 +9,7 @@ from torch import nn
 def compile_model(
     model: nn.Module,
     *,
-    compile_mode: str = "default",
-    compile_dynamic: bool = False,
-    compile_fullgraph: bool = False,
+    compile_kwargs: Mapping | None = None,
 ) -> None:
     """Wrap ``model.forward`` with :func:`torch.compile` in place.
 
@@ -20,17 +20,8 @@ def compile_model(
     ----------
     model
         The :class:`torch.nn.Module` whose ``forward`` should be compiled.
-    compile_mode
-        Mode passed to :func:`torch.compile` (e.g. ``"default"``, ``"reduce-overhead"``).
-    compile_dynamic
-        Whether to use dynamic shapes.
-    compile_fullgraph
-        Whether to require a full graph (no graph breaks). Kept ``False`` here because the
-        attention path uses ``torch.compiler.disable``.
+    compile_kwargs
+        Forwarded verbatim to :func:`torch.compile` (e.g. ``mode``, ``dynamic``,
+        ``fullgraph``, ``backend``). Any key omitted falls back to torch's own default.
     """
-    model.forward = torch.compile(
-        model.forward,
-        mode=compile_mode,
-        dynamic=compile_dynamic,
-        fullgraph=compile_fullgraph,
-    )
+    model.forward = torch.compile(model.forward, **dict(compile_kwargs or {}))
