@@ -1161,6 +1161,18 @@ class ParticleTransformer(nn.Module):
             self.fix_init_weight()
 
         if compile:
+            # Work around a known inductor dynamic-shape codegen crash (torch>=2.11): it
+            # can't prove the class-token concat size s*(n+1) is divisible by s, failing in
+            # different passes per version (2.12 CantSplit / 2.11 coalescing assert). See
+            # https://github.com/pytorch/pytorch/issues/169952. Disable both offending
+            # tiling passes for this model only; guarded so it's a no-op on older torch.
+            compile_kwargs = dict(compile_kwargs or {})
+            options = dict(compile_kwargs.get("options") or {})
+            for flag in ("mix_order_reduction", "coalesce_tiling_analysis"):
+                if hasattr(torch._inductor.config.triton, flag):
+                    options[f"triton.{flag}"] = False
+            if options:
+                compile_kwargs["options"] = options
             compile_model(self, compile_kwargs=compile_kwargs)
 
     def fix_init_weight(self):
