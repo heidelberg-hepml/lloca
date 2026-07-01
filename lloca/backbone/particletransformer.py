@@ -976,6 +976,8 @@ class ParticleTransformer(nn.Module):
         for_inference=False,
         for_segmentation=False,
         checkpoint_blocks=False,
+        preserve_variance_pre=False,
+        preserve_variance_post=False,
         compile=False,
         compile_kwargs: Mapping | None = None,
     ) -> None:
@@ -987,7 +989,12 @@ class ParticleTransformer(nn.Module):
 
         attn_reps = TensorReps(attn_reps)
         self.embed_dim = embed_dim = attn_reps.dim * num_heads
-        self.attention = LLoCaAttention(attn_reps, num_heads)
+        self.attention = LLoCaAttention(
+            attn_reps,
+            num_heads,
+            preserve_variance_pre=preserve_variance_pre,
+            preserve_variance_post=preserve_variance_post,
+        )
         default_cfg = dict(
             embed_dim=embed_dim,
             num_heads=num_heads,
@@ -1284,7 +1291,10 @@ class ParticleTransformer(nn.Module):
         # mask: (batch_size, 1, seq_len) -- real particle = 1, padded = 0
         # for pytorch: uu (batch_size, C', num_pairs), uu_idx (batch_size, 2, num_pairs)
         # for onnx: uu (batch_size, C', seq_len, seq_len), uu_idx=None
-        self.attention.prepare_frames(frames)
+        # preserve_variance uses the local 4-momenta, energy-first (v=None raises if enabled)
+        fourmomenta = None if v is None else v.transpose(1, 2)[..., [3, 0, 1, 2]]
+        vmask = None if mask is None else mask.squeeze(1)
+        self.attention.prepare_frames(frames, fourmomenta=fourmomenta, mask=vmask)
 
         x, padding_mask = self._forward_encoder(x, v=v, mask=mask, uu=uu, uu_idx=uu_idx)
 

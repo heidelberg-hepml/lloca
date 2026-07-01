@@ -266,6 +266,8 @@ class Transformer(nn.Module):
         attention_factor: int = 1,
         mlp_factor: int = 2,
         dropout_prob: float | None = None,
+        preserve_variance_pre: bool = False,
+        preserve_variance_post: bool = False,
         compile: bool = False,
         compile_kwargs: Mapping | None = None,
     ) -> None:
@@ -273,7 +275,12 @@ class Transformer(nn.Module):
         attn_reps = TensorReps(attn_reps)
         self.hidden_channels = attn_reps.dim * num_heads // attention_factor
         self.checkpoint_blocks = checkpoint_blocks
-        self.attention = LLoCaAttention(attn_reps, num_heads)
+        self.attention = LLoCaAttention(
+            attn_reps,
+            num_heads,
+            preserve_variance_pre=preserve_variance_pre,
+            preserve_variance_post=preserve_variance_post,
+        )
 
         self.linear_in = nn.Linear(in_channels, self.hidden_channels)
         self.blocks = nn.ModuleList(
@@ -294,7 +301,9 @@ class Transformer(nn.Module):
         if compile:
             compile_model(self, compile_kwargs=compile_kwargs)
 
-    def forward(self, inputs: torch.Tensor, frames, **attn_kwargs) -> torch.Tensor:
+    def forward(
+        self, inputs: torch.Tensor, frames, fourmomenta=None, mask=None, ptr=None, **attn_kwargs
+    ) -> torch.Tensor:
         """Forward pass.
 
         Parameters
@@ -303,6 +312,13 @@ class Transformer(nn.Module):
             Input data with shape (..., num_items, in_channels)
         frames : Frames
             Local frames used for invariant particle attention
+        fourmomenta : Tensor, optional
+            Local per-token 4-momenta (..., num_items, 4), energy-first; required when a
+            ``preserve_variance`` flag is on, ignored otherwise.
+        mask : Tensor, optional
+            Real-token mask (..., num_items); None means all real.
+        ptr : Tensor, optional
+            Jet boundaries for a packed layout (per-jet reference momentum); None for dense.
         **attn_kwargs
 
         Returns
@@ -310,7 +326,7 @@ class Transformer(nn.Module):
         outputs : Tensor
             Outputs with shape (..., num_items, out_channels)
         """
-        self.attention.prepare_frames(frames)
+        self.attention.prepare_frames(frames, fourmomenta=fourmomenta, mask=mask, ptr=ptr)
 
         h = self.linear_in(inputs)
         for block in self.blocks:
