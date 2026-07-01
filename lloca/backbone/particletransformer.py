@@ -1161,18 +1161,35 @@ class ParticleTransformer(nn.Module):
             self.fix_init_weight()
 
         if compile:
-            # Work around a known inductor dynamic-shape codegen crash (torch>=2.11): it
-            # can't prove the class-token concat size s*(n+1) is divisible by s, failing in
-            # different passes per version (2.12 CantSplit / 2.11 coalescing assert). See
-            # https://github.com/pytorch/pytorch/issues/169952. Disable both offending
-            # tiling passes for this model only; guarded so it's a no-op on older torch.
+            # Work around known inductor dynamic-shape codegen issues for ParT (torch>=2.11),
+            # all triggered by the class-token concat's seqlen-dependent shapes:
+            #   - tiling passes can't prove size s*(n+1) is divisible by s, crashing codegen
+            #     in different passes per version (2.12 CantSplit / 2.11 coalescing assert),
+            #     see https://github.com/pytorch/pytorch/issues/169952;
+            #   - a seqlen-strided saved activation trips a false-positive assert_size_stride
+            #     in the compiled backward (the stride is only in the guard, not the compute;
+            #     grads verified bit-identical to eager in float64).
+            # Applied as per-compile options (scoped to this model), guarded so each is a
+            # no-op on torch versions where the config knob is absent. torch.compile forbids
+            # passing `mode` and `options` together, so fold any requested mode into options
+            # (list_mode_options("default") is empty). The flags are inductor config, so a
+            # non-inductor backend (e.g. backend="aot_eager" for debugging) is left untouched.
             compile_kwargs = dict(compile_kwargs or {})
-            options = dict(compile_kwargs.get("options") or {})
-            for flag in ("mix_order_reduction", "coalesce_tiling_analysis"):
-                if hasattr(torch._inductor.config.triton, flag):
-                    options[f"triton.{flag}"] = False
-            if options:
-                compile_kwargs["options"] = options
+            if compile_kwargs.get("backend", "inductor") == "inductor":
+                options = dict(compile_kwargs.get("options") or {})
+                mode = compile_kwargs.pop("mode", None)
+                if mode is not None:
+                    options = {
+                        **torch._inductor.list_mode_options(mode, compile_kwargs.get("dynamic")),
+                        **options,
+                    }
+                for flag in ("mix_order_reduction", "coalesce_tiling_analysis"):
+                    if hasattr(torch._inductor.config.triton, flag):
+                        options[f"triton.{flag}"] = False
+                if hasattr(torch._inductor.config, "size_asserts"):
+                    options["size_asserts"] = False
+                if options:
+                    compile_kwargs["options"] = options
             compile_model(self, compile_kwargs=compile_kwargs)
 
     def fix_init_weight(self):
