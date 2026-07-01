@@ -404,11 +404,11 @@ class Embed(nn.Module):
             self.embed = nn.Sequential(*module_list)
 
     def forward(self, x):
+        # x: (batch, input_dim, seq_len)
         if self.input_bn is not None:
-            # x: (batch, embed_dim, seq_len)
             x = self.input_bn(x)
             x = self.conv_embed(x)
-            x = x.transpose(1, 2).contiguous()
+        x = x.transpose(1, 2).contiguous()
         # x: (batch, seq_len, embed_dim)
         return self.embed(x)
 
@@ -955,6 +955,7 @@ class ParticleTransformer(nn.Module):
         remove_self_pair=False,
         use_pre_activation_pair=True,
         use_conv_embed=False,
+        normalize_input=True,
         embed_dims=(128, 512, 128),
         ffn_ratio=4,
         pair_embed_dims=(64, 64, 64),
@@ -1060,6 +1061,7 @@ class ParticleTransformer(nn.Module):
         self.embed = Embed(
             input_dim,
             embed_dims if len(embed_dims) > 0 else [embed_dim],
+            normalize_input=normalize_input,
             activation=activation,
             use_conv_embed=use_conv_embed,
         )
@@ -1080,6 +1082,7 @@ class ParticleTransformer(nn.Module):
                 pairwise_lv_type=pair_input_type,
                 remove_self_pair=remove_self_pair,
                 use_pre_activation_pair=use_pre_activation_pair,
+                normalize_input=normalize_input,
                 use_bias=default_cfg["use_bias"],
                 for_onnx=for_inference,
             )
