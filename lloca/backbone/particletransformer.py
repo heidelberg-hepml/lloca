@@ -1172,10 +1172,11 @@ class ParticleTransformer(nn.Module):
             # all triggered by the class-token concat's seqlen-dependent shapes:
             #   - tiling passes can't prove size s*(n+1) is divisible by s, crashing codegen
             #     in different passes per version (2.12 CantSplit / 2.11 coalescing assert),
-            #     see https://github.com/pytorch/pytorch/issues/169952;
+            #     see https://github.com/pytorch/pytorch/issues/186426 (fixed on pytorch
+            #     main in June 2026, but in no release as of 2.12.1 / the 2.13 branch cut);
             #   - a seqlen-strided saved activation trips a false-positive assert_size_stride
             #     in the compiled backward (the stride is only in the guard, not the compute;
-            #     grads verified bit-identical to eager in float64).
+            #     grads verified bit-identical to eager in float64; no upstream issue yet).
             # Applied as per-compile options (scoped to this model), guarded so each is a
             # no-op on torch versions where the config knob is absent. torch.compile forbids
             # passing `mode` and `options` together, so fold any requested mode into options
