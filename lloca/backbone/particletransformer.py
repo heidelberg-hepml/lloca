@@ -976,8 +976,7 @@ class ParticleTransformer(nn.Module):
         for_inference=False,
         for_segmentation=False,
         checkpoint_blocks=False,
-        preserve_variance_pre=False,
-        preserve_variance_post=False,
+        preserve_variance=True,
         compile=False,
         compile_kwargs: Mapping | None = None,
     ) -> None:
@@ -992,8 +991,7 @@ class ParticleTransformer(nn.Module):
         self.attention = LLoCaAttention(
             attn_reps,
             num_heads,
-            preserve_variance_pre=preserve_variance_pre,
-            preserve_variance_post=preserve_variance_post,
+            preserve_variance=preserve_variance,
         )
         default_cfg = dict(
             embed_dim=embed_dim,

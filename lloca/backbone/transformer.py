@@ -343,8 +343,7 @@ class Transformer(nn.Module):
         mlp_factor: int = 4,
         multi_query: bool = False,
         dropout_prob: float | None = None,
-        preserve_variance_pre: bool = False,
-        preserve_variance_post: bool = False,
+        preserve_variance: bool = True,
         compile: bool = False,
         compile_kwargs: Mapping | None = None,
     ) -> None:
@@ -355,8 +354,7 @@ class Transformer(nn.Module):
         self.attention = LLoCaAttention(
             attn_reps,
             num_heads,
-            preserve_variance_pre=preserve_variance_pre,
-            preserve_variance_post=preserve_variance_post,
+            preserve_variance=preserve_variance,
         )
 
         self.linear_in = nn.Linear(in_channels, self.hidden_channels)

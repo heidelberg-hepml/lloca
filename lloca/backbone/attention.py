@@ -48,8 +48,7 @@ class LLoCaAttention(torch.nn.Module):
         self,
         attn_reps,
         num_heads,
-        preserve_variance_pre=False,
-        preserve_variance_post=False,
+        preserve_variance=True,
         variance_eps=1e-2,
     ):
         """Attention with frame-to-frame transformations.
@@ -60,19 +59,17 @@ class LLoCaAttention(torch.nn.Module):
             Tensor representation of a single attention head.
         num_heads : int
             Number of attention heads
-        preserve_variance_pre : bool
-            Rescale the pre-attention (local->global) q/k/v by 1/gamma_i^grade to prevent the
-            variance blowup from large boosts. Needs the 4-momenta in :meth:`prepare_frames`.
-        preserve_variance_post : bool
-            Same rescaling on the post-attention (global->local) output. Independent of _pre.
+        preserve_variance : bool
+            Rescale the pre-attention (local->global) q/k/v and post-attention (global->local) vectors
+            by 1/gamma_i^grade to prevent the variance blowup from large boosts. Needs the 4-momenta
+            in :meth:`prepare_frames`.
         variance_eps : float
             Small mass floor (energy units) that keeps gamma_i finite for near-lightlike jets.
         """
         super().__init__()
         self.transform = TensorRepsTransform(TensorReps(attn_reps))
         self.num_heads = num_heads
-        self.preserve_variance_pre = preserve_variance_pre
-        self.preserve_variance_post = preserve_variance_post
+        self.preserve_variance = preserve_variance
         self.variance_eps = variance_eps
 
         self.frames = None
@@ -108,7 +105,7 @@ class LLoCaAttention(torch.nn.Module):
         frames: Frames
             Local frames of shape (..., N, 4, 4).
         fourmomenta: torch.tensor, optional
-            Local per-particle 4-momenta (..., N, 4), energy-first; required when a
+            Local per-particle 4-momenta (..., N, 4), energy-first; required when the
             ``preserve_variance`` flag is on, ignored otherwise.
         mask: torch.tensor, optional
             Real-particle mask (..., N); None means all real.
@@ -118,7 +115,7 @@ class LLoCaAttention(torch.nn.Module):
         self.frames = frames
         if not frames.is_global:
             inv_gamma = None
-            if self.preserve_variance_pre or self.preserve_variance_post:
+            if self.preserve_variance:
                 if fourmomenta is None:
                     raise ValueError("preserve_variance requires `fourmomenta` in prepare_frames.")
                 gamma = self._compute_gamma(
@@ -141,7 +138,7 @@ class LLoCaAttention(torch.nn.Module):
             inv_frames = InverseFrames(frames_out)
             lower_inv_frames = LowerIndicesFrames(inv_frames)
 
-            if self.preserve_variance_pre:
+            if self.preserve_variance:
                 # rescale the pre-attention (local->global) q/k/v transform
                 inv_frames = _scale_frames(inv_frames, inv_gamma)
                 lower_inv_frames = _scale_frames(lower_inv_frames, inv_gamma)
@@ -163,8 +160,8 @@ class LLoCaAttention(torch.nn.Module):
                 inv=torch.cat([inv_frames.inv, lower_inv_frames.inv, inv_frames.inv], dim=0),
             )
 
-            if self.preserve_variance_post:
-                # rescale the post-attention (global->local) output transform; independent of _pre
+            if self.preserve_variance:
+                # rescale the post-attention (global->local) output transform
                 frames_out = _scale_frames(frames_out, inv_gamma)
 
             # flatten frames (preparation for tensorreps_transform)
@@ -176,7 +173,7 @@ class LLoCaAttention(torch.nn.Module):
         assert k_local.shape == v_local.shape == q_local.shape  # has to match perfectly
         assert 3 * prod(k_local.shape[:-1]) == self.frames_qkv.shape[-3]
 
-        # transform q, k, v into global frame (preserve_variance_pre rescaling, if enabled, is
+        # transform q, k, v into global frame (preserve_variance rescaling, if enabled, is
         # already folded into self.frames_qkv, see prepare_frames)
         qkv_local = torch.cat([q_local, k_local, v_local], dim=0)
         qkv_global = self.transform(qkv_local, self.frames_qkv)
@@ -184,7 +181,7 @@ class LLoCaAttention(torch.nn.Module):
         return q_global, k_global, v_global
 
     def _global_to_local(self, out_global):
-        # transform result back into local frame (preserve_variance_post rescaling, if enabled,
+        # transform result back into local frame (preserve_variance rescaling, if enabled,
         # is already folded into self.frames_out, see prepare_frames)
         return self.transform(out_global, self.frames_out)
 

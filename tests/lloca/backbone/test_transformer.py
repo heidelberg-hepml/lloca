@@ -61,12 +61,12 @@ def test_transformer_invariance_equivariance(
     fm_transformed = torch.einsum("...ij,...j->...i", random, fm)
     frames_transformed = predictor(fm_transformed)
     fm_tr_local = trafo(fm_transformed, frames_transformed)
-    fm_tr_prime_local = net(fm_tr_local, frames_transformed)
+    fm_tr_prime_local = net(fm_tr_local, frames_transformed, fourmomenta=fm_tr_local)
     # back to global frame
     fm_tr_prime_global = trafo(fm_tr_prime_local, InverseFrames(frames_transformed))
 
     # transformer - global
-    fm_prime_local = net(fm_local, frames)
+    fm_prime_local = net(fm_local, frames, fourmomenta=fm_local)
     # back to global
     fm_prime_global = trafo(fm_prime_local, InverseFrames(frames))
     fm_prime_tr_global = torch.einsum("...ij,...j->...i", random, fm_prime_global)
@@ -123,5 +123,5 @@ def test_transformer_shape(
     fm_local = trafo(fm, frames)
 
     # call transformer
-    out = net(fm_local, frames)
+    out = net(fm_local, frames, fourmomenta=fm_local)
     assert out.shape == (*batch_dims, 4)

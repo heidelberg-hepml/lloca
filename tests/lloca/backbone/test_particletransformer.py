@@ -52,11 +52,12 @@ def test_block_invariance_equivariance(
     ParT_block = Block(attention=attention, embed_dim=attn_reps.dim * num_heads).to(dtype)
     ParT_block.eval()  # turn off dropout
 
-    def block_wrapper(x, frames):
+    def block_wrapper(x, frames, fourmomenta):
         x = x.unsqueeze(0)
         mask = torch.ones_like(x[..., 0])
         frames = frames.reshape(1, *frames.shape)
-        attention.prepare_frames(frames)
+        fourmomenta = fourmomenta.unsqueeze(0)
+        attention.prepare_frames(frames, fourmomenta=fourmomenta)
         x = ParT_block(x=x, padding_mask=mask)
         x = x.squeeze(0)
         return x
@@ -72,7 +73,7 @@ def test_block_invariance_equivariance(
 
     # block - global
     x_local = linear_in(fm_local)
-    x_prime_local = block_wrapper(x_local, frames)
+    x_prime_local = block_wrapper(x_local, frames, fm_local)
     fm_prime_local = linear_out(x_prime_local)
     # back to global
     fm_prime_global = trafo(fm_prime_local, InverseFrames(frames))
@@ -83,7 +84,7 @@ def test_block_invariance_equivariance(
     frames_transformed = predictor(fm_transformed)
     fm_tr_local = trafo(fm_transformed, frames_transformed)
     x_tr_local = linear_in(fm_tr_local)
-    x_tr_prime_local = block_wrapper(x_tr_local, frames_transformed)
+    x_tr_prime_local = block_wrapper(x_tr_local, frames_transformed, fm_tr_local)
     fm_tr_prime_local = linear_out(x_tr_prime_local)
     # back to global frame
     fm_tr_prime_global = trafo(fm_tr_prime_local, InverseFrames(frames_transformed))
