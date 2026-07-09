@@ -5,7 +5,7 @@ import math
 import torch
 from lgatr import embed_vector
 from lgatr.layers import EquiLayerNorm
-from lgatr.nets.slim import SlimRMSNorm
+from lgatr.nets.slim_layers import SlimRMSNorm
 from lgatr.primitives.invariants import _load_inner_product_factors
 from torch_geometric.nn import MessagePassing
 
