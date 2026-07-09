@@ -164,10 +164,16 @@ class BaselineTransformerBlock(nn.Module):
         attention_factor: int = 1,
         mlp_factor: int = 2,
         dropout_prob=None,
+        elementwise_affine: bool = True,
     ) -> None:
         super().__init__()
 
-        self.norm = nn.RMSNorm(normalized_shape=hidden_channels, elementwise_affine=False)
+        self.norm1 = nn.RMSNorm(
+            normalized_shape=hidden_channels, elementwise_affine=elementwise_affine
+        )
+        self.norm2 = nn.RMSNorm(
+            normalized_shape=hidden_channels, elementwise_affine=elementwise_affine
+        )
 
         hidden_channels_attn = hidden_channels * attention_factor
 
@@ -206,12 +212,12 @@ class BaselineTransformerBlock(nn.Module):
         """
 
         # Residual attention
-        h = self.norm(inputs).to(inputs.dtype)
+        h = self.norm1(inputs).to(inputs.dtype)
         h = self.attention(h, **attn_kwargs)
         outputs = inputs + h
 
         # Residual MLP with GatedLinearUnit
-        h = self.norm(outputs).to(outputs.dtype)
+        h = self.norm2(outputs).to(outputs.dtype)
         h1, h2 = self.mlp_in(h).chunk(2, dim=-1)
         h = self.act(h1) * h2
         h = self.mlp_out(h)
@@ -247,6 +253,8 @@ class Transformer(nn.Module):
         Factor by which the activation size is increased over the default value of hidden_channels.
     dropout_prob : float
         Dropout probability for output.
+    elementwise_affine : bool
+        Whether the RMSNorm layers use learnable per-channel affine weights.
     compile : bool, optional
         Whether to compile the model with torch.compile, by default False.
     compile_kwargs : Mapping, optional
@@ -267,6 +275,7 @@ class Transformer(nn.Module):
         mlp_factor: int = 2,
         dropout_prob: float | None = None,
         preserve_variance: bool = True,
+        elementwise_affine: bool = True,
         compile: bool = False,
         compile_kwargs: Mapping | None = None,
     ) -> None:
@@ -290,6 +299,7 @@ class Transformer(nn.Module):
                     attention_factor=attention_factor,
                     mlp_factor=mlp_factor,
                     dropout_prob=dropout_prob,
+                    elementwise_affine=elementwise_affine,
                 )
                 for _ in range(num_blocks)
             ]
