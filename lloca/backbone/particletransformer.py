@@ -1283,17 +1283,16 @@ class ParticleTransformer(nn.Module):
         x_cls = self.norm(cls_tokens)  # (batch, embed_dim)
         return x_cls
 
-    def forward(self, x, frames, v=None, mask=None, uu=None, uu_idx=None):
+    def forward(self, x, frames, v=None, mask=None, uu=None, uu_idx=None, p_ref=None):
         # x: (batch_size, num_fts, seq_len)
         # frames: local frames of shape (batch_size, seq_len, 4, 4)
         # v: (batch_size, 4, seq_len) [px,py,pz,energy]
         # mask: (batch_size, 1, seq_len) -- real particle = 1, padded = 0
         # for pytorch: uu (batch_size, C', num_pairs), uu_idx (batch_size, 2, num_pairs)
         # for onnx: uu (batch_size, C', seq_len, seq_len), uu_idx=None
-        # preserve_variance uses the local 4-momenta, energy-first (v=None raises if enabled)
-        fourmomenta = None if v is None else v.transpose(1, 2)[..., [3, 0, 1, 2]]
-        vmask = None if mask is None else mask.squeeze(1)
-        self.attention.prepare_frames(frames, fourmomenta=fourmomenta, mask=vmask)
+        # p_ref: reference (jet) 4-momentum in the global frame (batch_size, 4), required when
+        # preserve_variance is on
+        self.attention.prepare_frames(frames, p_ref=p_ref)
 
         x, padding_mask = self._forward_encoder(x, v=v, mask=mask, uu=uu, uu_idx=uu_idx)
 

@@ -61,8 +61,8 @@ class LLoCaAttention(torch.nn.Module):
             Number of attention heads
         preserve_variance : bool
             Rescale the pre-attention (local->global) q/k/v and post-attention (global->local) vectors
-            by 1/gamma_i^grade to prevent the variance blowup from large boosts. Needs the 4-momenta
-            in :meth:`prepare_frames`.
+            by 1/gamma_i^grade to prevent the variance blowup from large boosts. Needs the reference
+            momentum ``p_ref`` in :meth:`prepare_frames`.
         variance_eps : float
             Small mass floor (energy units) that keeps gamma_i finite for near-lightlike jets.
         """
@@ -76,51 +76,44 @@ class LLoCaAttention(torch.nn.Module):
         self.frames_qkv = None
         self.frames_out = None
 
-    def _compute_gamma(self, frames, fourmomenta, mask=None, ptr=None):
+    def _compute_gamma(self, frames, p_ref, ptr=None):
         """Invariant per-particle Lorentz factor gamma_i >= 1 that prevents variance blowup."""
-        dtype = torch.promote_types(fourmomenta.dtype, torch.float32)
+        dtype = torch.promote_types(p_ref.dtype, torch.float32)
         L = frames.matrices.to(dtype)
-        p_global = torch.einsum("...nij,...nj->...ni", frames.inv.to(dtype), fourmomenta.to(dtype))
-        if mask is not None:
-            # where (not *): padded particles contribute 0 even if their momenta are non-finite
-            p_global = torch.where(mask[..., None], p_global, torch.zeros_like(p_global))
-        # reference momentum: total momentum of the event (dense) or of each jet (ptr)
+        p_ref = p_ref.to(dtype)
         if ptr is None:
-            p_ref = p_global.sum(dim=-2, keepdim=True).expand_as(p_global)
+            # dense: one reference momentum per event, broadcast over the token axis
+            p_ref = p_ref.unsqueeze(-2).expand(*L.shape[:-2], 4)
         else:
-            flat = p_global.reshape(-1, 4)
-            seg = get_batch_from_ptr(ptr, num_items=flat.shape[0])
-            p_ref = flat.new_zeros(ptr.numel() - 1, 4).index_add_(0, seg, flat)
-            p_ref = p_ref.index_select(0, seg).reshape_as(p_global)
+            # packed: map the per-jet reference momentum to each token
+            seg = get_batch_from_ptr(ptr, num_items=L.shape[-3])
+            p_ref = p_ref.index_select(0, seg)
         m_ref = torch.sqrt(self.variance_eps**2 + lorentz_squarednorm(p_ref).clamp(min=0))
         gamma = torch.einsum("...nij,...nj->...ni", L, p_ref)[..., 0] / m_ref
         return gamma.detach()  # fixed normalization: no gradient into the frames
 
     @minimum_autocast_precision(torch.float32)
-    def prepare_frames(self, frames, fourmomenta=None, mask=None, ptr=None):
+    def prepare_frames(self, frames, p_ref=None, ptr=None):
         """Prepare local frames for LLoCa attention (called once per forward pass).
 
         Parameters
         ----------
         frames: Frames
             Local frames of shape (..., N, 4, 4).
-        fourmomenta: torch.tensor, optional
-            Local per-particle 4-momenta (..., N, 4), energy-first; required when the
-            ``preserve_variance`` flag is on, ignored otherwise.
-        mask: torch.tensor, optional
-            Real-particle mask (..., N); None means all real.
+        p_ref: torch.tensor, optional
+            Reference 4-momentum in the global frame (energy-first), i.e. the total (jet) momentum:
+            per event ``(..., 4)`` for a dense layout, or per jet ``(num_jets, 4)`` with ``ptr`` for
+            a packed layout. Required when the ``preserve_variance`` flag is on, ignored otherwise.
         ptr: torch.tensor, optional
-            Jet boundaries for a packed layout; the reference momentum is then per jet.
+            Jet boundaries for a packed layout; maps the per-jet ``p_ref`` to each token.
         """
         self.frames = frames
         if not frames.is_global:
             inv_gamma = None
             if self.preserve_variance:
-                if fourmomenta is None:
-                    raise ValueError("preserve_variance requires `fourmomenta` in prepare_frames.")
-                gamma = self._compute_gamma(
-                    frames, fourmomenta, None if mask is None else mask.bool(), ptr=ptr
-                )
+                if p_ref is None:
+                    raise ValueError("preserve_variance requires `p_ref` in prepare_frames.")
+                gamma = self._compute_gamma(frames, p_ref, ptr=ptr)
                 # (..., 1, N, 1, 1): broadcasts over heads and the 4x4 matrix. Folded directly
                 # into the frame matrices (see _scale_frames) rather than applied per-channel
                 # to every q/k/v/output tensor in every layer, since a grade-n tensor transform

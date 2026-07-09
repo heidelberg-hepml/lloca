@@ -310,7 +310,7 @@ class Transformer(nn.Module):
             compile_model(self, compile_kwargs=compile_kwargs)
 
     def forward(
-        self, inputs: torch.Tensor, frames, fourmomenta=None, mask=None, ptr=None, **attn_kwargs
+        self, inputs: torch.Tensor, frames, p_ref=None, ptr=None, **attn_kwargs
     ) -> torch.Tensor:
         """Forward pass.
 
@@ -320,13 +320,12 @@ class Transformer(nn.Module):
             Input data with shape (..., num_items, in_channels)
         frames : Frames
             Local frames used for invariant particle attention
-        fourmomenta : Tensor, optional
-            Local per-token 4-momenta (..., num_items, 4), energy-first; required when a
-            ``preserve_variance`` flag is on, ignored otherwise.
-        mask : Tensor, optional
-            Real-token mask (..., num_items); None means all real.
+        p_ref : Tensor, optional
+            Reference (jet) 4-momentum in the global frame, energy-first: per event ``(..., 4)``
+            for a dense layout or per jet ``(num_jets, 4)`` with ``ptr`` for a packed layout.
+            Required when a ``preserve_variance`` flag is on, ignored otherwise.
         ptr : Tensor, optional
-            Jet boundaries for a packed layout (per-jet reference momentum); None for dense.
+            Jet boundaries for a packed layout; maps the per-jet ``p_ref`` to each token.
         **attn_kwargs
 
         Returns
@@ -334,7 +333,7 @@ class Transformer(nn.Module):
         outputs : Tensor
             Outputs with shape (..., num_items, out_channels)
         """
-        self.attention.prepare_frames(frames, fourmomenta=fourmomenta, mask=mask, ptr=ptr)
+        self.attention.prepare_frames(frames, p_ref=p_ref, ptr=ptr)
 
         h = self.linear_in(inputs)
         for block in self.blocks:

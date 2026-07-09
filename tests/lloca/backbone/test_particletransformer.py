@@ -56,8 +56,9 @@ def test_block_invariance_equivariance(
         x = x.unsqueeze(0)
         mask = torch.ones_like(x[..., 0])
         frames = frames.reshape(1, *frames.shape)
-        fourmomenta = fourmomenta.unsqueeze(0)
-        attention.prepare_frames(frames, fourmomenta=fourmomenta)
+        # reference (jet) momentum in the global frame
+        p_global = torch.einsum("...ij,...j->...i", frames.inv, fourmomenta.unsqueeze(0))
+        attention.prepare_frames(frames, p_ref=p_global.sum(dim=-2))
         x = ParT_block(x=x, padding_mask=mask)
         x = x.squeeze(0)
         return x
@@ -134,11 +135,13 @@ def test_ParT_invariance(
     def ParT_wrapper(p_local, frames):
         fts_local = get_tagging_features(p_local, batch)
         fts_local = fts_local.transpose(-1, -2).unsqueeze(0)
+        # reference (jet) momentum in the global frame (energy-first)
+        p_ref = torch.einsum("nij,nj->ni", frames.inv, p_local).sum(dim=0, keepdim=True)
         p_local = p_local[..., [1, 2, 3, 0]]
         p_local = p_local.transpose(-1, -2).unsqueeze(0)
         mask = torch.ones_like(p_local[..., [0], :])
         frames = frames.reshape(1, *frames.shape)
-        x = model(x=fts_local, v=p_local, frames=frames, mask=mask)
+        x = model(x=fts_local, v=p_local, frames=frames, mask=mask, p_ref=p_ref)
         x = x.transpose(-1, -2).squeeze(0)
         return x
 
@@ -212,11 +215,13 @@ def test_ParT_shape(
     def ParT_wrapper(p_local, frames):
         fts_local = get_tagging_features(p_local, batch)
         fts_local = fts_local.transpose(-1, -2).unsqueeze(0)
+        # reference (jet) momentum in the global frame (energy-first)
+        p_ref = torch.einsum("nij,nj->ni", frames.inv, p_local).sum(dim=0, keepdim=True)
         p_local = p_local[..., [1, 2, 3, 0]]
         p_local = p_local.transpose(-1, -2).unsqueeze(0)
         mask = torch.ones_like(p_local[..., [0], :])
         frames = frames.reshape(1, *frames.shape)
-        x = model(x=fts_local, v=p_local, frames=frames, mask=mask)
+        x = model(x=fts_local, v=p_local, frames=frames, mask=mask, p_ref=p_ref)
         x = x.transpose(-1, -2).squeeze(0)
         return x
 

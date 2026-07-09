@@ -53,7 +53,7 @@ def test_invariance_equivariance(
     # path 1: Frames transform + random transform
     frames = call_predictor(fm)
     fm_local = trafo(fm, frames)
-    attention.prepare_frames(frames, fourmomenta=fm_local)
+    attention.prepare_frames(frames, p_ref=fm.sum(dim=-2))
     x_local = linear_in(fm_local).unsqueeze(0)
     q_local, k_local, v_local = x_local.chunk(3, dim=-1)
     x_local2 = attention(q_local, k_local, v_local).squeeze(0)
@@ -65,7 +65,7 @@ def test_invariance_equivariance(
     fm_prime = torch.einsum("...ij,...j->...i", random, fm)
     frames_prime = call_predictor(fm_prime)
     fm_prime_local = trafo(fm_prime, frames_prime)
-    attention.prepare_frames(frames_prime, fourmomenta=fm_prime_local)
+    attention.prepare_frames(frames_prime, p_ref=fm_prime.sum(dim=-2))
     x_prime_local = linear_in(fm_prime_local).unsqueeze(0)
     q_prime_local, k_prime_local, v_prime_local = x_prime_local.chunk(3, dim=-1)
     x_prime_local2 = attention(q_prime_local, k_prime_local, v_prime_local).squeeze(0)
