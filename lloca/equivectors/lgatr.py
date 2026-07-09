@@ -5,7 +5,7 @@ import math
 import torch
 from lgatr import embed_vector
 from lgatr.layers import EquiLayerNorm
-from lgatr.nets.lgatr_slim import RMSNorm
+from lgatr.nets.slim import SlimRMSNorm
 from lgatr.primitives.invariants import _load_inner_product_factors
 from torch_geometric.nn import MessagePassing
 
@@ -230,7 +230,7 @@ class LGATrSlimVectors(_LGATrVectorsBase):
             out_s_channels=out_s_channels,
         )
         self.lgatr_norm = (
-            RMSNorm(out_v_channels, out_s_channels, elementwise_affine=False)
+            SlimRMSNorm(out_v_channels, out_s_channels, elementwise_affine=False)
             if lgatr_norm
             else None
         )
