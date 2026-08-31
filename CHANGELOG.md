@@ -9,16 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `preserve_variance` option for the attention backbones, needs the reference momentum `p_ref`
+- `elementwise_affine` option for `transformer_v2`
 - `LGATrSlimVectors` option
+- Unit tests for all supported torch versions `torch>=2.4`
 
 ### Changed
 
+- Require `lgatr>=2.0.0` (modified interface)
+- Attention backends are imported lazily, and an unavailable backend raises instead of silently falling back to dense attention
 - Replace the `compile_mode`/`compile_dynamic`/`compile_fullgraph` arguments with a single `compile_kwargs` dict forwarded to `torch.compile`
 - Align attention with the `lgatr` package
 - Pull ParT changes from weaver-core main branch
 - Improve `amp` handling (now also covers CPU); re-import autocast code from `lgatr`
 - Handle shapes in `rand_transforms.py` more carefully
-- Bump minimum torch version to 2.4 (lgatr requirement)
+- Bump minimum torch version to 2.4 (`nn.RMSNorm`)
 
 ### Removed
 
@@ -26,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `LGATrSlimVectors` for `num_scalars=0` and for `lgatr_norm=True` (lgatr v2 slim conventions)
+- `LowerIndicesFrames` dropped the metric for identity frames
+- Deprecated `torch.get_autocast_gpu_dtype()` in the `flash` and `varlen` backends
+- `native` attention backend in source checkouts without package metadata
 - Micro optimizations to make code faster; for instance frame-to-frame transform
 - Fix `torch.compile` calls to compile the `forward`, not the whole class
 - Remove more CPU-GPU syncs (`num_items`/`num_graphs` options in `get_batch_from_ptr`/`get_ptr_from_batch`, sync-free `mass_regularize`, one-time `edge_inited` assert in `EquiMLP.forward`)
