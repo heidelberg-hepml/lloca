@@ -1,6 +1,7 @@
 """Baseline LLoCa-Transformer."""
 
 from collections.abc import Mapping
+from functools import partial
 
 import torch
 from torch import nn
@@ -323,6 +324,10 @@ class Transformer(nn.Module):
         Use multi-query attention instead of multi-head attention.
     dropout_prob : float
         Dropout probability for output.
+    preserve_variance : bool
+        Rescale the frame-to-frame transforms by the invariant Lorentz factor of each particle
+        frame, to prevent the variance blowup from large boosts. Needs the reference momentum
+        ``p_ref`` in :meth:`forward`.
     compile : bool, optional
         Whether to compile the model with torch.compile, by default False.
     compile_kwargs : Mapping, optional
@@ -406,7 +411,8 @@ class Transformer(nn.Module):
         h = self.linear_in(inputs)
         for block in self.blocks:
             if self.checkpoint_blocks:
-                h = checkpoint(block, h, use_reentrant=False, **attn_kwargs)
+                fn = partial(block, **attn_kwargs)
+                h = checkpoint(fn, h, use_reentrant=False)
             else:
                 h = block(h, **attn_kwargs)
         outputs = self.linear_out(h)

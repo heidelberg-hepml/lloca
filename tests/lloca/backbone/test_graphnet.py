@@ -4,6 +4,7 @@ from torch_geometric.utils import dense_to_sparse
 
 from lloca.backbone.graphnet import EdgeConv, GraphNet
 from lloca.framesnet.frames import InverseFrames
+from lloca.framesnet.nonequi_frames import IdentityFrames, RandomFrames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.utils.rand_transforms import rand_lorentz
@@ -147,3 +148,31 @@ def test_graphnet_invariance_equivariance(
 
     # test equivariance of outputs
     torch.testing.assert_close(fm_tr_prime_global, fm_prime_tr_global, **TOLERANCES)
+
+
+@pytest.mark.parametrize(
+    "predictor_factory",
+    [IdentityFrames, lambda: RandomFrames(is_global=True).train()],
+    ids=["identity", "random_global"],
+)
+@pytest.mark.parametrize("batch_dims", [[6]])
+def test_message_passing_with_global_frames(predictor_factory, batch_dims):
+    """Message passing must work with global frames.
+
+    ChangeOfFrames takes its identity shortcut here; it used to build (..., 4, 4, 4, 4)
+    matrices, so this whole path was broken for the non-equivariant baselines.
+    """
+    dtype = torch.float64
+    n = batch_dims[0]
+    edge_index = dense_to_sparse(torch.ones(n, n))[0]
+
+    reps = TensorReps("3x0n+1x1n")
+    edgeconv = EdgeConv(reps, 1, 1).to(dtype=dtype)
+
+    fm = sample_particle(batch_dims, 1.0, 0.0, dtype=dtype)
+    frames = predictor_factory()(fm)
+    assert frames.is_global
+    assert frames.matrices.shape == (n, 4, 4)
+
+    out = edgeconv(torch.randn(n, reps.dim, dtype=dtype), frames, edge_index)
+    assert out.shape == (n, reps.dim)

@@ -1,6 +1,5 @@
-"""ParticleNet with local frame transformations."""
+"""ParticleNet with local frame transformations.
 
-"""
 Paper: "ParticleNet: Jet Tagging via Particle Clouds" - https://arxiv.org/abs/1902.08570
 Code: https://github.com/hqucms/weaver-core/blob/main/weaver/nn/model/ParticleNet.py
 
@@ -165,11 +164,15 @@ class EdgeConvBlock(nn.Module):
             self.bns = nn.ModuleList()
             for i in range(self.num_layers):
                 self.bns.append(nn.BatchNorm2d(out_feats[i]))
+        else:
+            self.bns = [None] * self.num_layers
 
         if activation:
             self.acts = nn.ModuleList()
             for i in range(self.num_layers):
                 self.acts.append(nn.ReLU())
+        else:
+            self.acts = [None] * self.num_layers
 
         if in_feat == out_feats[-1]:
             self.sc = None
@@ -177,14 +180,13 @@ class EdgeConvBlock(nn.Module):
             self.sc = nn.Conv1d(in_feat, out_feats[-1], kernel_size=1, bias=False)
             self.sc_bn = nn.BatchNorm1d(out_feats[-1])
 
-        if activation:
-            self.sc_act = nn.ReLU()
+        self.sc_act = nn.ReLU() if activation else None
 
     def forward(self, points, features, frames):
         topk_indices = knn(points, self.k)
         x = self.get_graph_feature(features, self.k, topk_indices, frames, self.trafo)
 
-        for conv, bn, act in zip(self.convs, self.bns, self.acts, strict=False):
+        for conv, bn, act in zip(self.convs, self.bns, self.acts, strict=True):
             x = conv(x)  # (N, C', P, K)
             if bn:
                 x = bn(x)
@@ -200,7 +202,8 @@ class EdgeConvBlock(nn.Module):
         else:
             sc = features
 
-        return self.sc_act(sc + fts)  # (N, C_out, P)
+        out = sc + fts
+        return self.sc_act(out) if self.sc_act is not None else out  # (N, C_out, P)
 
 
 class ParticleNet(nn.Module):
@@ -288,8 +291,8 @@ class ParticleNet(nn.Module):
         #         print('features:\n', features)
         if mask is None:
             mask = features.abs().sum(dim=1, keepdim=True) != 0  # (N, 1, P)
-        points *= mask
-        features *= mask
+        points = points * mask
+        features = features * mask
         coord_shift = (mask == 0) * 1e9
         if self.use_counts:
             counts = mask.float().sum(dim=-1)

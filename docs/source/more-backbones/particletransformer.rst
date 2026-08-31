@@ -11,6 +11,10 @@ ParticleTransformer features two types of attention blocks, particle self-attent
 and class attention for the final aggregation over the jet. We find that it is sufficient to use
 tensorial message-passing only in the particle self-attention blocks.
 
+As in :doc:`transformer`, we pass ``preserve_variance=False`` to keep the diff minimal;
+see :class:`~lloca.backbone.particletransformer.ParticleTransformer` for the variant that
+threads the reference four-momentum ``p_ref`` through ``forward``.
+
 .. code-block:: diff
 
     import copy
@@ -866,7 +870,7 @@ tensorial message-passing only in the particle self-attention blocks.
             self.embed_dim = embed_dims[-1] if len(embed_dims) > 0 else input_dim
     +       attn_reps = TensorReps(attn_reps)
     +       assert attn_reps.dim * num_heads == self.embed_dim
-    +       self.attention = LLoCaAttention(attn_reps, num_heads)
+    +       self.attention = LLoCaAttention(attn_reps, num_heads, preserve_variance=False)
             default_cfg = dict(
                 embed_dim=self.embed_dim,
                 num_heads=num_heads,

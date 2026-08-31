@@ -295,7 +295,7 @@ def rand_boost(
     )
     beta2 = (beta**2).sum(dim=-1, keepdim=True)
     gamma = 1 / (1 - beta2).clamp(min=1e-10).sqrt()
-    fourmomenta = torch.cat([gamma, beta], axis=-1)
+    fourmomenta = torch.cat([gamma, beta], dim=-1)
 
     boost = restframe_boost(fourmomenta)
     return boost
@@ -325,7 +325,7 @@ def sample_rapidity(
     """
     eta = randn_wrapper(shape, device, dtype, generator=generator)
     angle = eta * std_eta
-    angle.clamp(min=-std_eta * n_max_std_eta, max=std_eta * n_max_std_eta)
+    angle = angle.clamp(min=-std_eta * n_max_std_eta, max=std_eta * n_max_std_eta)
     return angle
 
 

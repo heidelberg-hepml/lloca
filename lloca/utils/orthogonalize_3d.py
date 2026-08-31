@@ -90,7 +90,7 @@ def orthogonalize_cross_3d(vecs, eps_norm=None):
     vecs = F.normalize(vecs, dim=-1, eps=eps_norm)
     e0, v1 = vecs.unbind(dim=-2)
 
-    u1 = torch.cross(e0, v1)
+    u1 = torch.cross(e0, v1, dim=-1)
     e1 = F.normalize(u1, dim=-1, eps=eps_norm)
 
     e2 = torch.cross(e0, e1, dim=-1)

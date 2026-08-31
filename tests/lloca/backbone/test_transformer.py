@@ -125,3 +125,33 @@ def test_transformer_shape(
     # call transformer
     out = net(fm_local, frames, p_ref=fm.sum(dim=-2))
     assert out.shape == (*batch_dims, 4)
+
+
+@pytest.mark.parametrize("transformer_type", [Transformer, TransformerV2])
+@pytest.mark.parametrize("batch_dims", [[10]])
+def test_transformer_checkpoint_with_attn_kwargs(transformer_type, batch_dims):
+    """checkpoint_blocks must still reach the block with its attention kwargs.
+
+    Both transformers now bind attn_kwargs with functools.partial instead of routing them
+    through checkpoint(), whose own keyword arguments would otherwise shadow same-named
+    attention kwargs. Nothing else covered this combination.
+    """
+    predictor = IdentityFrames()
+    fm = sample_particle(batch_dims, 1.0, 0.0)
+    frames = predictor(fm)
+
+    in_reps = TensorReps("1x1n")
+    trafo = TensorRepsTransform(TensorReps(in_reps))
+    net = transformer_type(
+        in_channels=in_reps.dim,
+        attn_reps=REPS[-1],
+        out_channels=in_reps.dim,
+        num_blocks=2,
+        num_heads=2,
+        checkpoint_blocks=True,
+    )
+
+    n = batch_dims[0]
+    attn_mask = torch.ones(n, n, dtype=torch.bool).tril()
+    out = net(trafo(fm, frames), frames, p_ref=fm.sum(dim=-2), attn_mask=attn_mask)
+    assert out.shape == (*batch_dims, 4)

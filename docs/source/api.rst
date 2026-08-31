@@ -35,6 +35,7 @@ In addition, we implement non-equivariant networks as identity frames and data a
    lloca.framesnet.equi_frames.LearnedSO2Frames
    lloca.framesnet.nonequi_frames.IdentityFrames
    lloca.framesnet.nonequi_frames.RandomFrames
+   lloca.framesnet.nonequi_frames.COMRandomFrames
 
 The resulting frames are stored in the :class:`~lloca.framesnet.frames.Frames` bookkeeping class.
 A range of derived class can be used for efficient access in the backbone architecture.
@@ -73,8 +74,18 @@ For :class:`~lloca.backbone.particlenet.ParticleNet` and :class:`~lloca.backbone
     lloca.backbone.attention.LLoCaAttention
     lloca.backbone.graphnet.GraphNet
     lloca.backbone.transformer.Transformer
+    lloca.backbone.transformer_v2.Transformer
     lloca.backbone.particlenet.ParticleNet
     lloca.backbone.particletransformer.ParticleTransformer
+
+Attention in the global frame is dispatched to one of several backends, selected from the
+keyword arguments passed to :class:`~lloca.backbone.attention.LLoCaAttention`.
+
+.. autosummary::
+    :toctree: generated/
+
+    lloca.backbone.attention_backends.get_attention_backend
+    lloca.backbone.attention_backends.mask.get_sparse_attention_mask
 
 Lorentz group representations
 -----------------------------
@@ -105,3 +116,5 @@ Finally, we provide a range of utility functions for Lorentz transformations, ra
    lloca.utils.orthogonalize_3d
    lloca.utils.orthogonalize_4d
    lloca.utils.polar_decomposition
+   lloca.utils.autocast
+   lloca.utils.compile

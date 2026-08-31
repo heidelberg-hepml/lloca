@@ -1,5 +1,5 @@
-"""Re-export of lgatr's ``minimum_autocast_precision``"""
+"""Re-exports of lgatr's autocast helpers."""
 
-from lgatr.utils.autocast import minimum_autocast_precision
+from lgatr.utils.autocast import autocast_dtype, minimum_autocast_precision, naive_amp
 
-__all__ = ["minimum_autocast_precision"]
+__all__ = ["autocast_dtype", "minimum_autocast_precision", "naive_amp"]

@@ -3,6 +3,7 @@ import torch
 from torch.nn import Linear
 
 from lloca.backbone.attention import LLoCaAttention
+from lloca.framesnet.equi_frames import LearnedPDFrames
 from lloca.framesnet.frames import InverseFrames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
@@ -80,3 +81,68 @@ def test_invariance_equivariance(
 
     # test equivariance of output
     torch.testing.assert_close(fm_prime_global, fm_global_prime, **TOLERANCES)
+
+
+def _frames_and_momenta(n=10, dtype=torch.float64):
+    equivectors = equivectors_builder()
+    predictor = LearnedPDFrames(equivectors=equivectors).to(dtype=dtype)
+    fm = sample_particle([n], 1.0, 0.0, dtype=dtype)
+    predictor.equivectors.init_standardization(fm)
+    return predictor(fm), fm
+
+
+def test_preserve_variance_requires_p_ref():
+    """``preserve_variance`` needs a reference momentum and must say so."""
+    frames, _ = _frames_and_momenta()
+    attention = LLoCaAttention(TensorReps("4x0n+2x1n"), 1).to(dtype=torch.float64)
+    with pytest.raises(ValueError, match="p_ref"):
+        attention.prepare_frames(frames)
+
+
+def test_preserve_variance_off_ignores_p_ref():
+    """With the flag off, ``p_ref`` is not required and not used."""
+    frames, fm = _frames_and_momenta()
+    attention = LLoCaAttention(TensorReps("4x0n+2x1n"), 1, preserve_variance=False).to(
+        dtype=torch.float64
+    )
+
+    attention.prepare_frames(frames)  # must not raise
+    qkv_without = attention.frames_qkv.matrices.clone()
+
+    attention.prepare_frames(frames, p_ref=fm.sum(dim=-2))
+    torch.testing.assert_close(attention.frames_qkv.matrices, qkv_without, **TOLERANCES)
+
+
+def test_preserve_variance_packed_matches_dense():
+    """The packed (``ptr``) branch of _compute_gamma must agree with the dense one."""
+    dtype = torch.float64
+    frames, fm = _frames_and_momenta(n=10, dtype=dtype)
+    attention = LLoCaAttention(TensorReps("4x0n+2x1n"), 1).to(dtype=dtype)
+
+    # dense: one event of 10 particles
+    attention.prepare_frames(frames, p_ref=fm.sum(dim=-2))
+    dense = attention.frames_qkv.matrices.clone()
+
+    # packed: the same 10 particles as a single jet described by ptr
+    ptr = torch.tensor([0, 10])
+    attention.prepare_frames(frames, p_ref=fm.sum(dim=-2, keepdim=True), ptr=ptr)
+    torch.testing.assert_close(attention.frames_qkv.matrices, dense, **TOLERANCES)
+
+
+def test_preserve_variance_bounds_boosted_variance():
+    """The point of the flag: a hard boost must not blow up the transformed q/k/v."""
+    dtype = torch.float64
+    frames, fm = _frames_and_momenta(n=64, dtype=dtype)
+    reps = TensorReps("4x0n+2x1n")
+    x = torch.randn(1, 1, 64, reps.dim, dtype=dtype)
+
+    scales = {}
+    for preserve in (False, True):
+        attention = LLoCaAttention(reps, 1, preserve_variance=preserve).to(dtype=dtype)
+        attention.prepare_frames(frames, p_ref=fm.sum(dim=-2))
+        q, k, v = attention._local_to_global(x, x, x)
+        scales[preserve] = q.abs().max().item()
+
+    assert scales[True] < scales[False], (
+        f"preserve_variance did not reduce the global-frame scale: {scales}"
+    )

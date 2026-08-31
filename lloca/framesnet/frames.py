@@ -43,7 +43,8 @@ class Frames:
             Optional cached determinant of shape (...).
             If not given, takes a bit of extra time to compute.
         is_identity: bool
-            Sets matrices to diagonal.
+            Sets matrices to diagonal. Takes precedence over ``matrices``: if both are given,
+            ``matrices`` is only used to infer shape, device and dtype.
         shape: List[int]
             Specifies matrices.shape[:-2] if is_identity. Otherwise inferred from matrices.
         device: str
@@ -55,7 +56,8 @@ class Frames:
         self.is_identity = is_identity
         if is_identity:
             if matrices is None:
-                assert shape and device and dtype
+                # `is not None`, not truthiness: an unbatched frame has shape ()
+                assert shape is not None and device is not None and dtype is not None
             else:
                 shape = matrices.shape[:-2]
                 device = matrices.device
@@ -190,9 +192,6 @@ class InverseFrames(Frames):
             inv=frames.matrices,
             det=frames.det,
             is_identity=frames.is_identity,
-            device=frames.device,
-            dtype=frames.dtype,
-            shape=frames.shape,
         )
 
 
@@ -206,9 +205,6 @@ class IndexSelectFrames(Frames):
             inv=frames.inv.index_select(0, indices),
             det=frames.det.index_select(0, indices),
             is_identity=frames.is_identity,
-            device=frames.device,
-            dtype=frames.dtype,
-            shape=frames.shape,
         )
 
 
@@ -227,7 +223,7 @@ class ChangeOfFrames(Frames):
         if frames_start.is_global:
             super().__init__(
                 is_identity=True,
-                shape=frames_start.shape,
+                shape=frames_start.shape[:-2],  # `shape` excludes the trailing (4, 4)
                 device=frames_start.device,
                 dtype=frames_start.dtype,
             )
@@ -258,8 +254,5 @@ class LowerIndicesFrames(Frames):
             inv=inv,
             det=det,
             is_global=frames.is_global,
-            is_identity=frames.is_identity,
-            device=frames.device,
-            dtype=frames.dtype,
-            shape=frames.shape,
+            is_identity=False,
         )

@@ -2,8 +2,9 @@ import pytest
 import torch
 
 from lloca.backbone.particlenet import EdgeConvBlock, ParticleNet
-from lloca.framesnet.equi_frames import LearnedPDFrames, LearnedSO13Frames
+from lloca.framesnet.equi_frames import LearnedPDFrames, LearnedRestFrames, LearnedSO13Frames
 from lloca.framesnet.frames import InverseFrames
+from lloca.framesnet.nonequi_frames import IdentityFrames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.utils.rand_transforms import rand_lorentz
@@ -98,8 +99,20 @@ def test_edgeconvblock_invariance_equivariance(
 
 
 @pytest.mark.parametrize(
-    "FramesPredictor", [LearnedSO13Frames, LearnedPDFrames]
-)  # RestFrames gives nans sometimes
+    "FramesPredictor",
+    [
+        LearnedSO13Frames,
+        LearnedPDFrames,
+        pytest.param(
+            LearnedRestFrames,
+            marks=pytest.mark.xfail(
+                strict=False,
+                reason="LearnedRestFrames occasionally produces NaNs here; "
+                "tracked rather than silently excluded from the parametrization",
+            ),
+        ),
+    ],
+)
 @pytest.mark.parametrize("batch_dims", [[10]])
 @pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
 def test_particlenet_invariance(
@@ -109,7 +122,6 @@ def test_particlenet_invariance(
     logm2_mean,
 ):
     dtype = torch.float64
-    batch = torch.zeros(batch_dims[0], dtype=torch.long)
 
     assert len(batch_dims) == 1
     equivectors = equivectors_builder()
@@ -130,7 +142,9 @@ def test_particlenet_invariance(
     particlenet.eval()  # turn off dropout
 
     def edgeconvblock_wrapper(p_local, frames):
-        fts_local = get_tagging_features(p_local, batch)
+        # jet-relative features need the jet momentum per particle, not a batch index
+        jet = p_local.sum(dim=-2, keepdim=True).expand_as(p_local)
+        fts_local = get_tagging_features(p_local, jet)
         fts_local = fts_local.transpose(-1, -2).unsqueeze(0)
         points_local = fts_local[:, [4, 5], :]
         x = particlenet(points=points_local, features=fts_local, frames=frames)
@@ -160,3 +174,27 @@ def test_particlenet_invariance(
 
     # test equivariance of scores
     torch.testing.assert_close(score_tr_prime_local, score_prime_local, **MILD_TOLERANCES)
+
+
+@pytest.mark.parametrize("batch_norm", [True, False])
+@pytest.mark.parametrize("activation", [True, False])
+def test_edgeconvblock_optional_batchnorm_and_activation(batch_norm, activation):
+    """EdgeConvBlock must build and run with batch_norm/activation switched off.
+
+    self.bns/self.acts/self.sc_act only existed in the enabled case, so any other
+    combination raised AttributeError in forward().
+    """
+    reps = TensorReps("3x0n+1x1n")
+    n, k = 8, 3
+    fm = sample_particle([n], 1.0, 0.0)
+    frames = IdentityFrames()(fm)
+
+    block = EdgeConvBlock(
+        k, reps, [reps.dim, reps.dim], batch_norm=batch_norm, activation=activation
+    )
+    block.eval()
+
+    points = torch.randn(1, 2, n)
+    features = torch.randn(1, reps.dim, n)
+    out = block(points, features, frames)
+    assert out.shape == (1, reps.dim, n)

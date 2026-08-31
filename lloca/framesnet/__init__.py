@@ -1,3 +1,5 @@
+"""Frames-Net: equivariant and non-equivariant local frames, and their bookkeeping."""
+
 from .equi_frames import (
     LearnedPDFrames,
     LearnedRestFrames,

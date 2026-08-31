@@ -4,8 +4,7 @@ import math
 
 import torch
 from lgatr import embed_vector
-from lgatr.layers import EquiLayerNorm
-from lgatr.nets.slim_layers import SlimRMSNorm
+from lgatr.layers import EquiLayerNorm, SlimRMSNorm
 from lgatr.primitives.invariants import _load_inner_product_factors
 from torch_geometric.nn import MessagePassing
 
@@ -19,9 +18,9 @@ from .mlp import get_edge_index_and_batch, get_nonlinearity, get_operation
 class _LGATrVectorsBase(EquiVectors, MessagePassing):
     """Shared machinery for L-GATr-based equivariant vector predictors.
 
-    Subclasses set up ``self.net`` and ``self.lgatr_norm`` and implement
-    ``_embed_input`` (how four-momenta enter the network) and ``_get_qk_metric``
-    (the metric contracting the query/key vector channels).
+    Subclasses set up ``self.net`` and ``self.lgatr_norm`` and implement ``_embed_input``
+    (how four-momenta enter the network), ``_get_qk_metric`` (the metric contracting the
+    query/key vector channels) and ``_apply_lgatr_norm`` (how ``self.lgatr_norm`` is called).
     """
 
     def __init__(
@@ -55,6 +54,13 @@ class _LGATrVectorsBase(EquiVectors, MessagePassing):
     def _get_qk_metric(self, device, dtype):
         raise NotImplementedError
 
+    def _apply_lgatr_norm(self, vectors, scalars):
+        raise NotImplementedError
+
+    def _prepare_scalars(self, scalars):
+        """Last chance to adapt the scalar stream to what ``self.net`` expects."""
+        return scalars
+
     def forward(self, fourmomenta, scalars=None, ptr=None, **kwargs):
         in_shape = fourmomenta.shape[:-1]
         if scalars is None:
@@ -74,9 +80,9 @@ class _LGATrVectorsBase(EquiVectors, MessagePassing):
         # get query and key from the underlying L-GATr network
         net_input = self._embed_input(fourmomenta).to(scalars.dtype)
         with torch.autocast(net_input.device.type, enabled=self.use_amp):
-            qk_v, qk_s = self.net(net_input, scalars, **attn_kwargs)
+            qk_v, qk_s = self.net(net_input, self._prepare_scalars(scalars), **attn_kwargs)
         if self.lgatr_norm is not None:
-            qk_v, qk_s = self.lgatr_norm(qk_v, qk_s)
+            qk_v, qk_s = self._apply_lgatr_norm(qk_v, qk_s)
 
         # flatten for message passing
         fm_shape = fourmomenta.shape[:-1]
@@ -194,6 +200,9 @@ class LGATrVectors(_LGATrVectorsBase):
     def _get_qk_metric(self, device, dtype):
         return _load_inner_product_factors(device=device, dtype=dtype)
 
+    def _apply_lgatr_norm(self, vectors, scalars):
+        return self.lgatr_norm(vectors, scalars)
+
 
 class LGATrSlimVectors(_LGATrVectorsBase):
     """Wrapper around the vector-stream ``lgatr.nets.LGATrSlim`` backbone."""
@@ -224,8 +233,9 @@ class LGATrSlimVectors(_LGATrVectorsBase):
         )
         out_v_channels = self._doubled_channels(hidden_v_channels, n_vectors)
         out_s_channels = self._doubled_channels(hidden_s_channels, n_vectors)
+        self.pad_scalars = num_scalars == 0
         self.net = net(
-            in_s_channels=num_scalars,
+            in_s_channels=max(num_scalars, 1),
             out_v_channels=out_v_channels,
             out_s_channels=out_s_channels,
         )
@@ -241,3 +251,12 @@ class LGATrSlimVectors(_LGATrVectorsBase):
     def _get_qk_metric(self, device, dtype):
         # Minkowski metric, contracting the four components of each vector channel
         return torch.tensor([1.0, -1.0, -1.0, -1.0], device=device, dtype=dtype)
+
+    def _apply_lgatr_norm(self, vectors, scalars):
+        vectors, scalars = self.lgatr_norm(vectors.transpose(-2, -1), scalars)
+        return vectors.transpose(-2, -1), scalars
+
+    def _prepare_scalars(self, scalars):
+        if not self.pad_scalars:
+            return scalars
+        return scalars.new_ones(*scalars.shape[:-1], 1)

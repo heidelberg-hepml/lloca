@@ -147,7 +147,15 @@ This is already handled internally for the LLoCa :mod:`~lloca.backbone.transform
       num_heads=2,
    )
 
-   out = backbone(features_local, frames) # (128, 10, 1)
+   p_ref = fourmomenta.sum(dim=-2) # (128, 4)
+   out = backbone(features_local, frames, p_ref=p_ref) # (128, 10, 1)
+
+The backbone defaults to ``preserve_variance=True``, which rescales the frame-to-frame
+transforms by the invariant Lorentz factor :math:`\gamma_i` of each particle frame to keep the
+attention inputs from blowing up under large boosts. It needs a reference four-momentum
+``p_ref`` in the global frame, typically the summed (jet) momentum of each event.
+Pass ``preserve_variance=False`` to the backbone constructor to switch this off, in which case
+``p_ref`` is not needed.
 
 Next steps
 ----------

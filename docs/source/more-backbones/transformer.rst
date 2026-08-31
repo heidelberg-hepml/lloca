@@ -11,6 +11,13 @@ into the global frame, perform attention there, and then transform the features 
 See `Eq. (12) in the ML paper <https://arxiv.org/abs/2505.20280>`_ and
 `Eq. (19) in the HEP paper <https://arxiv.org/abs/2508.14898>`_ for details.
 
+The :class:`~lloca.backbone.attention.LLoCaAttention` class also has a ``preserve_variance``
+option, on by default, which rescales the frame-to-frame transforms by the invariant Lorentz
+factor of each particle frame to keep the attention inputs from blowing up under large boosts.
+It needs a reference four-momentum ``p_ref`` in the global frame, which has to be threaded
+through ``forward`` into ``prepare_frames``; see :class:`~lloca.backbone.transformer.Transformer`.
+We switch it off here to keep the diff minimal.
+
 .. code-block:: diff
 
     from functools import partial
@@ -361,7 +368,7 @@ See `Eq. (12) in the ML paper <https://arxiv.org/abs/2505.20280>`_ and
     +       attn_reps = TensorReps(attn_reps)
     +       self.hidden_channels = attn_reps.dim * num_heads // attention_factor
             self.checkpoint_blocks = checkpoint_blocks
-    +       self.attention = LLoCaAttention(attn_reps, num_heads)
+    +       self.attention = LLoCaAttention(attn_reps, num_heads, preserve_variance=False)
 
             self.linear_in = nn.Linear(in_channels, self.hidden_channels)
             self.blocks = nn.ModuleList(

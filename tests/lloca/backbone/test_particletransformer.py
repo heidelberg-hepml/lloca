@@ -3,7 +3,7 @@ import torch
 
 from lloca.backbone.attention import LLoCaAttention
 from lloca.backbone.particletransformer import Block, ParticleTransformer
-from lloca.framesnet.equi_frames import LearnedPDFrames, LearnedSO13Frames
+from lloca.framesnet.equi_frames import LearnedPDFrames, LearnedRestFrames, LearnedSO13Frames
 from lloca.framesnet.frames import InverseFrames
 from lloca.framesnet.nonequi_frames import IdentityFrames
 from lloca.reps.tensorreps import TensorReps
@@ -101,8 +101,20 @@ def test_block_invariance_equivariance(
 
 
 @pytest.mark.parametrize(
-    "FramesPredictor", [LearnedSO13Frames, LearnedPDFrames]
-)  # RestFrames gives nans sometimes
+    "FramesPredictor",
+    [
+        LearnedSO13Frames,
+        LearnedPDFrames,
+        pytest.param(
+            LearnedRestFrames,
+            marks=pytest.mark.xfail(
+                strict=False,
+                reason="LearnedRestFrames occasionally produces NaNs here; "
+                "tracked rather than silently excluded from the parametrization",
+            ),
+        ),
+    ],
+)
 @pytest.mark.parametrize("batch_dims", [[10]])
 @pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
 def test_ParT_invariance(
@@ -112,7 +124,6 @@ def test_ParT_invariance(
     logm2_mean,
 ):
     dtype = torch.float64
-    batch = torch.zeros(batch_dims[0], dtype=torch.long)
 
     assert len(batch_dims) == 1
     equivectors = equivectors_builder()
@@ -133,7 +144,9 @@ def test_ParT_invariance(
     model.eval()  # turn off dropout
 
     def ParT_wrapper(p_local, frames):
-        fts_local = get_tagging_features(p_local, batch)
+        # jet-relative features need the jet momentum per particle, not a batch index
+        jet = p_local.sum(dim=-2, keepdim=True).expand_as(p_local)
+        fts_local = get_tagging_features(p_local, jet)
         fts_local = fts_local.transpose(-1, -2).unsqueeze(0)
         # reference (jet) momentum in the global frame (energy-first)
         p_ref = torch.einsum("nij,nj->ni", frames.inv, p_local).sum(dim=0, keepdim=True)
@@ -185,7 +198,6 @@ def test_ParT_shape(
     compile,
 ):
     assert len(batch_dims) == 1
-    batch = torch.zeros(batch_dims[0], dtype=torch.long)
 
     kwargs = {}
     if FramesPredictor == LearnedPDFrames:
@@ -213,7 +225,9 @@ def test_ParT_shape(
     model.eval()  # turn off dropout
 
     def ParT_wrapper(p_local, frames):
-        fts_local = get_tagging_features(p_local, batch)
+        # jet-relative features need the jet momentum per particle, not a batch index
+        jet = p_local.sum(dim=-2, keepdim=True).expand_as(p_local)
+        fts_local = get_tagging_features(p_local, jet)
         fts_local = fts_local.transpose(-1, -2).unsqueeze(0)
         # reference (jet) momentum in the global frame (energy-first)
         p_ref = torch.einsum("nij,nj->ni", frames.inv, p_local).sum(dim=0, keepdim=True)

@@ -7,9 +7,9 @@ import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
-from lloca.backbone.attention import LLoCaAttention
-from lloca.reps.tensorreps import TensorReps
-from lloca.utils.compile import compile_model
+from ..reps.tensorreps import TensorReps
+from ..utils.compile import compile_model
+from .attention import LLoCaAttention
 
 
 class MultiHeadQKVLinear(nn.Module):
@@ -134,15 +134,15 @@ class BaselineSelfAttention(nn.Module):
 
 
 class BaselineTransformerBlock(nn.Module):
-    """Baseline transformer block.
+    """Transformer block with RMSNorm and a gated linear unit.
 
-    Inputs are first processed by a block consisting of LayerNorm, multi-head self-attention, and
-    residual connection. Then the data is processed by a block consisting of another LayerNorm, an
-    item-wise two-layer MLP with GeLU activations, and another residual connection.
+    Inputs are first processed by a block consisting of RMSNorm, multi-head self-attention, and
+    residual connection. Then the data is processed by a block consisting of another RMSNorm, an
+    item-wise gated linear unit with a GeLU gate, and another residual connection.
 
     Parameters
     ----------
-    channels : int
+    hidden_channels : int
         Number of input and output channels.
     attention
     num_heads : int
@@ -154,6 +154,8 @@ class BaselineTransformerBlock(nn.Module):
         Factor by which the activation size is increased over the default value of hidden_channels.
     dropout_prob : float
         Dropout probability for output.
+    elementwise_affine : bool
+        Whether the RMSNorm layers use learnable per-channel affine weights.
     """
 
     def __init__(
@@ -227,10 +229,10 @@ class BaselineTransformerBlock(nn.Module):
 
 
 class Transformer(nn.Module):
-    """Baseline LLoCa-Transformer.
+    """LLoCa-Transformer with RMSNorm and GLU.
 
-    Combines transformer blocks, each consisting of multi-head self-attention layers, an
-    MLP, residual connections, and normalization layers.
+    Combines transformer blocks, each consisting of multi-head self-attention layers, a
+    gated-linear-unit MLP, residual connections, and RMSNorm layers.
 
     Parameters
     ----------
@@ -253,6 +255,10 @@ class Transformer(nn.Module):
         Factor by which the activation size is increased over the default value of hidden_channels.
     dropout_prob : float
         Dropout probability for output.
+    preserve_variance : bool
+        Rescale the frame-to-frame transforms by the invariant Lorentz factor of each particle
+        frame, to prevent the variance blowup from large boosts. Needs the reference momentum
+        ``p_ref`` in :meth:`forward`.
     elementwise_affine : bool
         Whether the RMSNorm layers use learnable per-channel affine weights.
     compile : bool, optional
