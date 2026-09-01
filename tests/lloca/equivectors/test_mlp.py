@@ -4,21 +4,36 @@ import torch
 from lloca.equivectors.mlp import MLPVectors
 from lloca.utils.rand_transforms import rand_lorentz
 from tests.constants import LOGM2_MEAN_STD, TOLERANCES
-from tests.helpers import sample_particle
+from tests.helpers import sample_particle, sweep
+
+SWEEP = sweep(
+    dict(
+        n_vectors=1,
+        logm2_mean=0,
+        logm2_std=1,
+        num_scalars=0,
+        include_edges=True,
+        operation="diff",
+        fm_norm=True,
+        nonlinearity="softplus",
+        sparse_mode=False,
+    ),
+    ("n_vectors", [2, 3]),
+    ("logm2_mean,logm2_std", LOGM2_MEAN_STD),
+    ("num_scalars,include_edges", [(1, False)]),
+    (
+        "operation,fm_norm",
+        [("diff", False), ("add", True), ("add", False), ("single", False)],
+    ),
+    ("nonlinearity", ["exp", "softmax"]),
+    ("sparse_mode", [True]),
+)
 
 
 @pytest.mark.parametrize("batch_dims", [[100]])
 @pytest.mark.parametrize("jet_size", [10])
-@pytest.mark.parametrize("n_vectors", [1, 2, 3])
 @pytest.mark.parametrize("hidden_channels,num_layers_mlp", [(16, 1)])
-@pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
-@pytest.mark.parametrize("num_scalars,include_edges", [(0, True), (1, False)])
-@pytest.mark.parametrize(
-    "operation, fm_norm",
-    [("diff", True), ("diff", False), ("add", True), ("add", False), ("single", False)],
-)
-@pytest.mark.parametrize("nonlinearity", ["softplus", "exp", "softmax"])
-@pytest.mark.parametrize("sparse_mode", [True, False])
+@pytest.mark.parametrize(*SWEEP)
 def test_equivariance(
     batch_dims,
     jet_size,

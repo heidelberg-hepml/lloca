@@ -263,5 +263,6 @@ def scaled_dot_product_attention(
     torch.Tensor
         Tensor of shape (..., head, item_out, channels)
     """
-    attention_backend = get_attention_backend(**attn_kwargs)
+    backend = attn_kwargs.pop("backend", None)
+    attention_backend = get_attention_backend(backend=backend, **attn_kwargs)
     return attention_backend(query, key, value, **attn_kwargs)

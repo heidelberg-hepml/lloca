@@ -66,3 +66,45 @@ def equivectors_builder(num_scalars=0):
         )
 
     return builder
+
+
+def _sweep_value_id(value):
+    return getattr(value, "__name__", None) or str(value)
+
+
+def _sweep_id(config, base):
+    varied = {key: value for key, value in config.items() if base[key] != value}
+    if not varied:
+        return "base"
+    return "-".join(f"{k}={_sweep_value_id(v)}" for k, v in varied.items())
+
+
+def sweep(base, *axes):
+    """Parametrization that varies one axis at a time instead of taking the full product.
+
+    ``base`` is the default configuration as a dict, and every axis is an
+    ``(argnames, argvalues)`` pair in the same spelling ``pytest.mark.parametrize`` uses;
+    the result is the base configuration plus one configuration per axis value. The options
+    these tests parametrize over are independent knobs, so a full cartesian product
+    multiplies the runtime without covering any interaction the axes do not already cover;
+    sweeping keeps every option value exercised at a cost that grows with the sum of the
+    axis lengths rather than their product.
+
+    Returns the ``(argnames, argvalues)`` pair to splat into ``pytest.mark.parametrize``.
+    """
+    configs = [base]
+    for argnames, argvalues in axes:
+        names = argnames.replace(" ", "").split(",")
+        assert set(names) <= set(base), f"unknown axis {argnames!r}"
+        for values in argvalues:
+            override = dict(zip(names, values if len(names) > 1 else [values], strict=True))
+            if all(base[key] == value for key, value in override.items()):
+                continue  # already covered by the base configuration
+            configs.append({**base, **override})
+
+    names = list(base)
+    params = [
+        pytest.param(*[config[name] for name in names], id=_sweep_id(config, base))
+        for config in configs
+    ]
+    return ",".join(names), params

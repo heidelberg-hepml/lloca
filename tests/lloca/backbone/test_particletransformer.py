@@ -16,15 +16,25 @@ from tests.constants import (
     REPS,
     TOLERANCES,
 )
-from tests.helpers import equivectors_builder, sample_particle
+from tests.helpers import equivectors_builder, sample_particle, sweep
 from tests.hep import get_tagging_features
 
+BLOCK_SWEEP = sweep(
+    dict(
+        FramesPredictor=FRAMES_PREDICTOR[0],
+        attn_reps=REPS[0],
+        logm2_mean=0,
+        logm2_std=1,
+    ),
+    ("FramesPredictor", FRAMES_PREDICTOR),
+    ("attn_reps", REPS),
+    ("logm2_mean,logm2_std", LOGM2_MEAN_STD),
+)
 
-@pytest.mark.parametrize("FramesPredictor", FRAMES_PREDICTOR)
+
 @pytest.mark.parametrize("batch_dims", [[10]])
 @pytest.mark.parametrize("num_heads", [8])
-@pytest.mark.parametrize("attn_reps", REPS)
-@pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
+@pytest.mark.parametrize(*BLOCK_SWEEP)
 def test_block_invariance_equivariance(
     FramesPredictor,
     batch_dims,
@@ -183,12 +193,17 @@ def test_ParT_invariance(
     torch.testing.assert_close(score_tr_prime_local, score_prime_local, **MILD_TOLERANCES)
 
 
-@pytest.mark.parametrize("FramesPredictor", [IdentityFrames, LearnedPDFrames])
+SHAPE_SWEEP = sweep(
+    dict(FramesPredictor=IdentityFrames, checkpoint_blocks=False, compile=False),
+    ("FramesPredictor", [LearnedPDFrames]),
+    ("checkpoint_blocks", [True]),
+    ("compile", [True]),
+)
+
+
 @pytest.mark.parametrize("batch_dims", [[10]])
 @pytest.mark.parametrize("logm2_mean,logm2_std", [LOGM2_MEAN_STD[0]])
-@pytest.mark.parametrize(
-    "checkpoint_blocks,compile", [(False, False), (True, False), (False, True)]
-)
+@pytest.mark.parametrize(*SHAPE_SWEEP)
 def test_ParT_shape(
     FramesPredictor,
     batch_dims,

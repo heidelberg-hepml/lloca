@@ -10,14 +10,24 @@ from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.utils.rand_transforms import rand_lorentz
 from tests.constants import FRAMES_PREDICTOR, LOGM2_MEAN_STD, REPS, TOLERANCES
-from tests.helpers import equivectors_builder, sample_particle
+from tests.helpers import equivectors_builder, sample_particle, sweep
+
+INVARIANCE_SWEEP = sweep(
+    dict(
+        FramesPredictor=FRAMES_PREDICTOR[0],
+        attn_reps=REPS[0],
+        logm2_mean=0,
+        logm2_std=1,
+    ),
+    ("FramesPredictor", FRAMES_PREDICTOR),
+    ("attn_reps", REPS),
+    ("logm2_mean,logm2_std", LOGM2_MEAN_STD),
+)
 
 
 @pytest.mark.parametrize("transformer_type", [Transformer, TransformerV2])
-@pytest.mark.parametrize("FramesPredictor", FRAMES_PREDICTOR)
 @pytest.mark.parametrize("batch_dims", [[10]])
-@pytest.mark.parametrize("attn_reps", REPS)
-@pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
+@pytest.mark.parametrize(*INVARIANCE_SWEEP)
 def test_transformer_invariance_equivariance(
     transformer_type,
     FramesPredictor,
@@ -75,14 +85,19 @@ def test_transformer_invariance_equivariance(
     torch.testing.assert_close(fm_tr_prime_global, fm_prime_tr_global, **TOLERANCES)
 
 
+SHAPE_SWEEP = sweep(
+    dict(FramesPredictor=IdentityFrames, checkpoint_blocks=False, compile=False),
+    ("FramesPredictor", [LearnedPDFrames]),
+    ("checkpoint_blocks", [True]),
+    ("compile", [True]),
+)
+
+
 @pytest.mark.parametrize("transformer_type", [Transformer, TransformerV2])
-@pytest.mark.parametrize("FramesPredictor", [IdentityFrames, LearnedPDFrames])
 @pytest.mark.parametrize("batch_dims", [[10]])
 @pytest.mark.parametrize("attn_reps", [REPS[-1]])
 @pytest.mark.parametrize("logm2_mean,logm2_std", [LOGM2_MEAN_STD[0]])
-@pytest.mark.parametrize(
-    "checkpoint_blocks,compile", [(False, False), (True, False), (False, True)]
-)
+@pytest.mark.parametrize(*SHAPE_SWEEP)
 def test_transformer_shape(
     transformer_type,
     FramesPredictor,

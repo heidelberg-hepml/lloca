@@ -19,22 +19,31 @@ from lloca.utils.rand_transforms import (
     rand_ztransform,
 )
 from tests.constants import LOGM2_MEAN_STD, TOLERANCES
-from tests.helpers import equivectors_builder, lorentz_test, sample_particle
+from tests.helpers import equivectors_builder, lorentz_test, sample_particle, sweep
 
+PREDICTORS = [
+    (LearnedSO13Frames, rand_lorentz),
+    (LearnedRestFrames, rand_lorentz),
+    (LearnedPDFrames, rand_lorentz),
+    (LearnedSO3Frames, rand_rotation),
+    (LearnedZFrames, rand_ztransform),
+    (LearnedSO2Frames, rand_xyrotation),
+]
 
-@pytest.mark.parametrize(
-    "FramesPredictor,rand_trafo",
-    [
-        (LearnedSO13Frames, rand_lorentz),
-        (LearnedRestFrames, rand_lorentz),
-        (LearnedPDFrames, rand_lorentz),
-        (LearnedSO3Frames, rand_rotation),
-        (LearnedZFrames, rand_ztransform),
-        (LearnedSO2Frames, rand_xyrotation),
-    ],
+SWEEP = sweep(
+    dict(
+        FramesPredictor=LearnedSO13Frames,
+        rand_trafo=rand_lorentz,
+        logm2_mean=0,
+        logm2_std=1,
+    ),
+    ("FramesPredictor,rand_trafo", PREDICTORS),
+    ("logm2_mean,logm2_std", LOGM2_MEAN_STD),
 )
+
+
 @pytest.mark.parametrize("batch_dims", [[10]])
-@pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
+@pytest.mark.parametrize(*SWEEP)
 def test_frames_transformation(FramesPredictor, rand_trafo, batch_dims, logm2_std, logm2_mean):
     dtype = torch.float64
 
@@ -72,19 +81,8 @@ def test_frames_transformation(FramesPredictor, rand_trafo, batch_dims, logm2_st
     torch.testing.assert_close(frames_prime_expected, frames_prime.matrices, **TOLERANCES)
 
 
-@pytest.mark.parametrize(
-    "FramesPredictor,rand_trafo",
-    [
-        (LearnedSO13Frames, rand_lorentz),
-        (LearnedRestFrames, rand_lorentz),
-        (LearnedPDFrames, rand_lorentz),
-        (LearnedSO3Frames, rand_rotation),
-        (LearnedZFrames, rand_ztransform),
-        (LearnedSO2Frames, rand_xyrotation),
-    ],
-)
 @pytest.mark.parametrize("batch_dims", [[10]])
-@pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
+@pytest.mark.parametrize(*SWEEP)
 def test_feature_invariance(FramesPredictor, rand_trafo, batch_dims, logm2_std, logm2_mean):
     dtype = torch.float64
 

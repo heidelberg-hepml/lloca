@@ -19,7 +19,7 @@ first, for instance a vanilla transformer, and move to a Lorentz-equivariant net
 Benefits of L-GATr / specialized layers
 ---------------------------------------
 
-* **Simpler**, e.g. `LGATrSlim <https://github.com/heidelberg-hepml/lgatr/blob/main/lgatr/nets/lgatr_slim.py>`_ fits into a single file.
+* **Simpler**, e.g. `LGATrSlim <https://github.com/heidelberg-hepml/lgatr/blob/main/lgatr/nets/slim.py>`_ fits into a single file.
   Canonicalization modifies the backbone architecture only slightly, but the Frames-Net and subsequent orthonormalization requires significant extra code.
 * **Training dynamics are typically easier**, because the interaction between the Frames-Net and backbone in LLoCa can lead to more complex training dynamics.
   For instance, we found in some cases that the Frames-Net in LLoCa overfits before the backbone does, even though the Frames-Net has far fewer parameters.

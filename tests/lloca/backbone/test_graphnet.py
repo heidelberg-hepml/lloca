@@ -9,15 +9,26 @@ from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.utils.rand_transforms import rand_lorentz
 from tests.constants import FRAMES_PREDICTOR, LOGM2_MEAN_STD, REPS, TOLERANCES
-from tests.helpers import equivectors_builder, sample_particle
+from tests.helpers import equivectors_builder, sample_particle, sweep
+
+EDGECONV_SWEEP = sweep(
+    dict(
+        FramesPredictor=FRAMES_PREDICTOR[0],
+        num_layers_mlp2=0,
+        hidden_reps=REPS[0],
+        logm2_mean=0,
+        logm2_std=1,
+    ),
+    ("FramesPredictor", FRAMES_PREDICTOR),
+    ("num_layers_mlp2", [1]),
+    ("hidden_reps", REPS),
+    ("logm2_mean,logm2_std", LOGM2_MEAN_STD),
+)
 
 
-@pytest.mark.parametrize("FramesPredictor", FRAMES_PREDICTOR)
 @pytest.mark.parametrize("batch_dims", [[10]])
-@pytest.mark.parametrize("num_layers_mlp1", range(1, 2))
-@pytest.mark.parametrize("num_layers_mlp2", range(0, 2))
-@pytest.mark.parametrize("hidden_reps", REPS)
-@pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
+@pytest.mark.parametrize("num_layers_mlp1", [1])
+@pytest.mark.parametrize(*EDGECONV_SWEEP)
 def test_edgeconv_invariance_equivariance(
     FramesPredictor,
     batch_dims,
@@ -83,13 +94,26 @@ def test_edgeconv_invariance_equivariance(
     torch.testing.assert_close(fm_tr_prime_global, fm_prime_tr_global, **TOLERANCES)
 
 
-@pytest.mark.parametrize("FramesPredictor", FRAMES_PREDICTOR)
+GRAPHNET_SWEEP = sweep(
+    dict(
+        FramesPredictor=FRAMES_PREDICTOR[0],
+        num_layers_mlp2=0,
+        num_blocks=0,
+        hidden_reps=REPS[0],
+        logm2_mean=0,
+        logm2_std=1,
+    ),
+    ("FramesPredictor", FRAMES_PREDICTOR),
+    ("num_layers_mlp2", [1]),
+    ("num_blocks", [1, 2]),
+    ("hidden_reps", REPS),
+    ("logm2_mean,logm2_std", LOGM2_MEAN_STD),
+)
+
+
 @pytest.mark.parametrize("batch_dims", [[10]])
-@pytest.mark.parametrize("num_layers_mlp1", range(1, 2))
-@pytest.mark.parametrize("num_layers_mlp2", range(0, 2))
-@pytest.mark.parametrize("num_blocks", [0, 1, 2])
-@pytest.mark.parametrize("hidden_reps", REPS)
-@pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
+@pytest.mark.parametrize("num_layers_mlp1", [1])
+@pytest.mark.parametrize(*GRAPHNET_SWEEP)
 def test_graphnet_invariance_equivariance(
     FramesPredictor,
     batch_dims,

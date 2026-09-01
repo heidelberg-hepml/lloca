@@ -53,6 +53,7 @@ class Frames:
             Specifies dtype if is_identity. Otherwise inferred from matrices.
         """
         # straight-forward initialization
+        self._source = None  # set by IndexSelectFrames; see the `source` property
         self.is_identity = is_identity
         if is_identity:
             if matrices is None:
@@ -170,6 +171,15 @@ class Frames:
         return base.reshape(*(1,) * (self.matrices.ndim - 2), 4, 4).expand(*self.shape[:-2], 4, 4)
 
     @property
+    def source(self):
+        """The Frames object these frames were derived from, or ``self`` if there is none.
+
+        Two frames that share a source hold a selection of the same matrices, which lets
+        ChangeOfFrames recognize a trivial change of frames without comparing tensors.
+        """
+        return self if self._source is None else self._source
+
+    @property
     def device(self):
         return self.matrices.device
 
@@ -206,6 +216,7 @@ class IndexSelectFrames(Frames):
             det=frames.det.index_select(0, indices),
             is_identity=frames.is_identity,
         )
+        self._source = frames.source
 
 
 class ChangeOfFrames(Frames):
@@ -220,7 +231,16 @@ class ChangeOfFrames(Frames):
 
     def __init__(self, frames_start: Frames, frames_end: Frames):
         assert frames_start.shape == frames_end.shape
-        if frames_start.is_global:
+        same_frames = (
+            frames_end is frames_start
+            or (frames_start.is_identity and frames_end.is_identity)
+            or (
+                frames_start.is_global
+                and frames_end.is_global
+                and frames_start.source is frames_end.source
+            )
+        )
+        if same_frames:
             super().__init__(
                 is_identity=True,
                 shape=frames_start.shape[:-2],  # `shape` excludes the trailing (4, 4)
@@ -230,7 +250,7 @@ class ChangeOfFrames(Frames):
         else:
             super().__init__(
                 matrices=frames_end.matrices @ frames_start.inv,
-                is_global=False,
+                is_global=frames_start.is_global and frames_end.is_global,
                 inv=frames_start.matrices @ frames_end.inv,
                 det=frames_start.det * frames_end.det,
             )

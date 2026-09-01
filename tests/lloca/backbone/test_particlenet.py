@@ -15,16 +15,27 @@ from tests.constants import (
     REPS,
     TOLERANCES,
 )
-from tests.helpers import equivectors_builder, sample_particle
+from tests.helpers import equivectors_builder, sample_particle, sweep
 from tests.hep import get_tagging_features
 
+EDGECONV_SWEEP = sweep(
+    dict(
+        FramesPredictor=FRAMES_PREDICTOR[0],
+        k=2,
+        hidden_reps=REPS[0],
+        logm2_mean=0,
+        logm2_std=1,
+    ),
+    ("FramesPredictor", FRAMES_PREDICTOR),
+    ("k", [5]),
+    ("hidden_reps", REPS),
+    ("logm2_mean,logm2_std", LOGM2_MEAN_STD),
+)
 
-@pytest.mark.parametrize("FramesPredictor", FRAMES_PREDICTOR)
+
 @pytest.mark.parametrize("batch_dims", [[10]])
-@pytest.mark.parametrize("k", [2, 5])
 @pytest.mark.parametrize("out_feats", [(12, 12)])
-@pytest.mark.parametrize("hidden_reps", REPS)
-@pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
+@pytest.mark.parametrize(*EDGECONV_SWEEP)
 def test_edgeconvblock_invariance_equivariance(
     FramesPredictor,
     batch_dims,

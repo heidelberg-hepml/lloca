@@ -4,6 +4,7 @@ import torch
 from lloca.framesnet.frames import (
     ChangeOfFrames,
     Frames,
+    IndexSelectFrames,
     InverseFrames,
     LowerIndicesFrames,
 )
@@ -43,7 +44,7 @@ def test_equivariance(batch_dims, reps):
 
 @pytest.mark.parametrize("batch_dims", [[10]])
 def test_change_of_frames_is_global(batch_dims):
-    """Global frames take the identity shortcut and must keep the (..., 4, 4) shape.
+    """Identity frames take the identity shortcut and must keep the (..., 4, 4) shape.
 
     This is the branch used by LLoCaMessagePassing with IdentityFrames / global
     RandomFrames; passing the full ``Frames.shape`` here used to produce (..., 4, 4, 4, 4).
@@ -53,6 +54,7 @@ def test_change_of_frames_is_global(batch_dims):
     assert frames.is_global
 
     change = ChangeOfFrames(frames, frames)
+    assert change.is_identity
     assert change.matrices.shape == (*batch_dims, 4, 4)
     assert change.inv.shape == (*batch_dims, 4, 4)
     assert change.det.shape == tuple(batch_dims)
@@ -60,6 +62,50 @@ def test_change_of_frames_is_global(batch_dims):
     # a change from a frame to itself is the identity, so vectors are untouched
     trafo = TensorRepsTransform(TensorReps("1x1n"))
     torch.testing.assert_close(trafo(fm, change), fm, **TOLERANCES)
+
+
+@pytest.mark.parametrize("batch_dims", [[10]])
+def test_change_of_frames_between_two_global_frames(batch_dims):
+    """Two *different* global frames still have a non-trivial change of frames.
+
+    The identity shortcut used to trigger on ``frames_start.is_global`` alone, silently
+    returning the identity for the bipartite (tuple) case in LLoCaMessagePassing.
+    """
+    dtype = torch.float64
+    start = Frames(rand_lorentz([1], dtype=dtype).expand(*batch_dims, 4, 4), is_global=True)
+    end = Frames(rand_lorentz([1], dtype=dtype).expand(*batch_dims, 4, 4), is_global=True)
+
+    change = ChangeOfFrames(start, end)
+    assert not change.is_identity
+    assert change.is_global  # constant over particles, so still global
+    torch.testing.assert_close(change.matrices, end.matrices @ start.inv, **TOLERANCES)
+    eye = torch.eye(4, dtype=dtype).expand(*batch_dims, 4, 4)
+    torch.testing.assert_close(change.matrices @ change.inv, eye, **TOLERANCES)
+
+
+@pytest.mark.parametrize("batch_dims", [[10]])
+def test_change_of_frames_index_selected_global(batch_dims):
+    """Index selections of one global frames object still take the identity shortcut.
+
+    Global frames are the same for every particle, so index selection cannot tell them
+    apart; this is the branch LLoCaMessagePassing hits for global RandomFrames, and
+    losing the shortcut here would transform every message for nothing.
+    """
+    dtype = torch.float64
+    frames = Frames(rand_lorentz([1], dtype=dtype).expand(*batch_dims, 4, 4), is_global=True)
+    idx_i = torch.arange(batch_dims[0])
+    idx_j = idx_i.flip(0)
+
+    change = ChangeOfFrames(IndexSelectFrames(frames, idx_j), IndexSelectFrames(frames, idx_i))
+    assert change.is_identity
+
+    # two selections of two *different* global frames must not take the shortcut
+    other = Frames(rand_lorentz([1], dtype=dtype).expand(*batch_dims, 4, 4), is_global=True)
+    change = ChangeOfFrames(IndexSelectFrames(frames, idx_j), IndexSelectFrames(other, idx_i))
+    assert not change.is_identity
+    torch.testing.assert_close(
+        change.matrices, other.matrices[idx_i] @ frames.inv[idx_j], **TOLERANCES
+    )
 
 
 @pytest.mark.parametrize("batch_dims", [[10]])
