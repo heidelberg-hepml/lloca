@@ -34,6 +34,15 @@ def skip_if_backend_unavailable(attention_backend):
         pytest.skip(f"attention backend {attention_backend!r} could not be loaded")
 
 
+def skip_if_backend_available(attention_backend):
+    """Skip the current test if ``attention_backend`` can run here.
+
+    The mirror image of the above, for tests that assert on how an unavailable backend fails.
+    """
+    if _BACKEND_AVAILABLE.get(attention_backend, False):
+        pytest.skip(f"attention backend {attention_backend!r} is available here")
+
+
 def sample_particle(shape, logm2_std, logm2_mean, device=None, dtype=torch.float32):
     if device is None:
         device = torch.device("cpu")
@@ -73,10 +82,16 @@ def _sweep_value_id(value):
 
 
 def _sweep_id(config, base):
-    varied = {key: value for key, value in config.items() if base[key] != value}
-    if not varied:
-        return "base"
-    return "-".join(f"{k}={_sweep_value_id(v)}" for k, v in varied.items())
+    parts = []
+    for key, value in config.items():
+        if base[key] == value:
+            continue
+        if isinstance(value, dict):
+            # a dict-valued axis names its own options, so the axis name adds nothing
+            parts += [f"{k}={_sweep_value_id(v)}" for k, v in value.items()]
+        else:
+            parts.append(f"{key}={_sweep_value_id(value)}")
+    return "-".join(parts) or "base"
 
 
 def sweep(base, *axes):

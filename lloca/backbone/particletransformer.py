@@ -448,7 +448,7 @@ class PairEmbed(nn.Module):
             self.is_symmetric = (pairwise_lv_dim <= 6) and (pairwise_input_dim == 0)
             self.pairwise_lv_fts = partial(pairwise_lv_fts_ee, num_outputs=pairwise_lv_dim, eps=eps)
         elif pairwise_lv_type.startswith("xyzt"):
-            coords = pairwise_lv_type.split(":")[1] if ":" in pairwise_lv_type else None
+            coords = pairwise_lv_type.split(":")[1] if ":" in pairwise_lv_type else "rectangular"
             self.is_symmetric = (pairwise_lv_dim <= 3) and (pairwise_input_dim == 0)
             self.pairwise_lv_fts = partial(
                 pairwise_lv_fts_xyzt, num_outputs=pairwise_lv_dim, coords=coords, eps=eps

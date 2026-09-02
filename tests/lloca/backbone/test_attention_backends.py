@@ -7,6 +7,7 @@ from lloca.backbone.attention import scaled_dot_product_attention
 from lloca.backbone.attention_backends import SPARSE_BACKENDS, get_attention_backend
 from lloca.backbone.attention_backends.mask import get_sparse_attention_mask
 from tests.constants import STRICT_TOLERANCES
+from tests.helpers import skip_if_backend_available, skip_if_backend_unavailable
 
 
 def test_dispatch_defaults_to_native():
@@ -62,3 +63,23 @@ def test_sparse_mask_rejects_unknown_backend():
     batch = torch.tensor([0, 0, 1])
     with pytest.raises(AssertionError):
         get_sparse_attention_mask(batch, "not-a-backend", torch.float32)
+
+
+def test_dispatch_infers_backend_from_kwargs():
+    """Backend-specific kwargs select the backend without naming it."""
+    skip_if_backend_unavailable("flex")
+    from lloca.backbone.attention_backends import flex
+
+    assert get_attention_backend(block_mask=object()) is flex.attention
+
+
+def test_dispatch_reports_why_a_backend_is_unavailable():
+    """An unavailable backend must name itself and the reason it could not be loaded, both when
+    it is inferred from kwargs and when it is asked for by name."""
+    skip_if_backend_available("flash")
+    with pytest.raises(ValueError, match="flash"):
+        get_attention_backend(cu_seqlens_q=torch.tensor([0, 3], dtype=torch.int32))
+
+    # the second lookup goes through the cached-unavailable path
+    with pytest.raises(ValueError, match="Attention backend 'flash' is not available"):
+        get_attention_backend(backend="flash")
