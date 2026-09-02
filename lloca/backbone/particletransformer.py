@@ -1318,7 +1318,8 @@ class ParticleTransformer(nn.Module):
             # x: (batch, seq_len, embed_dim) -> output: (batch, embed_dim, seq_len)
             output = x.transpose(1, 2).contiguous()
             if self.for_inference:
-                output = torch.softmax(output, dim=1)
+                output = (torch.sigmoid(output) if output.shape[1] == 1
+                          else torch.softmax(output, dim=1))
             # print('output:\n', output)
             return output
 
@@ -1329,7 +1330,8 @@ class ParticleTransformer(nn.Module):
         # fc
         output = self.fc(x_cls)
         if self.for_inference:
-            output = torch.softmax(output, dim=1)
+            output = (torch.sigmoid(output) if output.shape[1] == 1
+                      else torch.softmax(output, dim=1))
         # print('output:\n', output)
         return output
 
