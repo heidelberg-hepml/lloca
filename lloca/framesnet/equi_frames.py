@@ -474,7 +474,7 @@ class LearnedSO2Frames(LearnedFrames):
 
 
 def clamp_boost(x, gamma_max, gamma_hardness):
-    mass = lorentz_squarednorm(x).clamp(min=0).sqrt().unsqueeze(-1)
+    mass = (mass_eps**2 + lorentz_squarednorm(x).clamp(min=0)).sqrt().unsqueeze(-1) #delete this comment if accepting the change but supposed to help with the NaN, could also be reassigned in else since it only bites there
     t0 = x.narrow(-1, 0, 1)
     beta = x[..., 1:] / t0.clamp_min(1e-10)
     gamma = t0 / mass
