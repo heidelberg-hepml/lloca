@@ -100,7 +100,7 @@ For a pure rotation :math:`\|L\|_F = 2` and nothing happens, but for a boost wit
 :math:`\gamma` we have :math:`\|L\|_F = 2\gamma`. Strongly boosted local frames therefore amplify the
 latent features by :math:`\gamma`, which destabilizes the training of large networks.
 
-We avoid this by rescaling :math:`L \to 2 L / \|L\|_F = L/\gamma`. The rescaling has to be Lorentz
+We avoid this by rescaling :math:`L \to 2 L / \|L\|_F = L/\gamma`, applied with `gamma.detach()`. The rescaling has to be Lorentz
 invariant to preserve equivariance, so we read the boost factor of each local frame :math:`L_i` off a
 reference four-momentum :math:`p_\text{ref}` in the global frame,
 $$\\gamma_i = \\frac{\\left( L_i\\, p_{\\text{ref}} \\right)^0}{\\sqrt{\\langle p_{\\text{ref}}, p_{\\text{ref}}\\rangle}} .$$
