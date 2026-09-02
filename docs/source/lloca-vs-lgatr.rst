@@ -12,7 +12,7 @@ Most previously published Lorentz-equivariant networks rely on specialized layer
 Canonicalization, or specifically Lorentz local canonicalization (LLoCa), is an alternative approach that extends an existing backbone architecture with a
 Lorentz-equivariant canonicalization procedure to achieve Lorentz-equivariance. This section discusses the benefits of both approaches and helps to decide
 which one to use for your specific application. We focus on L-GATr/L-GATr-slim as representatives of the specialized-layer approach because we compared it carefully with
-LLoCa-Transformers, but most arguments apply to other specialized-layer networks as well. See also our `tagging paper <https://arxiv.org/abs/2608.02735>`_ for
+LLoCa-Transformers, but most arguments apply to other specialized-layer networks as well. See also our `comparison paper <https://arxiv.org/abs/2608.02735>`_ for
 a direct comparison of the approaches for jet tagging.
 
 **Disclaimer:** Lorentz-equivariant networks are great, but when starting on a task from scratch we recommend to start with a non-equivariant baseline network

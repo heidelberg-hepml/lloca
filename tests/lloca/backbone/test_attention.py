@@ -4,7 +4,7 @@ from torch.nn import Linear
 
 from lloca.backbone.attention import LLoCaAttention
 from lloca.framesnet.equi_frames import LearnedPDFrames
-from lloca.framesnet.frames import InverseFrames
+from lloca.framesnet.frames import Frames, InverseFrames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.utils.rand_transforms import rand_lorentz
@@ -146,3 +146,45 @@ def test_preserve_variance_bounds_boosted_variance():
     assert scales[True] < scales[False], (
         f"preserve_variance did not reduce the global-frame scale: {scales}"
     )
+
+
+@pytest.mark.parametrize("order", [1, 2])
+def test_parity_odd_matches_parity_even_for_proper_frames(order):
+    """All Frames-Net classes predict proper frames, so ``Xp`` must behave like ``Xn`` there.
+
+    Regression test: ``LowerIndicesFrames`` multiplies by the metric, whose determinant is -1.
+    If that leaked into the parity factor, the keys would be negated relative to the queries
+    and the parity-odd channels would flip the sign of their contribution to the logits.
+    """
+    dtype = torch.float64
+    frames, fm = _frames_and_momenta(dtype=dtype)
+    torch.testing.assert_close(
+        frames.det, torch.ones_like(frames.det), **TOLERANCES
+    )  # proper frames
+
+    outputs = []
+    for parity in ("n", "p"):
+        attention = LLoCaAttention(TensorReps(f"4x0n+2x{order}{parity}"), 1).to(dtype=dtype)
+        attention.prepare_frames(frames, p_ref=fm.sum(dim=-2))
+        torch.manual_seed(0)
+        qkv = torch.randn(1, 1, fm.shape[0], attention.transform.reps.dim, dtype=dtype)
+        outputs.append(attention(qkv, qkv, qkv))
+
+    torch.testing.assert_close(outputs[0], outputs[1], **TOLERANCES)
+
+
+@pytest.mark.parametrize("order", [1, 2])
+def test_parity_odd_flips_under_improper_frames(order):
+    """A parity-odd rep must still pick up sign(det L) when the frames are improper."""
+    dtype = torch.float64
+    reps = TensorReps(f"2x{order}p")
+    trafo = TensorRepsTransform(reps)
+
+    proper = rand_lorentz([10], dtype=dtype)
+    parity_flip = torch.eye(4, dtype=dtype)
+    parity_flip[1, 1] = -1
+    improper = Frames(proper @ parity_flip)
+
+    x = torch.randn(10, reps.dim, dtype=dtype)
+    expected = -TensorRepsTransform(TensorReps(f"2x{order}n"))(x, improper)
+    torch.testing.assert_close(trafo(x, improper), expected, **TOLERANCES)

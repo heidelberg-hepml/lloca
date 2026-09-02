@@ -89,7 +89,6 @@ class LearnedPDFrames(LearnedFrames):
         *args,
         gamma_max: float = None,
         gamma_hardness: float | None = None,
-        deterministic_boost: str | None = None,
         **kwargs,
     ):
         """
@@ -103,13 +102,10 @@ class LearnedPDFrames(LearnedFrames):
         gamma_hardness: float | None
             Hardness, i.e. beta factor in the softplus regularization.
             If None, a hard clamp is applied.
-        deterministic_boost: str or None
-            Deprecated option
         """
         super().__init__(*args, n_vectors=3, **kwargs)
         self.gamma_max = gamma_max
         self.gamma_hardness = gamma_hardness
-        assert deterministic_boost is None, "deterministic_boost option is deprecated"
 
     def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         """

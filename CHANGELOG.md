@@ -5,11 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [2.0.0] - 03.09.2026
 
 ### Added
 
-- `preserve_variance` option for the attention backbones, needs the reference momentum `p_ref`
+- `preserve_variance` option for the attention backbones, on by default (breaks lloca v1 code); the transformer backbones now require the reference momentum `p_ref` in `forward`
 - `elementwise_affine` option for `transformer_v2`
 - `LGATrSlimVectors` option
 - Unit tests for all supported torch versions `torch>=2.4`
@@ -19,9 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Require `lgatr>=2.0.0` (modified interface)
 - Attention backends are imported lazily, and an unavailable backend raises instead of silently falling back to dense attention
 - Replace the `compile_mode`/`compile_dynamic`/`compile_fullgraph` arguments with a single `compile_kwargs` dict forwarded to `torch.compile`
-- Align attention with the `lgatr` package
-- Pull ParT changes from weaver-core main branch
-- Improve `amp` handling (now also covers CPU); re-import autocast code from `lgatr`
+- Align `attention_backends` interface with the `lgatr` package
+- Pull ParT changes from weaver-core main branch (commit `d53f590`): new `version`/`include_global_token` options, reordered keyword arguments, and no more `use_amp`, weaver logger or `ParticleTransformerTagger*` wrappers
+- Improve `amp` handling (now also covers CPU); `utils/misc.py` is replaced by `utils/autocast.py`, which re-exports the `lgatr` helpers
+- `transformer_v2` blocks use two separate RMSNorm layers (`norm1`, `norm2`) with `elementwise_affine=True` by default, which changes the parameter count and the state-dict keys
+- `ChangeOfFrames` returns the identity only for frames derived from the same source, and propagates `is_global`
 - Handle shapes in `rand_transforms.py` more carefully
 - Bump minimum torch version to 2.4 (`nn.RMSNorm`)
 
@@ -33,9 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `LGATrSlimVectors` for `num_scalars=0` and for `lgatr_norm=True` (lgatr v2 slim conventions)
 - `LowerIndicesFrames` dropped the metric for identity frames
+- `ChangeOfFrames` built a wrong-shaped identity for global frames, and treated any two global frames as equal
+- `LearnedZFrames` modified the `equivectors` output in place and ignored extra `forward` arguments
 - Deprecated `torch.get_autocast_gpu_dtype()` in the `flash` and `varlen` backends
-- `native` attention backend in source checkouts without package metadata
-- Micro optimizations to make code faster; for instance frame-to-frame transform
+- `native` attention backend and `__version__` in source checkouts without package metadata
+- Micro optimizations to make code faster; in particular frame-to-frame transform
 - Fix `torch.compile` calls to compile the `forward`, not the whole class
 - Remove more CPU-GPU syncs (`num_items`/`num_graphs` options in `get_batch_from_ptr`/`get_ptr_from_batch`, sync-free `mass_regularize`, one-time `edge_inited` assert in `EquiMLP.forward`)
 - Memory leak from `nn.RMSNorm` when using `amp`
@@ -108,7 +112,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `requirements.txt` (already in `pyproject.toml`)
 - `get_xformers_attention_mask` function (should be manually defined in experiment code)
 
-## [1.3.1] - 10.11.202
+## [1.3.1] - 10.11.2025
 
 _Fix import bugs._
 
@@ -165,6 +169,6 @@ _Fix import bugs._
 - `examples/demo_transformer.ipynb`
 - `__init__.py` files
 
-## [1.0.0] - 13.10.2025
+## [1.0.0] - 13.09.2025
 
 _First release._

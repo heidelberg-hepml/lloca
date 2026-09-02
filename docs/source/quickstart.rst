@@ -60,7 +60,7 @@ The local frames are Lorentz transformations, i.e. they satisfy :math:`L^TgL=g` 
 We further design them to satisfy the transformation behavior :math:`L\overset{\Lambda}{\to} L\Lambda^{-1}` under Lorentz transformations :math:`\Lambda`,
 this ensures that particle features in the local frame are invariant.
 
-We construct the local frames in two steps. First, we use a simple Lorentz-equivariant ``equivectors`` network, :mod:`~lloca.equivectors.MLPVectors`, to construct 3 vectors.
+We construct the local frames in two steps. First, we use a simple Lorentz-equivariant ``equivectors`` network, :class:`~lloca.equivectors.mlp.MLPVectors`, to construct 3 vectors.
 
 .. code-block:: python
 
@@ -82,7 +82,7 @@ We construct the local frames in two steps. First, we use a simple Lorentz-equiv
 Next, we define the ``framesnet`` class which calls the ``equivectors`` to predict a set of vectors
 and further performs the orthonormalization to construct the local ``frames``.
 In our minimal example, we use the :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames` ``framesnet`` and
-we pass the constructor as :mod:`equivectors=equivectors_constructor`.
+we pass the constructor as ``equivectors=equivectors_constructor``.
 
 .. code-block:: python
 
@@ -96,8 +96,11 @@ The package implements many alternative ``framesnet`` choices:
 
 - :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames`: Construct a learned Lorentz transformation from a boost and a rotation, i.e. following a polar decomposition, with the rotation constructed using the Gram-Schmidt algorithm in the 3-dimensional euclidean space. This is the default Lorentz-equivariant ``framesnet``.
 - :mod:`~lloca.framesnet.equi_frames.LearnedSO13Frames`: Construct a learned Lorentz transformation directly using the Gram-Schmidt algorithm in Minkowski space. The result is equivalent to :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames`, but :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames` has the advantage of providing direct access to the boost, which is useful in some cases.
-- :mod:`~lloca.framesnet.equi_frames.LearnedSO3Frames` and :mod:`~lloca.framesnet.equi_frames.LearnedSO2Frames`: Construct learned :math:`SO(2)` and :math:`SO(3)` transformations, embedded in the Lorentz group. The resulting architectures are :math:`SO(2)`- and :math:`SO(3)`-equivariant, respectively.
+- :mod:`~lloca.framesnet.equi_frames.LearnedRestFrames`: Like :mod:`~lloca.framesnet.equi_frames.LearnedPDFrames`, but the boost is fixed to the rest frame of the particle itself, so only the rotation is learned.
+- :mod:`~lloca.framesnet.equi_frames.LearnedSO3Frames` and :mod:`~lloca.framesnet.equi_frames.LearnedSO2Frames`: Construct learned :math:`SO(3)` and :math:`SO(2)` transformations, embedded in the Lorentz group. The resulting architectures are :math:`SO(3)`- and :math:`SO(2)`-equivariant, respectively.
+- :mod:`~lloca.framesnet.equi_frames.LearnedZFrames`: Construct learned :math:`SO(1,1)\times SO(2)` transformations, i.e. a boost along the beam axis combined with a rotation around it.
 - :mod:`~lloca.framesnet.nonequi_frames.RandomFrames`: Random global frames, corresponding to data augmentation.
+- :mod:`~lloca.framesnet.nonequi_frames.COMRandomFrames`: Random global frames in the center-of-mass frame of each event.
 - :mod:`~lloca.framesnet.nonequi_frames.IdentityFrames`: Frames from identity transforms, corresponding to the baseline non-equivariant architectures.
 
 2. Transform particle features into local frames
@@ -119,7 +122,10 @@ We use the local frames transformation for the four-momenta, whereas the scalar 
 The ``lloca`` package implements arbitrary Lorentz tensors through the :mod:`~lloca.reps.tensorreps.TensorReps` class,
 and their transformation behavior with :mod:`~lloca.reps.tensorreps_transform.TensorRepsTransform`.
 We denote ``0n`` for scalar, ``1n`` for vector, ``2n`` for rank 2 tensor, and so on,
-where the ``n`` stands for *normal* in contrast to *parity-odd* (not fully supported).
+where the ``n`` stands for *normal*, in contrast to the *parity-odd* representations ``0p``, ``1p``, ...,
+which pick up an extra factor :math:`\mathrm{sign}(\det L)`.
+All Frames-Net classes in this package predict proper Lorentz transformations with :math:`\det L = +1`,
+so parity-odd and parity-even representations only differ if you supply improper frames yourself.
 General representations can be obtained by linear combinations of these fundamentals, e.g. ``4x0n+8x1n+3x2n+2x3n``.
 
 3. Process local particle features with any backbone architecture

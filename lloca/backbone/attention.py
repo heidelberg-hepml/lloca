@@ -40,6 +40,7 @@ def _scale_frames(frames: Frames, scale: torch.Tensor) -> Frames:
         is_global=frames.is_global,
         inv=frames.inv / scale,
         det=frames.det * scale[..., 0, 0] ** 4,
+        parity=frames.parity,  # scale > 0, so the parity is unchanged
     )
 
 
@@ -150,6 +151,9 @@ class LLoCaAttention(torch.nn.Module):
                 is_identity=inv_frames.is_identity,
                 is_global=inv_frames.is_global,
                 det=torch.cat([inv_frames.det, lower_inv_frames.det, inv_frames.det], dim=0),
+                parity=torch.cat(
+                    [inv_frames.parity, lower_inv_frames.parity, inv_frames.parity], dim=0
+                ),
                 inv=torch.cat([inv_frames.inv, lower_inv_frames.inv, inv_frames.inv], dim=0),
             )
 
@@ -177,6 +181,18 @@ class LLoCaAttention(torch.nn.Module):
         # transform result back into local frame (preserve_variance rescaling, if enabled,
         # is already folded into self.frames_out, see prepare_frames)
         return self.transform(out_global, self.frames_out)
+
+    @staticmethod
+    def _attention(query, key, value, **attn_kwargs):
+        # (B, H, N, C) format required for scaled_dot_product_attention, so flatten any
+        # extra leading dimensions and restore them afterwards
+        shape_q, shape_k = query.shape, key.shape
+        query = query.reshape(-1, *shape_q[-3:])
+        key = key.reshape(-1, *shape_k[-3:])
+        value = value.reshape(-1, *shape_k[-3:])
+
+        out = scaled_dot_product_attention(query, key, value, **attn_kwargs)
+        return out.view(*shape_q)  # (..., H, N, C)
 
     def forward(self, q_local, k_local, v_local, **attn_kwargs):
         """Execute LLoCa attention.
@@ -208,30 +224,12 @@ class LLoCaAttention(torch.nn.Module):
         """
         if self.frames.is_global:
             # fallback to standard attention for global frames
-            return scaled_dot_product_attention(
-                q_local,
-                k_local,
-                v_local,
-                **attn_kwargs,
-            )
+            return self._attention(q_local, k_local, v_local, **attn_kwargs)
 
         q_global, k_global, v_global = self._local_to_global(q_local, k_local, v_local)
 
-        # (B, H, N, C) format required for scaled_dot_product_attention
-        shape_q, shape_k = q_global.shape, k_global.shape
-        q_global = q_global.reshape(-1, *shape_q[-3:])
-        k_global = k_global.reshape(-1, *shape_k[-3:])
-        v_global = v_global.reshape(-1, *shape_k[-3:])
-
         # attention (in global frame)
-        out_global = scaled_dot_product_attention(
-            q_global,
-            k_global,
-            v_global,
-            **attn_kwargs,
-        )
-
-        out_global = out_global.view(*shape_q)  # (..., H, N, C)
+        out_global = self._attention(q_global, k_global, v_global, **attn_kwargs)
 
         out_local = self._global_to_local(out_global)
         return out_local

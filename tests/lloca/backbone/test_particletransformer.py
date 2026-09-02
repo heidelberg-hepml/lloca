@@ -115,14 +115,7 @@ def test_block_invariance_equivariance(
     [
         LearnedSO13Frames,
         LearnedPDFrames,
-        pytest.param(
-            LearnedRestFrames,
-            marks=pytest.mark.xfail(
-                strict=False,
-                reason="LearnedRestFrames occasionally produces NaNs here; "
-                "tracked rather than silently excluded from the parametrization",
-            ),
-        ),
+        LearnedRestFrames,
     ],
 )
 @pytest.mark.parametrize("batch_dims", [[10]])

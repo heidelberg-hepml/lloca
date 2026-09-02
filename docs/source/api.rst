@@ -5,7 +5,8 @@ Equivariant vector prediction
 -----------------------------
 
 The Frames-Net uses a small Lorentz-equivariant network to predict a list of vectors.
-We currently have only one option for this ``equivectors`` network, but we plan to add more options in the future.
+We support a simple message-passing MLP, the L-GATr and L-GATr-slim transformers, and PELICAN
+as this ``equivectors`` network.
 
 .. autosummary::
    :toctree: generated/
@@ -19,7 +20,8 @@ Frames-Net
 ----------
 
 The equivariant vectors can be used in a range of Frames-Net procedures to construct local frames.
-We support three Lorentz-equivariant Frames-Net approaches, an SO(3)-equivariant approach and an SO(2)-equivariant approach.
+We support three Lorentz-equivariant Frames-Net approaches, an SO(3)-equivariant approach,
+an SO(1,1)xSO(2)-equivariant approach and an SO(2)-equivariant approach.
 In addition, we implement non-equivariant networks as identity frames and data augmentation as random frames.
 
 .. autosummary::

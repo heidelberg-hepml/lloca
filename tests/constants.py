@@ -13,7 +13,8 @@ STRICT_TOLERANCES = dict(atol=1e-6, rtol=1e-6)
 
 BATCH_DIMS = [[10, 10], [1000]]
 
-REPS = ["4x0n", "4x1n", "10x0n+5x1n+2x2n"]
+# the parity-odd entry keeps the backbones covering the sign(det L) path, see Frames.parity
+REPS = ["4x0n", "4x1n", "10x0n+5x1n+2x2n", "4x0n+2x1n+2x1p"]
 
 LOGM2_MEAN_STD = ((0, 1), (0, 0.1), (-3, 1))
 

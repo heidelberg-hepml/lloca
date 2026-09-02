@@ -75,7 +75,7 @@ class TensorRepsTransform(torch.nn.Module):
         if self.max_order > 0:
             tensor = self._transform(tensor, matrices.to(tensor.dtype))
         if not self.no_parity_odd:
-            tensor = self._transform_parity(tensor, frames.det.reshape(-1, 1))
+            tensor = self._transform_parity(tensor, frames.parity.reshape(-1, 1))
         return tensor.view(shape)
 
     def _transform(self, tensor, matrices):
@@ -98,6 +98,6 @@ class TensorRepsTransform(torch.nn.Module):
             return out
         return torch.cat((tensor[:, : self.dim_scalars], out), dim=-1)
 
-    def _transform_parity(self, tensor, det):
-        # Parity transform: multiply parity-odd states by sign(det Lambda)
-        return torch.where(self.parity_odd, det.sign().to(tensor.dtype) * tensor, tensor)
+    def _transform_parity(self, tensor, parity):
+        # Parity transform: multiply parity-odd states by sign(det Lambda), see Frames.parity
+        return torch.where(self.parity_odd, parity.to(tensor.dtype) * tensor, tensor)

@@ -19,6 +19,8 @@ Changes compared to the official version:
   (compile, plus a compile_kwargs dict forwarded verbatim to torch.compile via
   lloca.utils.compile.compile_model).
 - The Embed module is always created (maps input_dim to embed_dim also for embed_dims=[]).
+- trim defaults to False and trim=True is rejected: the SequenceTrimmer permutes and
+  truncates the particle sequence, but the local frames are not permuted along.
 - include_global_token (ParT v3.6) raises NotImplementedError: the global token has no
   associated local frame yet.
 - Removed the use_amp option (apply torch.autocast from outside instead), the weaver
@@ -972,7 +974,7 @@ class ParticleTransformer(nn.Module):
         version=1,
         weight_init="moco",
         fix_init=True,
-        trim=True,
+        trim=False,
         for_inference=False,
         for_segmentation=False,
         checkpoint_blocks=False,
@@ -1152,6 +1154,11 @@ class ParticleTransformer(nn.Module):
             self.cls_token = None
 
         # sequence trimmer
+        # The trimmer permutes and truncates the particle sequence, but the local frames are
+        # prepared once in forward() and are not permuted along, so the two would go out of sync.
+        assert not trim, (
+            "trim=True is not supported with LLoCa: the local frames are not trimmed along"
+        )
         num_extra_tokens = 1 if self.include_global_token else 0
         self.trimmer = SequenceTrimmer(
             enabled=trim and not for_inference,

@@ -134,6 +134,10 @@ def test_lower_indices_frames(batch_dims, is_identity):
     torch.testing.assert_close(lowered.det, -frames.det, **TOLERANCES)
     torch.testing.assert_close(lowered.matrices @ lowered.inv, eye, **TOLERANCES)
 
+    # the metric contributes det(metric) = -1, but lowering an index is not a parity
+    # transformation, so the parity has to be inherited unchanged from `frames`
+    torch.testing.assert_close(lowered.parity, frames.parity, **TOLERANCES)
+
     # a vector transformed with the lowered frames has its index lowered
     trafo = TensorRepsTransform(TensorReps("1x1n"))
     x = torch.randn(*batch_dims, 4, dtype=dtype)

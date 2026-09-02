@@ -5,7 +5,7 @@
 [![Tests](https://github.com/heidelberg-hepml/lloca/actions/workflows/tests.yaml/badge.svg)](https://github.com/heidelberg-hepml/lloca/actions/workflows/tests.yaml)
 [![codecov](https://codecov.io/gh/heidelberg-hepml/lloca/branch/main/graph/badge.svg)](https://codecov.io/gh/heidelberg-hepml/lloca)
 [![PyPI version](https://img.shields.io/pypi/v/lloca.svg)](https://pypi.org/project/lloca)
-[![pytorch](https://img.shields.io/badge/PyTorch_2.0+-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/get-started/locally/)
+[![pytorch](https://img.shields.io/badge/PyTorch_2.4+-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/get-started/locally/)
 [![ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 [![LLoCa-CS](http://img.shields.io/badge/paper-arxiv.2505.20280-B31B1B.svg)](https://arxiv.org/abs/2505.20280)
@@ -36,20 +36,20 @@ pre-commit install
 
 ## How to use LLoCa
 
-Please have a look at the [LLoCa documentation](https://heidelberg-hepml.github.io/lloca/) (WIP) and our example notebook for the [LLoCa-Transformer](examples/demo_transformer.ipynb).
+Please have a look at the [LLoCa documentation](https://heidelberg-hepml.github.io/lloca/) and our example notebook for the [LLoCa-Transformer](examples/demo_transformer.ipynb).
 
 ## Features
 
-- Backbone architectures in `lloca/backbone`: `Transformer`, `ParticleTransformer`, `ParticleNet`, `GraphNet`, `MLP`
+- Backbone architectures in `lloca/backbone`: `Transformer` (and `transformer_v2.Transformer` with RMSNorm and GLU), `ParticleTransformer`, `ParticleNet`, `GraphNet`, `MLP`
 - The `Transformer` backbone supports several attention kernels that can be installed optionally with e.g. `pip install lloca[varlen-attention]`, `pip install lloca[xformers-attention]`, `pip install lloca[flex-attention]`, `pip install lloca[flash-attention]`.
 - `LLoCaMessagePassing` as blueprint for generic `LLoCa` graph network backbones
-- Equivariant vector predictors in `lloca/equivectors`: `MLPVectors`, `LGATrVectors`, `PELICANVectors`
+- Equivariant vector predictors in `lloca/equivectors`: `MLPVectors`, `LGATrVectors`, `LGATrSlimVectors`, `PELICANVectors`
 - Local frames for equivariant architectures on several symmetry groups: SO(1,3) (`LearnedPDFrames`, `LearnedSO13Frames`, `LearnedRestFrames`), SO(3) (`LearnedSO3Frames`), SO(1,1)xSO(2) (`LearnedZFrames`) and SO(2) (`LearnedSO2Frames`); as well as the corresponding random global frames for data augmentation
 - Support for arbitrary higher-order representations with the `TensorReps` class
+- Parity-odd representations (`0p`, `1p`, ...), which pick up a factor `sign(det L)`. All Frames-Net classes in this package predict proper Lorentz transformations (`det L = +1`), so parity-odd and parity-even representations only differ for improper frames.
 
 Coming soon:
 
-- Parity-odd representations
 - Support for cross-attention
 - More backbone architectures
 
