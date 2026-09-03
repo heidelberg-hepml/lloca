@@ -36,7 +36,8 @@ def transform(
     ----------
     axes : list[int]
         List of axes along which the transformations are performed.
-        Each element is a tensor of shape (2, ...).
+        Each element is a tensor of shape (2, ...). The axis is assumed
+        to be constant across the batch dimensions.
     angles : list[torch.Tensor]
         List of angles used for the transformations.
         Each element is a tensor of shape (...,).
@@ -63,7 +64,10 @@ def transform(
         trafo = lorentz_eye(dims, angle.device, angle.dtype).clone()
         trafo_type = get_trafo_type(axis)
 
-        i, j = axis.to(dtype=torch.long).tolist()
+        # Scalar i, j (per docstring, axis is constant across the batch).
+        # Per-batch lists would trigger fancy-indexing broadcasts below.
+        i = int(axis[0].flatten()[0])
+        j = int(axis[1].flatten()[0])
         c = torch.where(trafo_type, torch.cosh(angle), torch.cos(angle))
         s = torch.where(trafo_type, torch.sinh(angle), torch.sin(angle))
 
@@ -291,7 +295,7 @@ def rand_boost(
     )
     beta2 = (beta**2).sum(dim=-1, keepdim=True)
     gamma = 1 / (1 - beta2).clamp(min=1e-10).sqrt()
-    fourmomenta = torch.cat([gamma, beta], axis=-1)
+    fourmomenta = torch.cat([gamma, beta], dim=-1)
 
     boost = restframe_boost(fourmomenta)
     return boost
@@ -321,7 +325,7 @@ def sample_rapidity(
     """
     eta = randn_wrapper(shape, device, dtype, generator=generator)
     angle = eta * std_eta
-    angle.clamp(min=-std_eta * n_max_std_eta, max=std_eta * n_max_std_eta)
+    angle = angle.clamp(min=-std_eta * n_max_std_eta, max=std_eta * n_max_std_eta)
     return angle
 
 

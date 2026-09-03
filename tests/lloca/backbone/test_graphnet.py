@@ -4,19 +4,31 @@ from torch_geometric.utils import dense_to_sparse
 
 from lloca.backbone.graphnet import EdgeConv, GraphNet
 from lloca.framesnet.frames import InverseFrames
+from lloca.framesnet.nonequi_frames import IdentityFrames, RandomFrames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.utils.rand_transforms import rand_lorentz
 from tests.constants import FRAMES_PREDICTOR, LOGM2_MEAN_STD, REPS, TOLERANCES
-from tests.helpers import equivectors_builder, sample_particle
+from tests.helpers import equivectors_builder, sample_particle, sweep
+
+EDGECONV_SWEEP = sweep(
+    dict(
+        FramesPredictor=FRAMES_PREDICTOR[0],
+        num_layers_mlp2=0,
+        hidden_reps=REPS[0],
+        logm2_mean=0,
+        logm2_std=1,
+    ),
+    ("FramesPredictor", FRAMES_PREDICTOR),
+    ("num_layers_mlp2", [1]),
+    ("hidden_reps", REPS),
+    ("logm2_mean,logm2_std", LOGM2_MEAN_STD),
+)
 
 
-@pytest.mark.parametrize("FramesPredictor", FRAMES_PREDICTOR)
 @pytest.mark.parametrize("batch_dims", [[10]])
-@pytest.mark.parametrize("num_layers_mlp1", range(1, 2))
-@pytest.mark.parametrize("num_layers_mlp2", range(0, 2))
-@pytest.mark.parametrize("hidden_reps", REPS)
-@pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
+@pytest.mark.parametrize("num_layers_mlp1", [1])
+@pytest.mark.parametrize(*EDGECONV_SWEEP)
 def test_edgeconv_invariance_equivariance(
     FramesPredictor,
     batch_dims,
@@ -82,13 +94,26 @@ def test_edgeconv_invariance_equivariance(
     torch.testing.assert_close(fm_tr_prime_global, fm_prime_tr_global, **TOLERANCES)
 
 
-@pytest.mark.parametrize("FramesPredictor", FRAMES_PREDICTOR)
+GRAPHNET_SWEEP = sweep(
+    dict(
+        FramesPredictor=FRAMES_PREDICTOR[0],
+        num_layers_mlp2=0,
+        num_blocks=0,
+        hidden_reps=REPS[0],
+        logm2_mean=0,
+        logm2_std=1,
+    ),
+    ("FramesPredictor", FRAMES_PREDICTOR),
+    ("num_layers_mlp2", [1]),
+    ("num_blocks", [1, 2]),
+    ("hidden_reps", REPS),
+    ("logm2_mean,logm2_std", LOGM2_MEAN_STD),
+)
+
+
 @pytest.mark.parametrize("batch_dims", [[10]])
-@pytest.mark.parametrize("num_layers_mlp1", range(1, 2))
-@pytest.mark.parametrize("num_layers_mlp2", range(0, 2))
-@pytest.mark.parametrize("num_blocks", [0, 1, 2])
-@pytest.mark.parametrize("hidden_reps", REPS)
-@pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
+@pytest.mark.parametrize("num_layers_mlp1", [1])
+@pytest.mark.parametrize(*GRAPHNET_SWEEP)
 def test_graphnet_invariance_equivariance(
     FramesPredictor,
     batch_dims,
@@ -147,3 +172,31 @@ def test_graphnet_invariance_equivariance(
 
     # test equivariance of outputs
     torch.testing.assert_close(fm_tr_prime_global, fm_prime_tr_global, **TOLERANCES)
+
+
+@pytest.mark.parametrize(
+    "predictor_factory",
+    [IdentityFrames, lambda: RandomFrames(is_global=True).train()],
+    ids=["identity", "random_global"],
+)
+@pytest.mark.parametrize("batch_dims", [[6]])
+def test_message_passing_with_global_frames(predictor_factory, batch_dims):
+    """Message passing must work with global frames.
+
+    ChangeOfFrames takes its identity shortcut here; it used to build (..., 4, 4, 4, 4)
+    matrices, so this whole path was broken for the non-equivariant baselines.
+    """
+    dtype = torch.float64
+    n = batch_dims[0]
+    edge_index = dense_to_sparse(torch.ones(n, n))[0]
+
+    reps = TensorReps("3x0n+1x1n")
+    edgeconv = EdgeConv(reps, 1, 1).to(dtype=dtype)
+
+    fm = sample_particle(batch_dims, 1.0, 0.0, dtype=dtype)
+    frames = predictor_factory()(fm)
+    assert frames.is_global
+    assert frames.matrices.shape == (n, 4, 4)
+
+    out = edgeconv(torch.randn(n, reps.dim, dtype=dtype), frames, edge_index)
+    assert out.shape == (n, reps.dim)

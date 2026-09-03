@@ -3,9 +3,8 @@
 import math
 
 import torch
-from einops import rearrange
 from lgatr import embed_vector
-from lgatr.layers import EquiLayerNorm
+from lgatr.layers import EquiLayerNorm, SlimRMSNorm
 from lgatr.primitives.invariants import _load_inner_product_factors
 from torch_geometric.nn import MessagePassing
 
@@ -16,53 +15,60 @@ from .base import EquiVectors
 from .mlp import get_edge_index_and_batch, get_nonlinearity, get_operation
 
 
-class LGATrVectors(EquiVectors, MessagePassing):
+class _LGATrVectorsBase(EquiVectors, MessagePassing):
+    """Shared machinery for L-GATr-based equivariant vector predictors.
+
+    Subclasses set up ``self.net`` and ``self.lgatr_norm`` and implement ``_embed_input``
+    (how four-momenta enter the network), ``_get_qk_metric`` (the metric contracting the
+    query/key vector channels) and ``_apply_lgatr_norm`` (how ``self.lgatr_norm`` is called).
+    """
+
     def __init__(
         self,
         n_vectors,
-        num_scalars,
-        hidden_mv_channels,
-        hidden_s_channels,
-        net,
         operation="add",
         nonlinearity="softmax",
         aggr="sum",
         layer_norm=False,
-        lgatr_norm=True,
         use_amp=False,
         attention_backend="xformers",
     ):
         # Note: fm_norm option not supported, because it would be unstable with remove_self_loops=False
         super().__init__(aggr=aggr)
         self.n_vectors = n_vectors
-        out_mv_channels = (
-            2 * n_vectors * max(1, hidden_mv_channels // (2 * n_vectors))
-            if hidden_mv_channels > 0
-            else 0
-        )
-        out_s_channels = (
-            2 * n_vectors * max(1, hidden_s_channels // (2 * n_vectors))
-            if hidden_s_channels > 0
-            else 0
-        )
-        self.net = net(
-            in_s_channels=num_scalars,
-            out_mv_channels=out_mv_channels,
-            out_s_channels=out_s_channels,
-        )
-        self.lgatr_norm = EquiLayerNorm() if lgatr_norm else None
-
         self.operation = get_operation(operation)
         self.nonlinearity = get_nonlinearity(nonlinearity)
         self.layer_norm = layer_norm
         self.use_amp = use_amp
         self.attention_backend = attention_backend
 
+    @staticmethod
+    def _doubled_channels(hidden_channels, n_vectors):
+        if hidden_channels <= 0:
+            return 0
+        return 2 * n_vectors * max(1, hidden_channels // (2 * n_vectors))
+
+    def _embed_input(self, fourmomenta):
+        raise NotImplementedError
+
+    def _get_qk_metric(self, device, dtype):
+        raise NotImplementedError
+
+    def _apply_lgatr_norm(self, vectors, scalars):
+        raise NotImplementedError
+
+    def _prepare_scalars(self, scalars):
+        """Last chance to adapt the scalar stream to what ``self.net`` expects."""
+        return scalars
+
     def forward(self, fourmomenta, scalars=None, ptr=None, **kwargs):
-        attn_kwargs = {}
         in_shape = fourmomenta.shape[:-1]
+        if scalars is None:
+            scalars = torch.zeros_like(fourmomenta[..., []])
+
+        attn_kwargs = {}
         if ptr is not None:
-            batch = get_batch_from_ptr(ptr)
+            batch = get_batch_from_ptr(ptr, num_items=fourmomenta.shape[0])
             attn_kwargs = get_sparse_attention_mask(
                 batch, attention_backend=self.attention_backend, dtype=scalars.dtype
             )
@@ -71,30 +77,30 @@ class LGATrVectors(EquiVectors, MessagePassing):
         fourmomenta = fourmomenta.unsqueeze(0)
         scalars = scalars.unsqueeze(0)
 
-        # get query and key from LGATr
-        mv = embed_vector(fourmomenta).unsqueeze(-2).to(scalars.dtype)
-        with torch.autocast("cuda", enabled=self.use_amp):
-            qk_mv, qk_s = self.net(mv, scalars, **attn_kwargs)
+        # get query and key from the underlying L-GATr network
+        net_input = self._embed_input(fourmomenta).to(scalars.dtype)
+        with torch.autocast(net_input.device.type, enabled=self.use_amp):
+            qk_v, qk_s = self.net(net_input, self._prepare_scalars(scalars), **attn_kwargs)
         if self.lgatr_norm is not None:
-            qk_mv, qk_s = self.lgatr_norm(qk_mv, qk_s)
+            qk_v, qk_s = self._apply_lgatr_norm(qk_v, qk_s)
 
         # flatten for message passing
         fm_shape = fourmomenta.shape[:-1]
         fourmomenta = fourmomenta.reshape(math.prod(fm_shape), 4)
-        qk_mv = qk_mv.reshape(math.prod(fm_shape), qk_mv.shape[-2], qk_mv.shape[-1])
+        qk_v = qk_v.reshape(math.prod(fm_shape), qk_v.shape[-2], qk_v.shape[-1])
         qk_s = qk_s.reshape(math.prod(fm_shape), qk_s.shape[-1])
 
         # extract q and k
-        q_mv, k_mv = torch.chunk(qk_mv.to(fourmomenta.dtype), chunks=2, dim=-2)
+        q_v, k_v = torch.chunk(qk_v.to(fourmomenta.dtype), chunks=2, dim=-2)
         q_s, k_s = torch.chunk(qk_s.to(fourmomenta.dtype), chunks=2, dim=-1)
 
         # unpack the n_vectors axis
-        q_mv = q_mv.reshape(*q_mv.shape[:-2], self.n_vectors, -1, q_mv.shape[-1])
-        k_mv = k_mv.reshape(*k_mv.shape[:-2], self.n_vectors, -1, k_mv.shape[-1])
+        q_v = q_v.reshape(*q_v.shape[:-2], self.n_vectors, -1, q_v.shape[-1])
+        k_v = k_v.reshape(*k_v.shape[:-2], self.n_vectors, -1, k_v.shape[-1])
         q_s = q_s.reshape(*q_s.shape[:-1], self.n_vectors, -1)
         k_s = k_s.reshape(*k_s.shape[:-1], self.n_vectors, -1)
 
-        qk_product = get_qk_product(q_mv, k_mv, q_s, k_s, edge_index)
+        qk_product = self._get_qk_product(q_v, k_v, q_s, k_s, edge_index)
 
         # message-passing
         vecs = self.propagate(
@@ -139,24 +145,118 @@ class LGATrVectors(EquiVectors, MessagePassing):
         out = out.reshape(out.shape[0], -1)
         return out
 
+    def _get_qk_product(self, q_v, k_v, q_s, k_s, edge_index):
+        metric = self._get_qk_metric(device=q_v.device, dtype=q_v.dtype)
+        q = torch.cat([(q_v * metric).flatten(-2, -1), q_s], dim=-1)
+        k = torch.cat([k_v.flatten(-2, -1), k_s], dim=-1)
 
-def get_qk_product(q_mv, k_mv, q_s, k_s, edge_index):
-    # prepare queries and keys
-    q = torch.cat(
-        [
-            rearrange(
-                q_mv * _load_inner_product_factors(device=q_mv.device, dtype=q_mv.dtype),
-                "... c x -> ... (c x)",
-            ),
-            q_s,
-        ],
-        -1,
-    )
-    k = torch.cat([rearrange(k_mv, "... c x -> ... (c x)"), k_s], -1)
+        # evaluate attention weights on edges
+        scale_factor = 1 / math.sqrt(q.shape[-1])
+        src, dst = edge_index
+        q_edges, k_edges = q[src], k[dst]
+        qk_product = (q_edges * k_edges).sum(dim=-1) * scale_factor
+        return qk_product
 
-    # evaluate attention weights on edges
-    scale_factor = 1 / math.sqrt(q.shape[-1])
-    src, dst = edge_index
-    q_edges, k_edges = q[src], k[dst]
-    qk_product = (q_edges * k_edges).sum(dim=-1) * scale_factor
-    return qk_product
+
+class LGATrVectors(_LGATrVectorsBase):
+    """Wrapper around the multivector ``lgatr.nets.LGATr`` backbone."""
+
+    def __init__(
+        self,
+        n_vectors,
+        num_scalars,
+        hidden_mv_channels,
+        hidden_s_channels,
+        net,
+        operation="add",
+        nonlinearity="softmax",
+        aggr="sum",
+        layer_norm=False,
+        lgatr_norm=True,
+        use_amp=False,
+        attention_backend="xformers",
+    ):
+        super().__init__(
+            n_vectors=n_vectors,
+            operation=operation,
+            nonlinearity=nonlinearity,
+            aggr=aggr,
+            layer_norm=layer_norm,
+            use_amp=use_amp,
+            attention_backend=attention_backend,
+        )
+        out_mv_channels = self._doubled_channels(hidden_mv_channels, n_vectors)
+        out_s_channels = self._doubled_channels(hidden_s_channels, n_vectors)
+        self.net = net(
+            in_s_channels=num_scalars,
+            out_mv_channels=out_mv_channels,
+            out_s_channels=out_s_channels,
+        )
+        self.lgatr_norm = EquiLayerNorm() if lgatr_norm else None
+
+    def _embed_input(self, fourmomenta):
+        return embed_vector(fourmomenta).unsqueeze(-2)
+
+    def _get_qk_metric(self, device, dtype):
+        return _load_inner_product_factors(device=device, dtype=dtype)
+
+    def _apply_lgatr_norm(self, vectors, scalars):
+        return self.lgatr_norm(vectors, scalars)
+
+
+class LGATrSlimVectors(_LGATrVectorsBase):
+    """Wrapper around the vector-stream ``lgatr.nets.LGATrSlim`` backbone."""
+
+    def __init__(
+        self,
+        n_vectors,
+        num_scalars,
+        hidden_v_channels,
+        hidden_s_channels,
+        net,
+        operation="add",
+        nonlinearity="softmax",
+        aggr="sum",
+        layer_norm=False,
+        lgatr_norm=True,
+        use_amp=False,
+        attention_backend="xformers",
+    ):
+        super().__init__(
+            n_vectors=n_vectors,
+            operation=operation,
+            nonlinearity=nonlinearity,
+            aggr=aggr,
+            layer_norm=layer_norm,
+            use_amp=use_amp,
+            attention_backend=attention_backend,
+        )
+        out_v_channels = self._doubled_channels(hidden_v_channels, n_vectors)
+        out_s_channels = self._doubled_channels(hidden_s_channels, n_vectors)
+        self.pad_scalars = num_scalars == 0
+        self.net = net(
+            in_s_channels=max(num_scalars, 1),
+            out_v_channels=out_v_channels,
+            out_s_channels=out_s_channels,
+        )
+        self.lgatr_norm = (
+            SlimRMSNorm(out_v_channels, out_s_channels, elementwise_affine=False)
+            if lgatr_norm
+            else None
+        )
+
+    def _embed_input(self, fourmomenta):
+        return fourmomenta.unsqueeze(-2)
+
+    def _get_qk_metric(self, device, dtype):
+        # Minkowski metric, contracting the four components of each vector channel
+        return torch.tensor([1.0, -1.0, -1.0, -1.0], device=device, dtype=dtype)
+
+    def _apply_lgatr_norm(self, vectors, scalars):
+        vectors, scalars = self.lgatr_norm(vectors.transpose(-2, -1), scalars)
+        return vectors.transpose(-2, -1), scalars
+
+    def _prepare_scalars(self, scalars):
+        if not self.pad_scalars:
+            return scalars
+        return scalars.new_ones(*scalars.shape[:-1], 1)

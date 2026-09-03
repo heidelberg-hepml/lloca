@@ -103,7 +103,7 @@ class PELICANVectors(EquiVectors, MessagePassing):
         fm_rel = (fm_rel / fm_rel_norm)[:, None, :4]
 
         # message-passing
-        with torch.autocast("cuda", enabled=self.use_amp):
+        with torch.autocast(fm_rel.device.type, enabled=self.use_amp):
             prefactor = self.net(
                 in_rank2=edge_attr,
                 in_rank1=s_i,

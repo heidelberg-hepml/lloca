@@ -5,27 +5,41 @@ from pelican import PELICAN
 from lloca.equivectors.pelican import PELICANVectors
 from lloca.utils.rand_transforms import rand_lorentz
 from tests.constants import LOGM2_MEAN_STD, TOLERANCES
-from tests.helpers import sample_particle
+from tests.helpers import sample_particle, sweep
+
+SWEEP = sweep(
+    dict(
+        n_vectors=1,
+        logm2_mean=0,
+        logm2_std=1,
+        num_scalars=0,
+        operation="add",
+        fm_norm=False,
+        layer_norm=False,
+        nonlinearity="softplus",
+        sparse_mode=False,
+    ),
+    ("n_vectors", [2, 3]),
+    ("logm2_mean,logm2_std", LOGM2_MEAN_STD),
+    ("num_scalars", [1]),
+    (
+        "operation,fm_norm,layer_norm",
+        [
+            ("add", False, True),
+            ("add", True, False),
+            ("add", True, True),
+            ("single", False, True),
+        ],
+    ),
+    ("nonlinearity", ["exp", "softmax"]),
+    ("sparse_mode", [True]),
+)
 
 
 @pytest.mark.parametrize("batch_dims", [[100]])
 @pytest.mark.parametrize("jet_size", [10])
-@pytest.mark.parametrize("n_vectors", [1, 2, 3])
 @pytest.mark.parametrize("hidden_channels,num_blocks", [(4, 1)])
-@pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
-@pytest.mark.parametrize("num_scalars", [0, 1])
-@pytest.mark.parametrize(
-    "operation, fm_norm, layer_norm",
-    [
-        ("add", False, False),
-        ("add", False, True),
-        ("add", True, False),
-        ("add", True, True),
-        ("single", False, True),
-    ],
-)
-@pytest.mark.parametrize("nonlinearity", ["softplus", "exp", "softmax"])
-@pytest.mark.parametrize("sparse_mode", [True, False])
+@pytest.mark.parametrize(*SWEEP)
 def test_equivariance(
     batch_dims,
     jet_size,

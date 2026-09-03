@@ -1,9 +1,11 @@
 LLoCa-ParticleTransformer
 =========================
 
-We start with the updated ParticleTransformer implementation,
-available at https://github.com/hqucms/weaver-core/blob/dev/custom_train_eval/weaver/nn/model/ParticleTransformer.py,
-and made small changes to improve numerical stability and efficiency.
+We start from the ParticleTransformer implementation on the weaver-core main branch
+(commit ``d53f590``), available at
+https://github.com/hqucms/weaver-core/blob/main/weaver/nn/model/ParticleTransformer.py.
+The diff below omits the weaver logger and the ``ParticleTransformerTagger*`` wrapper classes,
+which are not part of the network itself.
 
 Similar to :doc:`transformer`, we use :class:`~lloca.backbone.attention.LLoCaAttention`
 to efficiently implement tensorial message-passing.
@@ -11,42 +13,59 @@ ParticleTransformer features two types of attention blocks, particle self-attent
 and class attention for the final aggregation over the jet. We find that it is sufficient to use
 tensorial message-passing only in the particle self-attention blocks.
 
+One change is easy to miss: the ``SequenceTrimmer`` permutes and truncates the particle
+sequence, but the local frames are prepared once in ``forward`` and are not permuted along,
+so the two would silently go out of sync. We therefore default ``trim`` to ``False`` and
+reject ``trim=True``.
+
+As in :doc:`transformer`, we pass ``preserve_variance=False`` to keep the diff minimal;
+see :class:`~lloca.backbone.particletransformer.ParticleTransformer` for the variant that
+threads the reference four-momentum ``p_ref`` through ``forward``. That class also adds a few
+options beyond the diff below, for instance numerical clamps in ``to_ptrapphim``,
+``checkpoint_blocks`` and ``compile``; its module docstring lists them all.
+
 .. code-block:: diff
 
-    import copy
     import math
-    import random
-    from collections.abc import Callable
+
+    import copy
     from functools import partial
-    from typing import Any, Optional, Tuple
+    from typing import Optional, Tuple, Any, Callable
 
     import torch
     import torch.nn as nn
     import torch.nn.functional as F
-
+    +
     +from ..reps.tensorreps import TensorReps
     +from .attention import LLoCaAttention
 
 
-    @torch.jit.script
     def delta_phi(a, b):
         return (a - b + math.pi) % (2 * math.pi) - math.pi
 
 
-    @torch.jit.script
     def delta_r2(eta1, phi1, eta2, phi2):
         return (eta1 - eta2) ** 2 + delta_phi(phi1, phi2) ** 2
 
 
     def to_pt2(x, eps=1e-8):
+        assert x.size(1) >= 2
         pt2 = x[:, :2].square().sum(dim=1, keepdim=True)
         if eps is not None:
             pt2 = pt2.clamp(min=eps)
         return pt2
 
 
+    def to_p2(x, eps=1e-8):
+        assert x.size(1) >= 3
+        p2 = x[:, :3].square().sum(dim=1, keepdim=True)
+        if eps is not None:
+            p2 = p2.clamp(min=eps)
+        return p2
+
+
     def to_m2(x, eps=1e-8):
-        m2 = x[:, 3:4].square() - x[:, :3].square().sum(dim=1, keepdim=True)
+        m2 = x[:, 3:4].square() - to_p2(x, eps=None)
         if eps is not None:
             m2 = m2.clamp(min=eps)
         return m2
@@ -57,13 +76,30 @@ tensorial message-passing only in the particle self-attention blocks.
         px, py, pz, energy = x.split((1, 1, 1, 1), dim=1)
         pt = torch.sqrt(to_pt2(x, eps=eps))
         # rapidity = 0.5 * torch.log((energy + pz) / (energy - pz))
-        rapidity = 0.5 * torch.log((1 + (2 * pz) / (energy - pz).clamp(min=1e-20)).clamp(min=1e-20))
+        rapidity = 0.5 * torch.log(1 + (2 * pz) / (energy - pz).clamp(min=1e-20))
         phi = torch.atan2(py, px)
         if not return_mass:
             return torch.cat((pt, rapidity, phi), dim=1)
         else:
             m = torch.sqrt(to_m2(x, eps=eps))
             return torch.cat((pt, rapidity, phi, m), dim=1)
+
+
+    def to_spherical(coords):
+        # x: (N, 4, ...), dim1 : (x, y, z, t)
+        x, y, z = coords[:, :3].split((1, 1, 1), dim=1)
+        r = torch.sqrt(to_p2(coords, eps=None))
+        theta = torch.acos((z / r.clamp(min=1e-8)).clamp(-1, 1))
+        phi = torch.atan2(y, x)
+        return r, theta, phi
+
+
+    def to_cylindrical(coords):
+        # x: (N, 4, ...), dim1 : (x, y, z, t)
+        x, y, z = coords[:, :3].split((1, 1, 1), dim=1)
+        rho = torch.sqrt(to_pt2(coords, eps=None))
+        phi = torch.atan2(y, x)
+        return rho, phi, z
 
 
     def boost(x, boostp4, eps=1e-8):
@@ -85,8 +121,7 @@ tensorial message-passing only in the particle self-attention blocks.
 
     def to_energy_momentum(x, return_unit_vector=True):
         energy = x[:, 3:4]
-        p2 = x[:, :3].square().sum(dim=1, keepdim=True)
-        mom = torch.sqrt(p2)
+        mom = torch.sqrt(to_p2(x, eps=None))
         if return_unit_vector:
             return energy, mom, x[:, :3] / mom.clamp(min=1e-8)
         else:
@@ -107,19 +142,21 @@ tensorial message-passing only in the particle self-attention blocks.
         pti, rapi, phii = to_ptrapphim(xi, False, eps=None).split((1, 1, 1), dim=1)
         ptj, rapj, phij = to_ptrapphim(xj, False, eps=None).split((1, 1, 1), dim=1)
 
-        # modified this for convenience (only lorentz scalars is most conservative)
-        xij = xi + xj
-        lnm2 = torch.log(to_m2(xij, eps=eps))
-        if num_outputs > 0:
-            outputs = [lnm2]
+        delta = delta_r2(rapi, phii, rapj, phij).sqrt()
+        lndelta = torch.log(delta.clamp(min=eps))
+        if num_outputs == 1:
+            return lndelta
 
         if num_outputs > 1:
-            delta = delta_r2(rapi, phii, rapj, phij).sqrt()
-            lndelta = torch.log(delta.clamp(min=eps))
             ptmin = torch.minimum(pti, ptj)
             lnkt = torch.log((ptmin * delta).clamp(min=eps))
             lnz = torch.log((ptmin / (pti + ptj).clamp(min=eps)).clamp(min=eps))
-            outputs += [lnkt, lnz, lndelta]
+            outputs = [lnkt, lnz, lndelta]
+
+        if num_outputs > 3:
+            xij = xi + xj
+            lnm2 = torch.log(to_m2(xij, eps=eps))
+            outputs.append(lnm2)
 
         if num_outputs > 4:
             lnds2 = torch.log(torch.clamp(-to_m2(xi - xj, eps=None), min=eps))
@@ -165,6 +202,44 @@ tensorial message-passing only in the particle self-attention blocks.
         return torch.cat(outputs, dim=1)
 
 
+    def pairwise_lv_fts_xyzt(xi, xj, num_outputs=7, coords="rectangular", eps=1e-8):
+        # outputs: [ln_dist2, cos_angle, sin_angle, ln_dt] + coords-diff
+        dij = xi - xj
+        ln_dist2 = torch.log(to_p2(dij, eps=eps))
+        outputs = [ln_dist2]
+
+        if num_outputs > 1:
+            ei, pi, ni = to_energy_momentum(xi)
+            ej, pj, nj = to_energy_momentum(xj)
+            cos_angle, sin_angle = to_cos_sin_angles(ni, nj, normed_inputs=True)
+            outputs += [cos_angle, sin_angle]
+
+        if num_outputs > 3:
+            ln_dt = torch.asinh(dij[:, 3:4])
+            outputs += [ln_dt]
+
+        if num_outputs > 4:
+            if coords.lower().startswith("rect") or coords.lower().startswith("cart"):
+                # rectangular/Cartesian coordinate system
+                dx, dy, dz = dij[:, :3].split((1, 1, 1), dim=1)
+                outputs += [dx, dy, dz]
+            elif coords.lower().startswith("sph"):
+                # spherical coordinate system
+                r_i, theta_i, phi_i = to_spherical(xi)
+                r_j, theta_j, phi_j = to_spherical(xj)
+                outputs += [torch.asinh(r_i - r_j), theta_i - theta_j, delta_phi(phi_i, phi_j)]
+            elif coords.lower().startswith("cyl"):
+                # cylindrical coordinate system
+                rho_i, phi_i, z_i = to_cylindrical(xi)
+                rho_j, phi_j, z_j = to_cylindrical(xj)
+                outputs += [torch.asinh(rho_i - rho_j), delta_phi(phi_i, phi_j), torch.asinh(z_i - z_j)]
+            else:
+                raise RuntimeError(f"Unrecognized coordinate system name {coords}")
+
+        assert len(outputs) == num_outputs
+        return torch.cat(outputs, dim=1)
+
+
     def build_sparse_tensor(uu, idx, seq_len):
         # inputs: uu (N, C, num_pairs), idx (N, 2, num_pairs)
         # return: (N, C, seq_len, seq_len)
@@ -172,23 +247,15 @@ tensorial message-passing only in the particle self-attention blocks.
         idx = torch.min(idx, torch.ones_like(idx) * seq_len)
         i = torch.cat(
             (
-                torch.arange(0, batch_size, device=uu.device)
-                .repeat_interleave(num_fts * num_pairs)
-                .unsqueeze(0),
-                torch.arange(0, num_fts, device=uu.device)
-                .repeat_interleave(num_pairs)
-                .repeat(batch_size)
-                .unsqueeze(0),
+                torch.arange(0, batch_size, device=uu.device).repeat_interleave(num_fts * num_pairs).unsqueeze(0),
+                torch.arange(0, num_fts, device=uu.device).repeat_interleave(num_pairs).repeat(batch_size).unsqueeze(0),
                 idx[:, :1, :].expand_as(uu).flatten().unsqueeze(0),
                 idx[:, 1:, :].expand_as(uu).flatten().unsqueeze(0),
             ),
             dim=0,
         )
         return torch.sparse_coo_tensor(
-            i,
-            uu.flatten(),
-            size=(batch_size, num_fts, seq_len + 1, seq_len + 1),
-            device=uu.device,
+            i, uu.flatten(), size=(batch_size, num_fts, seq_len + 1, seq_len + 1), device=uu.device
         ).to_dense()[:, :, :seq_len, :seq_len]
 
 
@@ -197,11 +264,15 @@ tensorial message-passing only in the particle self-attention blocks.
 
 
     class SequenceTrimmer(nn.Module):
-        def __init__(self, enabled=False, target=(0.9, 1.02), warmup_steps=5, **kwargs) -> None:
+        def __init__(
+            self, enabled=False, target=(0.9, 1.02), warmup_steps=5, round_to_32=False, num_extra_tokens=0, **kwargs
+        ) -> None:
             super().__init__(**kwargs)
             self.enabled = enabled
             self.target = target
             self.warmup_steps = warmup_steps
+            self.round_to_32 = round_to_32
+            self.num_extra_tokens = num_extra_tokens
             self.register_buffer("_counter", torch.LongTensor([0]), persistent=False)
 
         def forward(self, x, v=None, mask=None, uu=None):
@@ -217,12 +288,21 @@ tensorial message-passing only in the particle self-attention blocks.
                 if self._counter < self.warmup_steps:
                     self._counter.add_(1)
                 else:
+                    seq_len = mask.size(-1)
                     if v is not None:
                         if not isinstance(v, (list, tuple)):
                             v = [v]
                     if self.training:
-                        q = min(1, random.uniform(*self.target))
+                        # Use torch RNG instead of Python random to avoid graph breaks
+                        q = torch.empty(1, device=mask.device).uniform_(*self.target).clamp_(max=1)
                         maxlen = torch.quantile(mask.float().sum(dim=-1), q).long()
+                        if self.round_to_32:
+                            # Round up to next multiple of 32
+                            # effectively: ceil(x / 32) * 32
+                            target_len = maxlen + self.num_extra_tokens
+                            target_len = ((target_len + 31) // 32) * 32
+                            target_len = torch.clamp(target_len, min=32)
+                            maxlen = torch.clamp(target_len, max=seq_len) - self.num_extra_tokens
                         rand = torch.rand_like(mask.float())
                         rand.masked_fill_(~mask, -1)
                         perm = rand.argsort(dim=-1, descending=True)  # (N, 1, P)
@@ -235,8 +315,8 @@ tensorial message-passing only in the particle self-attention blocks.
                             uu = torch.gather(uu, -1, perm.unsqueeze(-2).expand_as(uu))
                     else:
                         maxlen = mask.sum(dim=-1).max()
-                    maxlen = max(maxlen, 1)
-                    if maxlen < mask.size(-1):
+                    maxlen = maxlen.clamp(min=1)
+                    if maxlen < seq_len:
                         mask = mask[:, :, :maxlen]
                         x = x[:, :, :maxlen]
                         if v is not None:
@@ -254,8 +334,8 @@ tensorial message-passing only in the particle self-attention blocks.
         def __init__(
             self,
             in_features: int,
-            hidden_features: int | None = None,
-            out_features: int | None = None,
+            hidden_features: Optional[int] = None,
+            out_features: Optional[int] = None,
             drop: float = 0.0,
             bias: bool = True,
         ) -> None:
@@ -275,26 +355,44 @@ tensorial message-passing only in the particle self-attention blocks.
 
 
     class Embed(nn.Module):
-        def __init__(self, input_dim, dims, normalize_input=True, activation="gelu"):
+        def __init__(self, input_dim, dims, normalize_input=True, activation="gelu", use_conv_embed=False):
             super().__init__()
 
             self.input_bn = nn.BatchNorm1d(input_dim) if normalize_input else None
-            module_list = []
-            for dim in dims:
-                module_list.extend(
-                    [
-                        nn.LayerNorm(input_dim),
-                        nn.Linear(input_dim, dim),
-                        nn.GELU() if activation == "gelu" else nn.ReLU(),
-                    ]
-                )
-                input_dim = dim
-            self.embed = nn.Sequential(*module_list)
+            self.use_conv_embed = bool(use_conv_embed)
+            if self.use_conv_embed:
+                assert normalize_input == True
+                module_list = []
+                for dim in dims:
+                    module_list.extend(
+                        [
+                            nn.Conv1d(input_dim, dim, 1, bias=False),
+                            nn.BatchNorm1d(dim),
+                            nn.GELU() if activation == "gelu" else nn.ReLU(),
+                        ]
+                    )
+                    input_dim = dim
+                self.conv_embed = nn.Sequential(*module_list[:-1])
+                self.embed = nn.Identity()
+            else:
+                module_list = []
+                for dim in dims:
+                    module_list.extend(
+                        [
+                            nn.LayerNorm(input_dim),
+                            nn.Linear(input_dim, dim),
+                            nn.GELU() if activation == "gelu" else nn.ReLU(),
+                        ]
+                    )
+                    input_dim = dim
+                self.conv_embed = nn.Identity()
+                self.embed = nn.Sequential(*module_list)
 
         def forward(self, x):
             if self.input_bn is not None:
                 # x: (batch, embed_dim, seq_len)
                 x = self.input_bn(x)
+                x = self.conv_embed(x)
                 x = x.transpose(1, 2).contiguous()
             # x: (batch, seq_len, embed_dim)
             return self.embed(x)
@@ -311,6 +409,7 @@ tensorial message-passing only in the particle self-attention blocks.
             use_pre_activation_pair=True,
             normalize_input=True,
             activation="gelu",
+            use_bias=True,
             eps=1e-8,
             for_onnx=False,
             sparse_eval=None,
@@ -322,6 +421,7 @@ tensorial message-passing only in the particle self-attention blocks.
             self.remove_self_pair = remove_self_pair
             self.for_onnx = for_onnx
             self.sparse_eval = (not for_onnx) if sparse_eval is None else sparse_eval
+            self.tril_indices_fn = tril_indices if self.for_onnx else torch.tril_indices
             self.out_dim = dims[-1]
 
             if pairwise_lv_type == "pp":
@@ -330,6 +430,10 @@ tensorial message-passing only in the particle self-attention blocks.
             elif pairwise_lv_type == "ee":
                 self.is_symmetric = (pairwise_lv_dim <= 6) and (pairwise_input_dim == 0)
                 self.pairwise_lv_fts = partial(pairwise_lv_fts_ee, num_outputs=pairwise_lv_dim, eps=eps)
+            elif pairwise_lv_type.startswith("xyzt"):
+                coords = pairwise_lv_type.split(":")[1] if ":" in pairwise_lv_type else None
+                self.is_symmetric = (pairwise_lv_dim <= 3) and (pairwise_input_dim == 0)
+                self.pairwise_lv_fts = partial(pairwise_lv_fts_xyzt, num_outputs=pairwise_lv_dim, coords=coords, eps=eps)
             else:
                 raise RuntimeError("Invalid value for `pairwise_lv_type`: " + pairwise_lv_type)
 
@@ -339,7 +443,7 @@ tensorial message-passing only in the particle self-attention blocks.
                 for dim in dims:
                     module_list.extend(
                         [
-                            nn.Conv1d(input_dim, dim, 1),
+                            nn.Conv1d(input_dim, dim, 1, bias=use_bias),
                             nn.BatchNorm1d(dim),
                             nn.GELU() if activation == "gelu" else nn.ReLU(),
                         ]
@@ -355,7 +459,7 @@ tensorial message-passing only in the particle self-attention blocks.
                 for dim in dims:
                     module_list.extend(
                         [
-                            nn.Conv1d(input_dim, dim, 1),
+                            nn.Conv1d(input_dim, dim, 1, bias=use_bias),
                             nn.BatchNorm1d(dim),
                             nn.GELU() if activation == "gelu" else nn.ReLU(),
                         ]
@@ -365,106 +469,87 @@ tensorial message-passing only in the particle self-attention blocks.
                     module_list = module_list[:-1]
                 self.fts_embed = nn.Sequential(*module_list)
 
+        def _embed_pairs(self, x, uu):
+            """Run embedding networks on pair features. Returns (batch_or_1, out_dim, num_pairs)."""
+            elements = None
+            if x is not None:
+                elements = self.embed(x)
+            if uu is not None:
+                fts = self.fts_embed(uu)
+                elements = fts if elements is None else elements + fts
+            return elements
+
         def _forward_dense(self, x, uu=None, mask=None):
             # x: (batch, v_dim, seq_len)
             # uu: (batch, v_dim, seq_len, seq_len)
-            assert x is not None or uu is not None
-            with torch.no_grad():
-                if x is not None:
-                    batch_size, _, seq_len = x.size()
-                else:
-                    batch_size, _, seq_len, _ = uu.size()
-                if self.is_symmetric:
-                    tril_indices_fn = tril_indices if self.for_onnx else torch.tril_indices
-                    i, j = tril_indices_fn(
-                        seq_len,
-                        seq_len,
-                        offset=-1 if self.remove_self_pair else 0,
-                        device=(x if x is not None else uu).device,
-                    )
-                    if x is not None:
-                        x = x.unsqueeze(-1).repeat(1, 1, 1, seq_len)
-                        xi = x[:, :, i, j]  # (batch, dim, seq_len*(seq_len+1)/2)
-                        xj = x[:, :, j, i]
-                        x = self.pairwise_lv_fts(xi, xj)
-                    if uu is not None:
-                        # (batch, dim, seq_len*(seq_len+1)/2)
-                        uu = uu[:, :, i, j]
-                else:
-                    if x is not None:
-                        x = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2))
-                        if self.remove_self_pair:
-                            i = torch.arange(0, seq_len, device=x.device)
-                            x[:, :, i, i] = 0
-                        x = x.view(-1, self.pairwise_lv_dim, seq_len * seq_len)
-                    if uu is not None:
-                        uu = uu.view(-1, self.pairwise_input_dim, seq_len * seq_len)
-
-            # with grad
-            elements = 0
             if x is not None:
-                elements = elements + self.embed(x)
-            if uu is not None:
-                elements = elements + self.fts_embed(uu)
+                batch_size, _, seq_len = x.size()
+            else:
+                batch_size, _, seq_len, _ = uu.size()
 
             if self.is_symmetric:
-                y = torch.zeros(
-                    batch_size,
-                    self.out_dim,
+                i, j = self.tril_indices_fn(
                     seq_len,
                     seq_len,
-                    dtype=elements.dtype,
-                    device=elements.device,
+                    offset=-1 if self.remove_self_pair else 0,
+                    device=(x if x is not None else uu).device,
                 )
+                if x is not None:
+                    xi = x[:, :, i]  # (batch, dim, num_tril_pairs)
+                    xj = x[:, :, j]
+                    x = self.pairwise_lv_fts(xi, xj)
+                if uu is not None:
+                    # (batch, dim, num_tril_pairs)
+                    uu = uu[:, :, i, j]
+            else:
+                if x is not None:
+                    x = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2))
+                    if self.remove_self_pair:
+                        diag_idx = torch.arange(0, seq_len, device=x.device)
+                        x[:, :, diag_idx, diag_idx] = 0
+                    x = x.reshape(batch_size, self.pairwise_lv_dim, seq_len * seq_len)
+                if uu is not None:
+                    uu = uu.reshape(batch_size, self.pairwise_input_dim, seq_len * seq_len)
+
+            elements = self._embed_pairs(x, uu)
+
+            if self.is_symmetric:
+                y = elements.new_zeros(batch_size, self.out_dim, seq_len, seq_len)
                 y[:, :, i, j] = elements
                 y[:, :, j, i] = elements
             else:
-                y = elements.view(-1, self.out_dim, seq_len, seq_len)
+                y = elements.reshape(batch_size, self.out_dim, seq_len, seq_len)
             return y
 
         def _forward_sparse(self, x, uu=None, mask=None):
             # x: (batch, v_dim, seq_len)
             # uu: (batch, v_dim, seq_len, seq_len)
-            assert x is not None or uu is not None
-            with torch.no_grad():
-                if x is not None:
-                    batch_size, _, seq_len = x.size()
-                else:
-                    batch_size, _, seq_len, _ = uu.size()
-
-                i0, i1, i2, i3 = (Ellipsis,) * 4
-                if mask is not None:
-                    mask = mask.unsqueeze(-1) * mask.unsqueeze(-2)  # (batch_size, 1, seq_len, seq_len)
-                    if self.is_symmetric:
-                        offset = -1 if self.remove_self_pair else 0
-                        i0, _, i2, i3 = mask.float().tril(offset).nonzero(as_tuple=True)
-                    else:
-                        i0, _, i2, i3 = mask.nonzero(as_tuple=True)
-
-                if x is not None:
-                    x = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2))
-                    x = x.permute(0, 2, 3, 1)[i0, i2, i3, :]  # (num_elements, pairwise_lv_dim)
-                    x = x.T.unsqueeze(0).contiguous()  # (1, pairwise_lv_dim, num_elements)
-                if uu is not None:
-                    uu = uu.permute(0, 2, 3, 1)[i0, i2, i3, :]  # (num_elements, pairwise_input_dim)
-                    uu = uu.T.unsqueeze(0).contiguous()  # (1, pairwise_input_dim, num_elements)
-
-            # with grad
-            elements = 0
             if x is not None:
-                elements = elements + self.embed(x)
+                batch_size, _, seq_len = x.size()
+            else:
+                batch_size, _, seq_len, _ = uu.size()
+
+            i0, i2, i3 = (Ellipsis,) * 3
+            if mask is not None:
+                pair_mask = mask.unsqueeze(-1) * mask.unsqueeze(-2)  # (batch_size, 1, seq_len, seq_len)
+                if self.is_symmetric:
+                    offset = -1 if self.remove_self_pair else 0
+                    i0, _, i2, i3 = pair_mask.float().tril(offset).nonzero(as_tuple=True)
+                else:
+                    i0, _, i2, i3 = pair_mask.nonzero(as_tuple=True)
+
+            if x is not None:
+                x = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2))
+                x = x.permute(0, 2, 3, 1)[i0, i2, i3, :]  # (num_elements, pairwise_lv_dim)
+                x = x.T.unsqueeze(0)  # (1, pairwise_lv_dim, num_elements)
             if uu is not None:
-                elements = elements + self.fts_embed(uu)
+                uu = uu.permute(0, 2, 3, 1)[i0, i2, i3, :]  # (num_elements, pairwise_input_dim)
+                uu = uu.T.unsqueeze(0)  # (1, pairwise_input_dim, num_elements)
+
+            elements = self._embed_pairs(x, uu)
             elements = elements.squeeze(0).T  # (num_elements, out_dim)
 
-            y = torch.zeros(
-                batch_size,
-                seq_len,
-                seq_len,
-                self.out_dim,
-                dtype=elements.dtype,
-                device=elements.device,
-            )
+            y = torch.zeros(batch_size, seq_len, seq_len, self.out_dim, dtype=elements.dtype, device=elements.device)
             y[i0, i2, i3, :] = elements
             if self.is_symmetric:
                 y[i0, i3, i2, :] = elements
@@ -473,20 +558,21 @@ tensorial message-passing only in the particle self-attention blocks.
             return y
 
         def forward(self, x, uu=None, mask=None):
-            if self.sparse_eval:
+            if self.sparse_eval and mask is not None:
                 return self._forward_sparse(x, uu=uu, mask=mask)
             else:
                 return self._forward_dense(x, uu=uu, mask=mask)
 
 
     def _canonical_mask(
-        mask: torch.Tensor | None,
+        mask: Optional[torch.Tensor],
         mask_name: str,
-        other_type: Any | None,
+        other_type: Optional[Any],
         other_name: str,
         target_type: Any,
         check_other: bool = True,
-    ) -> torch.Tensor | None:
+    ) -> Optional[torch.Tensor]:
+
         if mask is not None:
             _mask_dtype = mask.dtype
             _mask_is_float = torch.is_floating_point(mask)
@@ -497,7 +583,7 @@ tensorial message-passing only in the particle self-attention blocks.
         return mask
 
 
-    def _none_or_dtype(input: torch.Tensor | None):
+    def _none_or_dtype(input: Optional[torch.Tensor]):
         if input is None:
             return None
         elif isinstance(input, torch.Tensor):
@@ -513,6 +599,10 @@ tensorial message-passing only in the particle self-attention blocks.
             num_heads,
             dropout=0.0,
             bias=True,
+            use_qk_norm=False,
+            norm_layer=nn.LayerNorm,
+            headwise_attn_output_gate=False,
+            elementwise_attn_output_gate=False,
             device=None,
             dtype=None,
         ) -> None:
@@ -522,38 +612,42 @@ tensorial message-passing only in the particle self-attention blocks.
             self.num_heads = num_heads
             self.dropout = dropout
             self.head_dim = embed_dim // num_heads
-            assert self.head_dim * num_heads == self.embed_dim, (
-                "embed_dim must be divisible by num_heads"
-            )
+            assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
 
             self.in_proj = torch.nn.Linear(embed_dim, 3 * embed_dim, bias=bias, **factory_kwargs)
             self.out_proj = torch.nn.Linear(embed_dim, embed_dim, bias=bias, **factory_kwargs)
     +       self.attention = attention
 
+            if use_qk_norm:
+                self.q_norm = norm_layer(self.head_dim)
+                self.k_norm = norm_layer(self.head_dim)
+            else:
+                self.q_norm = self.k_norm = nn.Identity()
+
+            assert not (headwise_attn_output_gate and elementwise_attn_output_gate)
+            self.headwise_attn_output_gate = headwise_attn_output_gate
+            self.elementwise_attn_output_gate = elementwise_attn_output_gate
+            if self.headwise_attn_output_gate:
+                self.gate_proj = torch.nn.Linear(embed_dim, num_heads, bias=bias, **factory_kwargs)
+            elif self.elementwise_attn_output_gate:
+                self.gate_proj = torch.nn.Linear(embed_dim, embed_dim, bias=bias, **factory_kwargs)
+    -
+    -       self.use_sdpa = hasattr(torch.nn.functional, "scaled_dot_product_attention")
+    -       if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] < 7:
+    -           self.use_sdpa = False
+
         def _load_from_state_dict(
-            self,
-            state_dict,
-            prefix,
-            local_metadata,
-            strict,
-            missing_keys,
-            unexpected_keys,
-            error_msgs,
+            self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
         ):
-            for k in state_dict.keys():
+
+            for k in list(state_dict.keys()):
                 if k.endswith("in_proj_weight"):
                     state_dict[k.replace("_weight", ".weight")] = state_dict.pop(k)
                 elif k.endswith("in_proj_bias"):
                     state_dict[k.replace("_bias", ".bias")] = state_dict.pop(k)
 
             super()._load_from_state_dict(
-                state_dict,
-                prefix,
-                local_metadata,
-                strict,
-                missing_keys,
-                unexpected_keys,
-                error_msgs,
+                state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
             )
 
         def forward(
@@ -561,9 +655,10 @@ tensorial message-passing only in the particle self-attention blocks.
             query: torch.Tensor,
             key: torch.Tensor,
             value: torch.Tensor,
-            key_padding_mask: torch.Tensor | None = None,
-            attn_mask: torch.Tensor | None = None,
-        ) -> tuple[torch.Tensor, torch.Tensor | None]:
+            key_padding_mask: Optional[torch.Tensor] = None,
+            attn_mask: Optional[torch.Tensor] = None,
+        ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+
             bsz, tgt_len, _ = query.shape
             _, src_len, _ = key.shape
 
@@ -588,24 +683,14 @@ tensorial message-passing only in the particle self-attention blocks.
 
             # merge key padding and attention masks
             if key_padding_mask is not None:
-                assert key_padding_mask.shape == (
-                    bsz,
-                    src_len,
-                ), (
+                assert key_padding_mask.shape == (bsz, src_len), (
                     f"expecting key_padding_mask shape of {(bsz, src_len)}, but got {key_padding_mask.shape}"
                 )
-                key_padding_mask = key_padding_mask.view(bsz, 1, 1, src_len).expand(
-                    -1, self.num_heads, -1, -1
-                )
+                key_padding_mask = key_padding_mask.view(bsz, 1, 1, src_len).expand(-1, self.num_heads, -1, -1)
                 if attn_mask is None:
                     attn_mask = key_padding_mask
                 else:
-                    assert attn_mask.shape == (
-                        bsz,
-                        self.num_heads,
-                        tgt_len,
-                        src_len,
-                    ), (
+                    assert attn_mask.shape == (bsz, self.num_heads, tgt_len, src_len), (
                         f"expecting attn_mask shape of {(bsz, self.num_heads, tgt_len, src_len)}, but got {attn_mask.shape}"
                     )
                     attn_mask = attn_mask + key_padding_mask
@@ -614,27 +699,41 @@ tensorial message-passing only in the particle self-attention blocks.
             q, k, v = F._in_projection_packed(query, key, value, self.in_proj.weight, self.in_proj.bias)
 
             # -> (bsz, num_heads, src/tgt_len, head_dim)
-            q = q.view(bsz, tgt_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
-            k = k.view(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
-            v = v.view(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
+            q = self.q_norm(q.view(bsz, tgt_len, self.num_heads, self.head_dim)).transpose(1, 2)
+            k = self.k_norm(k.view(bsz, src_len, self.num_heads, self.head_dim)).transpose(1, 2)
+            v = v.view(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2)
 
             dropout_p = self.dropout if self.training else 0.0
 
-    -       attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask, dropout_p)
+    -       if self.use_sdpa:
     +       if self.attention is not None:
-    +           # particle attention
-    +           attn_output = self.attention(
-    +               q,
-    +               k,
-    +               v,
-    +               attn_mask=attn_mask,
-    +               dropout_p=dropout_p,
-    +           )
+    +           # particle attention with frame-to-frame transformations
+    +           # attn_output: (bsz, num_heads, tgt_len, head_dim)
+    +           attn_output = self.attention(q, k, v, attn_mask=attn_mask, dropout_p=dropout_p)
     +       else:
     +           # class token attention
-    +           attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask, dropout_p)
+                # attn_output: (bsz, num_heads, tgt_len, head_dim)
+                attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask, dropout_p)
+    -       else:
+    -           q_scaled = q * math.sqrt(1.0 / float(self.head_dim))  # (bsz, num_heads, tgt_len, head_dim)
+    -           attn_weight = q_scaled @ k.transpose(-2, -1)  # (bsz, num_heads, tgt_len, src_len)
+    -           if attn_mask is not None:
+    -               attn_weight = attn_weight + attn_mask
+    -           attn_weight = F.softmax(attn_weight, dim=-1)
+    -           if dropout_p > 0:
+    -               attn_weight = F.dropout(attn_weight, p=dropout_p)
+    -           attn_output = attn_weight @ v  # (bsz, num_heads, tgt_len, head_dim)
 
-            attn_output = attn_output.transpose(1, 2).reshape(bsz, tgt_len, self.embed_dim)
+            attn_output = attn_output.transpose(1, 2).contiguous()  # (bsz, tgt_len, num_heads, head_dim)
+
+            if self.headwise_attn_output_gate:
+                gate_score = torch.sigmoid(self.gate_proj(query))  # (bsz, tgt_len, num_heads)
+                attn_output = attn_output * gate_score.reshape(bsz, tgt_len, self.num_heads, 1)
+            elif self.elementwise_attn_output_gate:
+                gate_score = torch.sigmoid(self.gate_proj(query))  # (bsz, tgt_len, num_heads * head_dim)
+                attn_output = attn_output * gate_score.reshape(bsz, tgt_len, self.num_heads, self.head_dim)
+
+            attn_output = attn_output.reshape(bsz, tgt_len, self.embed_dim)
             attn_output = self.out_proj(attn_output)
             return attn_output, None
 
@@ -700,6 +799,11 @@ tensorial message-passing only in the particle self-attention blocks.
             attn_dropout=0.1,
             activation_dropout=0.1,
             activation="gelu",
+            use_rmsnorm=False,
+            use_bias=True,
+            use_qk_norm=False,
+            headwise_attn_output_gate=False,
+            elementwise_attn_output_gate=False,
             layer_scale_init_values=None,
             drop_path_rate=0.0,
             scale_attn_mask=False,
@@ -715,43 +819,45 @@ tensorial message-passing only in the particle self-attention blocks.
             self.head_dim = embed_dim // num_heads
             self.ffn_dim = embed_dim * ffn_ratio
 
-            self.pre_attn_norm = nn.LayerNorm(embed_dim)
-    -       self.attn = Attention(embed_dim, num_heads, dropout=attn_dropout)
-    +       self.attn = Attention(attention, embed_dim, num_heads, dropout=attn_dropout)
-            self.post_attn_norm = nn.LayerNorm(embed_dim) if scale_attn else nn.Identity()
+            norm_layer = nn.RMSNorm if use_rmsnorm else nn.LayerNorm
+            self.pre_attn_norm = norm_layer(embed_dim)
+            self.attn = Attention(
+    +           attention,
+                embed_dim,
+                num_heads,
+                dropout=attn_dropout,
+                bias=use_bias,
+                use_qk_norm=use_qk_norm,
+                norm_layer=norm_layer,
+                headwise_attn_output_gate=headwise_attn_output_gate,
+                elementwise_attn_output_gate=elementwise_attn_output_gate,
+            )
+            self.post_attn_norm = norm_layer(embed_dim) if scale_attn else nn.Identity()
             self.dropout = nn.Dropout(dropout)
             self.ls1 = (
-                LayerScale(embed_dim, init_values=layer_scale_init_values)
-                if layer_scale_init_values
-                else nn.Identity()
+                LayerScale(embed_dim, init_values=layer_scale_init_values) if layer_scale_init_values else nn.Identity()
             )
             self.drop_path1 = DropPath(drop_path_rate) if drop_path_rate > 0.0 else nn.Identity()
 
-            self.pre_fc_norm = nn.LayerNorm(embed_dim)
-            self.fc1 = nn.Linear(embed_dim, self.ffn_dim)
+            self.pre_fc_norm = norm_layer(embed_dim)
+            self.fc1 = nn.Linear(embed_dim, self.ffn_dim, bias=use_bias)
             if activation == "swiglu":
-                self.fc1_g = nn.Linear(embed_dim, self.ffn_dim)
+                self.fc1_g = nn.Linear(embed_dim, self.ffn_dim, bias=use_bias)
                 self.act = nn.SiLU()
             else:
                 self.fc1_g = None
                 self.act = nn.GELU() if activation == "gelu" else nn.ReLU()
             self.act_dropout = nn.Dropout(activation_dropout)
-            self.post_fc_norm = nn.LayerNorm(self.ffn_dim) if scale_fc else nn.Identity()
-            self.fc2 = nn.Linear(self.ffn_dim, embed_dim)
+            self.post_fc_norm = norm_layer(self.ffn_dim) if scale_fc else nn.Identity()
+            self.fc2 = nn.Linear(self.ffn_dim, embed_dim, bias=use_bias)
             self.ls2 = (
-                LayerScale(embed_dim, init_values=layer_scale_init_values)
-                if layer_scale_init_values
-                else nn.Identity()
+                LayerScale(embed_dim, init_values=layer_scale_init_values) if layer_scale_init_values else nn.Identity()
             )
             self.drop_path2 = DropPath(drop_path_rate) if drop_path_rate > 0.0 else nn.Identity()
 
             self.c_mask = nn.Parameter(torch.ones(1), requires_grad=True) if scale_attn_mask else None
-            self.c_attn = (
-                nn.Parameter(torch.ones(num_heads), requires_grad=True) if scale_heads else None
-            )
-            self.w_resid = (
-                nn.Parameter(torch.ones(embed_dim), requires_grad=True) if scale_resids else None
-            )
+            self.c_attn = nn.Parameter(torch.ones(num_heads), requires_grad=True) if scale_heads else None
+            self.w_resid = nn.Parameter(torch.ones(embed_dim), requires_grad=True) if scale_resids else None
 
         def forward(self, x, x_cls=None, padding_mask=None, attn_mask=None):
             """
@@ -769,39 +875,29 @@ tensorial message-passing only in the particle self-attention blocks.
             if x_cls is not None:
                 with torch.no_grad():
                     # prepend one element for x_cls: -> (batch, 1+seq_len)
-                    padding_mask = torch.cat(
-                        (torch.zeros_like(padding_mask[:, :1]), padding_mask), dim=1
-                    )
+                    padding_mask = torch.cat((torch.zeros_like(padding_mask[:, :1]), padding_mask), dim=1)
                 # class attention: https://arxiv.org/pdf/2103.17239.pdf
                 residual = x_cls
                 u = torch.cat((x_cls, x), dim=1)  # (batch, 1+seq_len, embed_dim)
                 u = self.pre_attn_norm(u)
-
     +           # default attention for convenience (could be more fancy here)
-                x = self.attn(
-                    x_cls,
-                    u,
-                    u,
-                    key_padding_mask=padding_mask,
-                )[0]  # (1, batch, embed_dim)
+                x = self.attn(x_cls, u, u, key_padding_mask=padding_mask)[0]  # (batch, 1, embed_dim)
             else:
                 if self.c_mask is not None and attn_mask is not None:
                     attn_mask = torch.mul(self.c_mask, attn_mask)
                 residual = x
                 x = self.pre_attn_norm(x)
-                x = self.attn(x, x, x, key_padding_mask=padding_mask, attn_mask=attn_mask)[
-                    0
-                ]  # (batch, seq_len, embed_dim)
+                x = self.attn(x, x, x, key_padding_mask=padding_mask, attn_mask=attn_mask)[0]  # (batch, seq_len, embed_dim)
 
             if self.c_attn is not None:
                 bsz, tgt_len, _ = x.size()
                 x = x.view(bsz, tgt_len, self.num_heads, self.head_dim)
-                x = torch.einsum("bthd,h->btdh", x, self.c_attn)
+                x = x * self.c_attn.view(1, 1, self.num_heads, 1)
                 x = x.reshape(bsz, tgt_len, self.embed_dim)
             x = self.post_attn_norm(x)
             x = self.dropout(x)
             x = self.drop_path1(self.ls1(x))
-            x += residual
+            x = x + residual
 
             residual = x
             x = self.pre_fc_norm(x)
@@ -818,14 +914,12 @@ tensorial message-passing only in the particle self-attention blocks.
             x = self.drop_path2(self.ls2(x))
             if self.w_resid is not None:
                 residual = torch.mul(self.w_resid, residual)
-            x += residual
+            x = x + residual
 
             return x
 
 
     class ParticleTransformer(nn.Module):
-        """Particle Transformer (ParT) with local frame transformations."""
-
         def __init__(
             self,
             input_dim,
@@ -837,12 +931,15 @@ tensorial message-passing only in the particle self-attention blocks.
             pair_extra_dim=0,
             remove_self_pair=False,
             use_pre_activation_pair=True,
+            use_conv_embed=False,
             embed_dims=(128, 512, 128),
             pair_embed_dims=(64, 64, 64),
             num_heads=8,
             num_layers=8,
-            num_cls_layers=2,
             block_params=None,
+            block_ids_with_attn_mask=None,
+            include_global_token=False,
+            num_cls_layers=2,
             cls_block_params=None,
             fc_params=(),
             activation="gelu",
@@ -850,31 +947,37 @@ tensorial message-passing only in the particle self-attention blocks.
             version=1,
             weight_init="moco",
             fix_init=True,
-            trim=True,
+    -       trim=True,
+    +       trim=False,
             for_inference=False,
             for_segmentation=False,
-            use_amp=False,
+    -       use_amp=False,
+            compile_model=False,
             **kwargs,
         ) -> None:
             super().__init__(**kwargs)
 
-            self.trimmer = SequenceTrimmer(enabled=trim and not for_inference)
             self.for_inference = for_inference
             self.for_segmentation = for_segmentation
-            self.use_amp = use_amp
+    -       self.use_amp = use_amp
 
-            self.embed_dim = embed_dims[-1] if len(embed_dims) > 0 else input_dim
+    -       embed_dim = embed_dims[-1] if len(embed_dims) > 0 else input_dim
     +       attn_reps = TensorReps(attn_reps)
-    +       assert attn_reps.dim * num_heads == self.embed_dim
-    +       self.attention = LLoCaAttention(attn_reps, num_heads)
+    +       embed_dim = attn_reps.dim * num_heads
+    +       self.attention = LLoCaAttention(attn_reps, num_heads, preserve_variance=False)
             default_cfg = dict(
-                embed_dim=self.embed_dim,
+                embed_dim=embed_dim,
                 num_heads=num_heads,
                 ffn_ratio=4,
                 dropout=0.1,
                 attn_dropout=0.1,
                 activation_dropout=0.1,
                 activation=activation,
+                use_rmsnorm=False,
+                use_bias=True,
+                use_qk_norm=False,
+                headwise_attn_output_gate=False,
+                elementwise_attn_output_gate=False,
                 layer_scale_init_values=None,
                 drop_path_rate=0.0,
                 scale_attn_mask=False,
@@ -891,24 +994,66 @@ tensorial message-passing only in the particle self-attention blocks.
                     scale_heads=False,
                     scale_resids=False,
                 )
+            if version > 2:
+                default_cfg.update(
+                    use_rmsnorm=True,
+                    use_bias=False,
+                    dropout=0,
+                    attn_dropout=0,
+                    activation_dropout=0,
+                    drop_path_rate=0.1,
+                )
+                # TODO: still experimental
+                if version == 3.5:
+                    default_cfg.update(
+                        use_qk_norm=True,
+                        elementwise_attn_output_gate=True,
+                    )
+                if version == 3.6:
+                    default_cfg.update(
+                        use_qk_norm=True,
+                        elementwise_attn_output_gate=True,
+                    )
+                    include_global_token = True
+                    num_cls_layers = 0
+            norm_layer = nn.RMSNorm if default_cfg["use_rmsnorm"] else nn.LayerNorm
 
             cfg_block = copy.deepcopy(default_cfg)
             if block_params is not None:
                 cfg_block.update(block_params)
 
-            cfg_cls_block = copy.deepcopy(default_cfg)
-            cfg_cls_block.update({"dropout": 0, "attn_dropout": 0, "activation_dropout": 0})
-            if cls_block_params is not None:
-                cfg_cls_block.update(cls_block_params)
+            if num_cls_layers > 0:
+                cfg_cls_block = copy.deepcopy(default_cfg)
+                cfg_cls_block.update({"dropout": 0, "attn_dropout": 0, "activation_dropout": 0})
+                if cls_block_params is not None:
+                    cfg_cls_block.update(cls_block_params)
 
-            self.embed = (
-                Embed(input_dim, embed_dims, activation=activation)
-                if len(embed_dims) > 0
-                else nn.Identity()
-            )
+            if block_ids_with_attn_mask is None:
+                self.block_ids_with_attn_mask = [True] * num_layers
+            else:
+                self.block_ids_with_attn_mask = [False] * num_layers
+                for idx in block_ids_with_attn_mask:
+                    self.block_ids_with_attn_mask[idx] = True
+
+    -       self.embed = (
+    -           Embed(input_dim, embed_dims, activation=activation, use_conv_embed=use_conv_embed)
+    -           if len(embed_dims) > 0
+    -           else nn.Identity()
+    -       )
+    +       self.embed = Embed(
+    +           input_dim,
+    +           embed_dims if len(embed_dims) > 0 else [embed_dim],
+    +           activation=activation,
+    +           use_conv_embed=use_conv_embed,
+    +       )
 
             if pair_input_dim is None:
-                pair_input_dim = 4 if pair_input_type == "pp" else 6
+                if pair_input_type == "pp":
+                    pair_input_dim = 4
+                elif pair_input_type == "ee":
+                    pair_input_dim = 6
+                elif pair_input_type.startswith("xyzt"):
+                    pair_input_dim = 7
             self.pair_extra_dim = pair_extra_dim
             self.pair_embed = (
                 PairEmbed(
@@ -918,26 +1063,23 @@ tensorial message-passing only in the particle self-attention blocks.
                     pairwise_lv_type=pair_input_type,
                     remove_self_pair=remove_self_pair,
                     use_pre_activation_pair=use_pre_activation_pair,
+                    use_bias=default_cfg["use_bias"],
                     for_onnx=for_inference,
                 )
                 if pair_embed_dims is not None and pair_input_dim + pair_extra_dim > 0
                 else None
             )
-            self.blocks = nn.ModuleList(
-    -           [Block(**cfg_block) for _ in range(num_layers)]
-    +           [Block(attention=self.attention, **cfg_block) for _ in range(num_layers)]
-            )
+    -       self.blocks = nn.ModuleList([Block(**cfg_block) for _ in range(num_layers)])
+    +       self.blocks = nn.ModuleList([Block(attention=self.attention, **cfg_block) for _ in range(num_layers)])
             self.cls_blocks = (
-    -           nn.ModuleList([Block(**cfg_cls_block) for _ in range(num_cls_layers)])
-    +           nn.ModuleList([Block(attention=None, **cfg_cls_block) for _ in range(num_cls_layers)])
-                if num_cls_layers > 0
-                else None
+    -           nn.ModuleList([Block(**cfg_cls_block) for _ in range(num_cls_layers)]) if num_cls_layers > 0 else None
+    +           nn.ModuleList([Block(attention=None, **cfg_cls_block) for _ in range(num_cls_layers)]) if num_cls_layers > 0 else None
             )
-            self.norm = nn.LayerNorm(self.embed_dim)
+            self.norm = norm_layer(embed_dim)
 
             if fc_params is not None:
                 fcs = []
-                in_dim = self.embed_dim
+                in_dim = embed_dim
                 for param in fc_params:
                     try:
                         out_dim, drop_rate, act = param
@@ -945,12 +1087,12 @@ tensorial message-passing only in the particle self-attention blocks.
                         (out_dim, drop_rate), act = param, "relu"
                     if act == "swiglu":
                         layer = nn.Sequential(
-                            SwiGLUFFN(in_dim, out_dim * 4, out_dim, drop=drop_rate),
-                            nn.LayerNorm(out_dim),
+                            SwiGLUFFN(in_dim, out_dim * 4, out_dim, drop=drop_rate, bias=default_cfg["use_bias"]),
+                            norm_layer(out_dim),
                         )
                     else:
                         layer = nn.Sequential(
-                            nn.Linear(in_dim, out_dim),
+                            nn.Linear(in_dim, out_dim, bias=default_cfg["use_bias"]),
                             nn.GELU() if act == "gelu" else nn.ReLU(),
                             nn.Dropout(drop_rate),
                         )
@@ -961,12 +1103,24 @@ tensorial message-passing only in the particle self-attention blocks.
             else:
                 self.fc = None
 
+            assert not (include_global_token and num_cls_layers > 0)
+            self.include_global_token = include_global_token
+
             # cls tokens
-            if not self.for_segmentation and num_cls_layers > 0:
-                self.cls_token = nn.Parameter(torch.zeros(1, 1, self.embed_dim), requires_grad=True)
+            if self.include_global_token or (not self.for_segmentation and num_cls_layers > 0):
+                self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim), requires_grad=True)
                 nn.init.trunc_normal_(self.cls_token, std=0.02)
             else:
                 self.cls_token = None
+
+            # sequence trimmer
+    +       # The trimmer permutes and truncates the particle sequence, but the local frames are
+    +       # prepared once in forward() and are not permuted along, so the two would go out of sync.
+    +       assert not trim, "trim=True is not supported with LLoCa"
+            num_extra_tokens = 1 if self.include_global_token else 0
+            self.trimmer = SequenceTrimmer(
+                enabled=trim and not for_inference, round_to_32=compile_model, num_extra_tokens=num_extra_tokens
+            )
 
             # weight initialization
             if weight_init is not None:
@@ -996,56 +1150,61 @@ tensorial message-passing only in the particle self-attention blocks.
             }
 
         def _forward_encoder(self, x, v=None, mask=None, uu=None, uu_idx=None):
-            with torch.no_grad():
+            with torch.set_grad_enabled(x.requires_grad):
                 if not self.for_inference:
                     if uu_idx is not None:
                         uu = build_sparse_tensor(uu, uu_idx, x.size(-1))
                 x, v, mask, uu = self.trimmer(x, v, mask, uu)
-                padding_mask = ~mask.squeeze(1)  # (batch_size, seq_len)
+                padding_mask = ~mask.squeeze(1)  # (batch_size, seq_len) -- `True`` means masked/ignored
 
-            with torch.autocast("cuda", enabled=self.use_amp):
-                # input embedding
-                x = self.embed(x).masked_fill(
-                    ~mask.transpose(1, 2), 0
-                )  # (batch_size, seq_len, num_fts)
-                attn_mask = None
-                if (v is not None or uu is not None) and self.pair_embed is not None:
-                    attn_mask = self.pair_embed(
-                        v, uu=uu, mask=mask
-                    )  # (batch_size, num_heads, seq_len, seq_len)
+            # input embedding
+            x = self.embed(x).masked_fill(~mask.transpose(1, 2), 0)  # (batch_size, seq_len, embed_dim)
+            attn_mask = None
+            if (v is not None or uu is not None) and self.pair_embed is not None:
+                attn_mask = self.pair_embed(v, uu=uu, mask=mask)  # (batch_size, num_heads, seq_len, seq_len)
 
-                # transform
-                for block in self.blocks:
-                    x = block(x, x_cls=None, padding_mask=padding_mask, attn_mask=attn_mask)
+            if self.include_global_token:
+                cls_tokens = self.cls_token.expand(x.size(0), -1, -1)
+                x = torch.cat((cls_tokens, x), dim=1)  # (batch, 1+seq_len, embed_dim)
+                padding_mask = F.pad(padding_mask, (1, 0), mode="constant", value=False)
+                if attn_mask is not None:
+                    attn_mask = F.pad(attn_mask, (1, 0, 1, 0), mode="constant", value=0)
+
+            # transform
+            for idx, block in enumerate(self.blocks):
+                x = block(
+                    x,
+                    x_cls=None,
+                    padding_mask=padding_mask,
+                    attn_mask=attn_mask if self.block_ids_with_attn_mask[idx] else None,
+                )
 
             # x: (batch, seq_len, embed_dim)
             # padding_mask: (batch, seq_len)
             return x, padding_mask
 
         def _forward_aggregator(self, x, padding_mask):
-            with torch.autocast("cuda", enabled=self.use_amp):
-                if self.cls_blocks is not None:
-                    # for classification: extract using class token
-                    cls_tokens = self.cls_token.expand(x.size(0), 1, -1)  # (batch, 1, embed_dim)
-                    for block in self.cls_blocks:
-                        cls_tokens = block(
-                            x, x_cls=cls_tokens, padding_mask=padding_mask
-                        )  # (batch, 1, embed_dim)
-                    cls_tokens = cls_tokens.squeeze(1)  # (batch, embed_dim)
-                else:
-                    # for classification: simple average pooling
-                    mask = ~padding_mask.unsqueeze(1)  # (batch, 1, seq_len)
-                    x = x.transpose(1, 2).contiguous()  # (batch, embed_dim, seq_len)
-                    counts = mask.float().sum(-1)  # (batch, 1)
-                    counts = torch.max(counts, torch.ones_like(counts))  # >=1
-                    cls_tokens = (x * mask).sum(-1) / counts  # (batch, embed_dim)
+            if self.include_global_token:
+                cls_tokens = x[:, 0, :]  # (batch, embed_dim)
+            elif self.cls_blocks is not None:
+                # for classification: extract using class token
+                cls_tokens = self.cls_token.expand(x.size(0), -1, -1)  # (batch, 1, embed_dim)
+                for block in self.cls_blocks:
+                    cls_tokens = block(x, x_cls=cls_tokens, padding_mask=padding_mask)  # (batch, 1, embed_dim)
+                cls_tokens = cls_tokens.squeeze(1)  # (batch, embed_dim)
+            else:
+                # for classification: simple average pooling
+                mask = ~padding_mask.unsqueeze(-1)  # (batch, seq_len, 1)
+                counts = mask.float().sum(dim=1).clamp(min=1)  # (batch, 1)
+                cls_tokens = (x * mask).sum(dim=1) / counts  # (batch, embed_dim)
 
-                x_cls = self.norm(cls_tokens)  # (batch, embed_dim)
+            x_cls = self.norm(cls_tokens)  # (batch, embed_dim)
             return x_cls
 
     -   def forward(self, x, v=None, mask=None, uu=None, uu_idx=None):
     +   def forward(self, x, frames, v=None, mask=None, uu=None, uu_idx=None):
             # x: (batch_size, num_fts, seq_len)
+    +       # frames: local frames of shape (batch_size, seq_len, 4, 4)
             # v: (batch_size, 4, seq_len) [px,py,pz,energy]
             # mask: (batch_size, 1, seq_len) -- real particle = 1, padded = 0
             # for pytorch: uu (batch_size, C', num_pairs), uu_idx (batch_size, 2, num_pairs)
@@ -1059,29 +1218,30 @@ tensorial message-passing only in the particle self-attention blocks.
                 # padding_mask: (batch, seq_len)
                 return x, padding_mask
 
-            with torch.autocast("cuda", enabled=self.use_amp):
-                # === for segmentation ===
-                if self.for_segmentation:
-                    x = self.norm(x)
-                    if self.fc is not None:
-                        x = self.fc(x)
-                    # x: (P, N, C) -> output: (N, C, P)
-                    output = x.transpose(1, 2).contiguous()
-                    if self.for_inference:
-                        output = torch.softmax(output, dim=1)
-                    # print('output:\n', output)
-                    return output
-
-                x_cls = self._forward_aggregator(x, padding_mask)
-                if self.fc is None:
-                    return x_cls
-
-                # fc
-                output = self.fc(x_cls)
+            # === for segmentation ===
+            if self.for_segmentation:
+                if self.include_global_token:
+                    x = x[:, 1:, :]
+                x = self.norm(x)
+                if self.fc is not None:
+                    x = self.fc(x)
+                # x: (batch, seq_len, embed_dim) -> output: (batch, embed_dim, seq_len)
+                output = x.transpose(1, 2).contiguous()
                 if self.for_inference:
                     output = torch.softmax(output, dim=1)
                 # print('output:\n', output)
                 return output
+
+            x_cls = self._forward_aggregator(x, padding_mask)
+            if self.fc is None:
+                return x_cls
+
+            # fc
+            output = self.fc(x_cls)
+            if self.for_inference:
+                output = torch.softmax(output, dim=1)
+            # print('output:\n', output)
+            return output
 
 
     ### weight initialization methods ###
@@ -1121,13 +1281,7 @@ tensorial message-passing only in the particle self-attention blocks.
             fn(module=module, name=name)
         for child_name, child_module in module.named_children():
             child_name = ".".join((name, child_name)) if name else child_name
-            named_apply(
-                fn=fn,
-                module=child_module,
-                name=child_name,
-                depth_first=depth_first,
-                include_root=True,
-            )
+            named_apply(fn=fn, module=child_module, name=child_name, depth_first=depth_first, include_root=True)
         if depth_first and include_root:
             fn(module=module, name=name)
         return module

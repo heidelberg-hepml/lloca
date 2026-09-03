@@ -8,9 +8,8 @@ from lloca.utils.rand_transforms import rand_lorentz
 from tests.constants import BATCH_DIMS, TOLERANCES
 
 
-@pytest.mark.parametrize("use_naive", [True, False])
 @pytest.mark.parametrize("batch_dim", BATCH_DIMS)
-def test_tensorreps(batch_dim, use_naive):
+def test_tensorreps(batch_dim):
     frames = rand_lorentz(batch_dim)
     frames = Frames(frames)
 
@@ -115,3 +114,39 @@ def test_tensorreps(batch_dim, use_naive):
         **TOLERANCES,
     )
     torch.testing.assert_close(coeffs[..., :1], transformed_coeffs[..., :1], **TOLERANCES)
+
+
+@pytest.mark.parametrize("reps", ["1x1n+1x1p", "1x1p+1x1n", "2x0n+1x1n+1x1p", "1x2n+1x2p"])
+@pytest.mark.parametrize("batch_dim", [[10]])
+def test_tensorreps_mixed_parity(batch_dim, reps):
+    """Reps of the same order but opposite parity are distinct and both have to be transformed.
+
+    They used to share a single slot per order, so one of them was silently left untransformed
+    (order 1) or dropped altogether (order 2).
+    """
+    dtype = torch.float64
+    matrices = rand_lorentz(batch_dim, dtype=dtype)
+    frames = Frames(matrices)
+    sign = frames.det.sign()[..., None, None]
+
+    reps = TensorReps(reps)
+    coeffs = torch.randn(*batch_dim, reps.dim, dtype=dtype)
+    transformed_coeffs = TensorRepsTransform(reps)(coeffs, frames)
+
+    # transform each block on its own and compare
+    idx = 0
+    for mul, rep in reps:
+        block = coeffs[..., idx : idx + mul * 4**rep.order]
+        block = block.reshape(*batch_dim, mul, *(rep.order * (4,)))
+        if rep.order == 1:
+            block = torch.einsum("...ij,...cj->...ci", matrices, block)
+        elif rep.order == 2:
+            block = torch.einsum("...ij,...lm,...cjm->...cil", matrices, matrices, block)
+        if rep.parity == -1:
+            block = block * sign.reshape(*batch_dim, *(rep.order + 1) * (1,))
+        torch.testing.assert_close(
+            transformed_coeffs[..., idx : idx + mul * 4**rep.order].reshape(block.shape),
+            block,
+            **TOLERANCES,
+        )
+        idx += mul * 4**rep.order

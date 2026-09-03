@@ -5,7 +5,8 @@ Equivariant vector prediction
 -----------------------------
 
 The Frames-Net uses a small Lorentz-equivariant network to predict a list of vectors.
-We currently have only one option for this ``equivectors`` network, but we plan to add more options in the future.
+We support a simple message-passing MLP, the L-GATr and L-GATr-slim transformers, and PELICAN
+as this ``equivectors`` network.
 
 .. autosummary::
    :toctree: generated/
@@ -19,7 +20,8 @@ Frames-Net
 ----------
 
 The equivariant vectors can be used in a range of Frames-Net procedures to construct local frames.
-We support three Lorentz-equivariant Frames-Net approaches, an SO(3)-equivariant approach and an SO(2)-equivariant approach.
+We support three Lorentz-equivariant Frames-Net approaches, an SO(3)-equivariant approach,
+an SO(1,1)xSO(2)-equivariant approach and an SO(2)-equivariant approach.
 In addition, we implement non-equivariant networks as identity frames and data augmentation as random frames.
 
 .. autosummary::
@@ -35,6 +37,7 @@ In addition, we implement non-equivariant networks as identity frames and data a
    lloca.framesnet.equi_frames.LearnedSO2Frames
    lloca.framesnet.nonequi_frames.IdentityFrames
    lloca.framesnet.nonequi_frames.RandomFrames
+   lloca.framesnet.nonequi_frames.COMRandomFrames
 
 The resulting frames are stored in the :class:`~lloca.framesnet.frames.Frames` bookkeeping class.
 A range of derived class can be used for efficient access in the backbone architecture.
@@ -73,8 +76,18 @@ For :class:`~lloca.backbone.particlenet.ParticleNet` and :class:`~lloca.backbone
     lloca.backbone.attention.LLoCaAttention
     lloca.backbone.graphnet.GraphNet
     lloca.backbone.transformer.Transformer
+    lloca.backbone.transformer_v2.Transformer
     lloca.backbone.particlenet.ParticleNet
     lloca.backbone.particletransformer.ParticleTransformer
+
+Attention in the global frame is dispatched to one of several backends, selected from the
+keyword arguments passed to :class:`~lloca.backbone.attention.LLoCaAttention`.
+
+.. autosummary::
+    :toctree: generated/
+
+    lloca.backbone.attention_backends.get_attention_backend
+    lloca.backbone.attention_backends.mask.get_sparse_attention_mask
 
 Lorentz group representations
 -----------------------------
@@ -105,3 +118,5 @@ Finally, we provide a range of utility functions for Lorentz transformations, ra
    lloca.utils.orthogonalize_3d
    lloca.utils.orthogonalize_4d
    lloca.utils.polar_decomposition
+   lloca.utils.autocast
+   lloca.utils.compile

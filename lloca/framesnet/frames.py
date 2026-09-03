@@ -10,7 +10,10 @@ class Frames:
     Bookkeeping class for local frames.
 
     Collection of Lorentz transformations, represented as (..., 4, 4) matrices.
-    Properties like det and inv are cached for performance.
+    Properties like det, inv and parity are cached for performance.
+    ``parity`` is the sign that parity-odd representations pick up under the transformation;
+    it defaults to ``sign(det)`` but is tracked separately, because derived frames can carry a
+    non-Lorentz factor whose determinant must not leak into the parity (see LowerIndicesFrames).
     Attributes should not be changed after initialization to avoid inconsistencies.
     The object can be modified with e.g. ``.reshape()``, ``.expand()`` and ``.repeat()``, ``.to()``.
     """
@@ -21,6 +24,7 @@ class Frames:
         is_global: bool = False,
         det: torch.Tensor = None,
         inv: torch.Tensor = None,
+        parity: torch.Tensor = None,
         is_identity: bool = False,
         shape=None,
         device: str = None,
@@ -42,8 +46,12 @@ class Frames:
         det: torch.Tensor
             Optional cached determinant of shape (...).
             If not given, takes a bit of extra time to compute.
+        parity: torch.Tensor
+            Optional sign of shape (...) that parity-odd representations pick up, see the
+            ``parity`` attribute. If not given, defaults to ``sign(det)``.
         is_identity: bool
-            Sets matrices to diagonal.
+            Sets matrices to diagonal. Takes precedence over ``matrices``: if both are given,
+            ``matrices`` is only used to infer shape, device and dtype.
         shape: List[int]
             Specifies matrices.shape[:-2] if is_identity. Otherwise inferred from matrices.
         device: str
@@ -52,10 +60,12 @@ class Frames:
             Specifies dtype if is_identity. Otherwise inferred from matrices.
         """
         # straight-forward initialization
+        self._source = None  # set by IndexSelectFrames; see the `source` property
         self.is_identity = is_identity
         if is_identity:
             if matrices is None:
-                assert shape and device and dtype
+                # `is not None`, not truthiness: an unbatched frame has shape ()
+                assert shape is not None and device is not None and dtype is not None
             else:
                 shape = matrices.shape[:-2]
                 device = matrices.device
@@ -64,6 +74,7 @@ class Frames:
             self.matrices = lorentz_eye(shape, device=device, dtype=dtype)
             self.is_global = True
             self.det = torch.ones(self.shape[:-2], dtype=self.dtype, device=self.device)
+            self.parity = self.det  # both are all-ones; aliased because neither is mutated
             self.inv = self.matrices
         else:
             assert matrices is not None
@@ -78,12 +89,17 @@ class Frames:
                 assert det.shape == matrices.shape[:-2]
             if inv is not None:
                 assert inv.shape == matrices.shape
+            if parity is not None:
+                assert parity.shape == matrices.shape[:-2]
             self.det = det
+            self.parity = parity
             self.inv = inv
 
         # cache expensive properties
         if self.det is None:
             self.det = torch.linalg.det(self.matrices)
+        if self.parity is None:
+            self.parity = self.det.sign()
         if self.inv is None:
             self.inv = self.matrices.transpose(-1, -2).clone()
             self.inv[..., 1:, :] *= -1
@@ -108,6 +124,7 @@ class Frames:
             is_global=self.is_global,
             inv=self.inv.reshape(*shape),
             det=self.det.reshape(*shape[:-2]),
+            parity=self.parity.reshape(*shape[:-2]),
         )
 
     def expand(self, *shape):
@@ -129,6 +146,7 @@ class Frames:
             is_global=self.is_global,
             inv=self.inv.expand(*shape),
             det=self.det.expand(*shape[:-2]),
+            parity=self.parity.expand(*shape[:-2]),
         )
 
     def repeat(self, *shape):
@@ -150,6 +168,7 @@ class Frames:
             is_global=self.is_global,
             inv=self.inv.repeat(*shape),
             det=self.det.repeat(*shape[:-2]),
+            parity=self.parity.repeat(*shape[:-2]),
         )
 
     def to(self, dtype=None, device=None):
@@ -157,6 +176,7 @@ class Frames:
         self.matrices = self.matrices.to(device=device, dtype=dtype)
         self.inv = self.inv.to(device=device, dtype=dtype)
         self.det = self.det.to(device=device, dtype=dtype)
+        self.parity = self.parity.to(device=device, dtype=dtype)
 
     def __repr__(self):
         return repr(self.matrices)
@@ -166,6 +186,15 @@ class Frames:
         diag = self.matrices.new_tensor((1, -1, -1, -1))
         base = torch.diag_embed(diag)
         return base.reshape(*(1,) * (self.matrices.ndim - 2), 4, 4).expand(*self.shape[:-2], 4, 4)
+
+    @property
+    def source(self):
+        """The Frames object these frames were derived from, or ``self`` if there is none.
+
+        Two frames that share a source hold a selection of the same matrices, which lets
+        ChangeOfFrames recognize a trivial change of frames without comparing tensors.
+        """
+        return self if self._source is None else self._source
 
     @property
     def device(self):
@@ -189,10 +218,8 @@ class InverseFrames(Frames):
             is_global=frames.is_global,
             inv=frames.matrices,
             det=frames.det,
+            parity=frames.parity,
             is_identity=frames.is_identity,
-            device=frames.device,
-            dtype=frames.dtype,
-            shape=frames.shape,
         )
 
 
@@ -205,11 +232,10 @@ class IndexSelectFrames(Frames):
             is_global=frames.is_global,
             inv=frames.inv.index_select(0, indices),
             det=frames.det.index_select(0, indices),
+            parity=frames.parity.index_select(0, indices),
             is_identity=frames.is_identity,
-            device=frames.device,
-            dtype=frames.dtype,
-            shape=frames.shape,
         )
+        self._source = frames.source
 
 
 class ChangeOfFrames(Frames):
@@ -224,19 +250,29 @@ class ChangeOfFrames(Frames):
 
     def __init__(self, frames_start: Frames, frames_end: Frames):
         assert frames_start.shape == frames_end.shape
-        if frames_start.is_global:
+        same_frames = (
+            frames_end is frames_start
+            or (frames_start.is_identity and frames_end.is_identity)
+            or (
+                frames_start.is_global
+                and frames_end.is_global
+                and frames_start.source is frames_end.source
+            )
+        )
+        if same_frames:
             super().__init__(
                 is_identity=True,
-                shape=frames_start.shape,
+                shape=frames_start.shape[:-2],  # `shape` excludes the trailing (4, 4)
                 device=frames_start.device,
                 dtype=frames_start.dtype,
             )
         else:
             super().__init__(
                 matrices=frames_end.matrices @ frames_start.inv,
-                is_global=False,
+                is_global=frames_start.is_global and frames_end.is_global,
                 inv=frames_start.matrices @ frames_end.inv,
                 det=frames_start.det * frames_end.det,
+                parity=frames_start.parity * frames_end.parity,
             )
 
 
@@ -244,6 +280,12 @@ class LowerIndicesFrames(Frames):
     """
     Frames with lower indices, obtained by multiplying with the metric.
     Used in LLoCaAttention to lower the key indices.
+
+    The metric contributes a factor det(metric) = -1 to the determinant, but it is an
+    index-lowering operation and not a Lorentz transformation, so it must not contribute to
+    the parity: the parity is inherited from ``frames``. Otherwise parity-odd channels would
+    be negated on the key side only, flipping the sign of their contribution to the attention
+    logits relative to the parity-even channels.
     """
 
     def __init__(self, frames):
@@ -257,9 +299,7 @@ class LowerIndicesFrames(Frames):
             matrices=matrices,
             inv=inv,
             det=det,
+            parity=frames.parity,
             is_global=frames.is_global,
-            is_identity=frames.is_identity,
-            device=frames.device,
-            dtype=frames.dtype,
-            shape=frames.shape,
+            is_identity=False,
         )

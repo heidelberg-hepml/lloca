@@ -1,13 +1,15 @@
 """LLoCa-Transformer with RMSNorm and GLU."""
 
+from collections.abc import Mapping
 from functools import partial
 
 import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
-from lloca.backbone.attention import LLoCaAttention
-from lloca.reps.tensorreps import TensorReps
+from ..reps.tensorreps import TensorReps
+from ..utils.compile import compile_model
+from .attention import LLoCaAttention
 
 
 class MultiHeadQKVLinear(nn.Module):
@@ -132,15 +134,15 @@ class BaselineSelfAttention(nn.Module):
 
 
 class BaselineTransformerBlock(nn.Module):
-    """Baseline transformer block.
+    """Transformer block with RMSNorm and a gated linear unit.
 
-    Inputs are first processed by a block consisting of LayerNorm, multi-head self-attention, and
-    residual connection. Then the data is processed by a block consisting of another LayerNorm, an
-    item-wise two-layer MLP with GeLU activations, and another residual connection.
+    Inputs are first processed by a block consisting of RMSNorm, multi-head self-attention, and
+    residual connection. Then the data is processed by a block consisting of another RMSNorm, an
+    item-wise gated linear unit with a GeLU gate, and another residual connection.
 
     Parameters
     ----------
-    channels : int
+    hidden_channels : int
         Number of input and output channels.
     attention
     num_heads : int
@@ -152,6 +154,8 @@ class BaselineTransformerBlock(nn.Module):
         Factor by which the activation size is increased over the default value of hidden_channels.
     dropout_prob : float
         Dropout probability for output.
+    elementwise_affine : bool
+        Whether the RMSNorm layers use learnable per-channel affine weights.
     """
 
     def __init__(
@@ -162,10 +166,16 @@ class BaselineTransformerBlock(nn.Module):
         attention_factor: int = 1,
         mlp_factor: int = 2,
         dropout_prob=None,
+        elementwise_affine: bool = True,
     ) -> None:
         super().__init__()
 
-        self.norm = nn.RMSNorm(normalized_shape=hidden_channels, elementwise_affine=False)
+        self.norm1 = nn.RMSNorm(
+            normalized_shape=hidden_channels, elementwise_affine=elementwise_affine
+        )
+        self.norm2 = nn.RMSNorm(
+            normalized_shape=hidden_channels, elementwise_affine=elementwise_affine
+        )
 
         hidden_channels_attn = hidden_channels * attention_factor
 
@@ -204,12 +214,12 @@ class BaselineTransformerBlock(nn.Module):
         """
 
         # Residual attention
-        h = self.norm(inputs)
+        h = self.norm1(inputs).to(inputs.dtype)
         h = self.attention(h, **attn_kwargs)
         outputs = inputs + h
 
         # Residual MLP with GatedLinearUnit
-        h = self.norm(outputs)
+        h = self.norm2(outputs).to(outputs.dtype)
         h1, h2 = self.mlp_in(h).chunk(2, dim=-1)
         h = self.act(h1) * h2
         h = self.mlp_out(h)
@@ -219,10 +229,10 @@ class BaselineTransformerBlock(nn.Module):
 
 
 class Transformer(nn.Module):
-    """Baseline LLoCa-Transformer.
+    """LLoCa-Transformer with RMSNorm and GLU.
 
-    Combines transformer blocks, each consisting of multi-head self-attention layers, an
-    MLP, residual connections, and normalization layers.
+    Combines transformer blocks, each consisting of multi-head self-attention layers, a
+    gated-linear-unit MLP, residual connections, and RMSNorm layers.
 
     Parameters
     ----------
@@ -245,12 +255,18 @@ class Transformer(nn.Module):
         Factor by which the activation size is increased over the default value of hidden_channels.
     dropout_prob : float
         Dropout probability for output.
+    preserve_variance : bool
+        Rescale the frame-to-frame transforms by the invariant Lorentz factor of each particle
+        frame, to prevent the variance blowup from large boosts. Needs the reference momentum
+        ``p_ref`` in :meth:`forward`.
+    elementwise_affine : bool
+        Whether the RMSNorm layers use learnable per-channel affine weights.
     compile : bool, optional
         Whether to compile the model with torch.compile, by default False.
-    compile_mode : str
-        torch.compile compilation mode, see torch docs for more information.
-    compile_dynamic : bool
-        Whether to use dynamic shapes with torch.compile, by default True.
+    compile_kwargs : Mapping, optional
+        Dict forwarded verbatim to :func:`torch.compile` (via
+        :func:`lloca.utils.compile.compile_model`) when ``compile=True`` (e.g. ``mode``,
+        ``dynamic``, ``fullgraph``). Omitted keys fall back to torch's own defaults.
     """
 
     def __init__(
@@ -264,15 +280,20 @@ class Transformer(nn.Module):
         attention_factor: int = 1,
         mlp_factor: int = 2,
         dropout_prob: float | None = None,
+        preserve_variance: bool = True,
+        elementwise_affine: bool = True,
         compile: bool = False,
-        compile_mode: str = "default",
-        compile_dynamic: bool = True,
+        compile_kwargs: Mapping | None = None,
     ) -> None:
         super().__init__()
         attn_reps = TensorReps(attn_reps)
         self.hidden_channels = attn_reps.dim * num_heads // attention_factor
         self.checkpoint_blocks = checkpoint_blocks
-        self.attention = LLoCaAttention(attn_reps, num_heads)
+        self.attention = LLoCaAttention(
+            attn_reps,
+            num_heads,
+            preserve_variance=preserve_variance,
+        )
 
         self.linear_in = nn.Linear(in_channels, self.hidden_channels)
         self.blocks = nn.ModuleList(
@@ -284,6 +305,7 @@ class Transformer(nn.Module):
                     attention_factor=attention_factor,
                     mlp_factor=mlp_factor,
                     dropout_prob=dropout_prob,
+                    elementwise_affine=elementwise_affine,
                 )
                 for _ in range(num_blocks)
             ]
@@ -291,14 +313,11 @@ class Transformer(nn.Module):
         self.linear_out = nn.Linear(self.hidden_channels, out_channels)
 
         if compile:
-            # ugly hack to make torch.compile convenient for users
-            # the clean solution is model = torch.compile(model, **kwargs) outside of the constructor
-            # note that we need fullgraph=False because of the torch.compiler.disable for attention
-            self.__class__ = torch.compile(
-                self.__class__, dynamic=compile_dynamic, mode=compile_mode
-            )
+            compile_model(self, compile_kwargs=compile_kwargs)
 
-    def forward(self, inputs: torch.Tensor, frames, **attn_kwargs) -> torch.Tensor:
+    def forward(
+        self, inputs: torch.Tensor, frames, p_ref=None, ptr=None, **attn_kwargs
+    ) -> torch.Tensor:
         """Forward pass.
 
         Parameters
@@ -307,6 +326,12 @@ class Transformer(nn.Module):
             Input data with shape (..., num_items, in_channels)
         frames : Frames
             Local frames used for invariant particle attention
+        p_ref : Tensor, optional
+            Reference (jet) 4-momentum in the global frame, energy-first: per event ``(..., 4)``
+            for a dense layout or per jet ``(num_jets, 4)`` with ``ptr`` for a packed layout.
+            Required when a ``preserve_variance`` flag is on, ignored otherwise.
+        ptr : Tensor, optional
+            Jet boundaries for a packed layout; maps the per-jet ``p_ref`` to each token.
         **attn_kwargs
 
         Returns
@@ -314,7 +339,7 @@ class Transformer(nn.Module):
         outputs : Tensor
             Outputs with shape (..., num_items, out_channels)
         """
-        self.attention.prepare_frames(frames)
+        self.attention.prepare_frames(frames, p_ref=p_ref, ptr=ptr)
 
         h = self.linear_in(inputs)
         for block in self.blocks:
