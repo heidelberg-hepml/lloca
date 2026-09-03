@@ -108,6 +108,11 @@ class LLoCaAttention(torch.nn.Module):
         ptr: torch.tensor, optional
             Jet boundaries for a packed layout; maps the per-jet ``p_ref`` to each token.
         """
+        if len(frames.shape) < 3 or tuple(frames.shape[-2:]) != (4, 4):
+            raise ValueError(
+                f"prepare_frames expects frames of shape (..., N, 4, 4), "
+                f"got {tuple(frames.shape)}"
+            )
         self.frames = frames
         if not frames.is_global:
             inv_gamma = None
