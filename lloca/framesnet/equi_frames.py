@@ -474,8 +474,10 @@ class LearnedSO2Frames(LearnedFrames):
 
 
 def clamp_boost(x, gamma_max, gamma_hardness):
-    mass = lorentz_squarednorm(x).clamp(min=0).sqrt().unsqueeze(-1)
     t0 = x.narrow(-1, 0, 1)
+    finfo = torch.finfo(x.dtype)
+    mass_min = (t0.abs() * finfo.eps**0.5).clamp_min(finfo.tiny**0.5)
+    mass = lorentz_squarednorm(x).unsqueeze(-1).clamp_min(mass_min.square()).sqrt()
     beta = x[..., 1:] / t0.clamp_min(1e-10)
     gamma = t0 / mass
     gamma_max_realized = gamma.max().detach()
