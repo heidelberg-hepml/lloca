@@ -1,0 +1,8 @@
+﻿lloca.backbone.particletransformer.ParticleTransformer
+======================================================
+
+.. autoclass:: lloca.backbone.particletransformer.ParticleTransformer
+   :members:
+   :inherited-members: False
+   :undoc-members:
+   :show-inheritance:

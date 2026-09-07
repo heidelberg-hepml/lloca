@@ -1,0 +1,22 @@
+﻿lloca.equivectors.mlp
+=====================
+
+.. automodule:: lloca.equivectors.mlp
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      get_edge_index_and_batch
+      get_nonlinearity
+      get_operation
+      softmax
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      EquiEdgeConv
+      MLPVectors
+   

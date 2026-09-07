@@ -1,0 +1,13 @@
+﻿lloca.equivectors.lgatr
+=======================
+
+.. automodule:: lloca.equivectors.lgatr
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      LGATrSlimVectors
+      LGATrVectors
+   

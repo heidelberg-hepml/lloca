@@ -1,0 +1,8 @@
+﻿lloca.backbone.transformer_v2.Transformer
+=========================================
+
+.. autoclass:: lloca.backbone.transformer_v2.Transformer
+   :members:
+   :inherited-members: False
+   :undoc-members:
+   :show-inheritance:

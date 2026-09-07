@@ -1,0 +1,6 @@
+﻿lloca.backbone.attention\_backends.get\_attention\_backend
+==========================================================
+
+.. currentmodule:: lloca.backbone.attention_backends
+
+.. autofunction:: get_attention_backend

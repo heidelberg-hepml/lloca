@@ -1,0 +1,1403 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLoCa-ParticleTransformer &mdash; LLoCa 1.3.5.post3 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=b065bf22"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="LLoCa-GraphNet" href="graphnet.html" />
+    <link rel="prev" title="LLoCa-Transformer" href="transformer.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LLoCa
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../lloca-vs-lgatr.html">LLoCa vs L-GATr</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Make any network Lorentz-equivariant</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="transformer.html">LLoCa-Transformer</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">LLoCa-ParticleTransformer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="graphnet.html">LLoCa-GraphNet</a></li>
+<li class="toctree-l2"><a class="reference internal" href="particlenet.html">LLoCa-ParticleNet</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../numerics.html">Tips and tricks for stable LLoCa training</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../api.html">API Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LLoCa</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Make any network Lorentz-equivariant</a></li>
+      <li class="breadcrumb-item active">LLoCa-ParticleTransformer</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/more-backbones/particletransformer.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="lloca-particletransformer">
+<h1>LLoCa-ParticleTransformer<a class="headerlink" href="#lloca-particletransformer" title="Link to this heading"></a></h1>
+<p>We start from the ParticleTransformer implementation on the weaver-core main branch
+(commit <code class="docutils literal notranslate"><span class="pre">d53f590</span></code>), available at
+<a class="reference external" href="https://github.com/hqucms/weaver-core/blob/main/weaver/nn/model/ParticleTransformer.py">https://github.com/hqucms/weaver-core/blob/main/weaver/nn/model/ParticleTransformer.py</a>.
+The diff below omits the weaver logger and the <code class="docutils literal notranslate"><span class="pre">ParticleTransformerTagger*</span></code> wrapper classes,
+which are not part of the network itself.</p>
+<p>Similar to <a class="reference internal" href="transformer.html"><span class="doc">LLoCa-Transformer</span></a>, we use <a class="reference internal" href="../generated/lloca.backbone.attention.LLoCaAttention.html#lloca.backbone.attention.LLoCaAttention" title="lloca.backbone.attention.LLoCaAttention"><code class="xref py py-class docutils literal notranslate"><span class="pre">LLoCaAttention</span></code></a>
+to efficiently implement tensorial message-passing.
+ParticleTransformer features two types of attention blocks, particle self-attention as the main workhorse
+and class attention for the final aggregation over the jet. We find that it is sufficient to use
+tensorial message-passing only in the particle self-attention blocks.</p>
+<p>One change is easy to miss: the <code class="docutils literal notranslate"><span class="pre">SequenceTrimmer</span></code> permutes and truncates the particle
+sequence, but the local frames are prepared once in <code class="docutils literal notranslate"><span class="pre">forward</span></code> and are not permuted along,
+so the two would silently go out of sync. We therefore default <code class="docutils literal notranslate"><span class="pre">trim</span></code> to <code class="docutils literal notranslate"><span class="pre">False</span></code> and
+reject <code class="docutils literal notranslate"><span class="pre">trim=True</span></code>.</p>
+<p>As in <a class="reference internal" href="transformer.html"><span class="doc">LLoCa-Transformer</span></a>, we pass <code class="docutils literal notranslate"><span class="pre">preserve_variance=False</span></code> to keep the diff minimal;
+see <a class="reference internal" href="../generated/lloca.backbone.particletransformer.ParticleTransformer.html#lloca.backbone.particletransformer.ParticleTransformer" title="lloca.backbone.particletransformer.ParticleTransformer"><code class="xref py py-class docutils literal notranslate"><span class="pre">ParticleTransformer</span></code></a> for the variant that
+threads the reference four-momentum <code class="docutils literal notranslate"><span class="pre">p_ref</span></code> through <code class="docutils literal notranslate"><span class="pre">forward</span></code>. That class also adds a few
+options beyond the diff below, for instance numerical clamps in <code class="docutils literal notranslate"><span class="pre">to_ptrapphim</span></code>,
+<code class="docutils literal notranslate"><span class="pre">checkpoint_blocks</span></code> and <code class="docutils literal notranslate"><span class="pre">compile</span></code>; its module docstring lists them all.</p>
+<div class="highlight-diff notranslate"><div class="highlight"><pre><span></span>import math
+
+import copy
+from functools import partial
+from typing import Optional, Tuple, Any, Callable
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+<span class="gi">+</span>
+<span class="gi">+from ..reps.tensorreps import TensorReps</span>
+<span class="gi">+from .attention import LLoCaAttention</span>
+
+
+def delta_phi(a, b):
+<span class="w"> </span>   return (a - b + math.pi) % (2 * math.pi) - math.pi
+
+
+def delta_r2(eta1, phi1, eta2, phi2):
+<span class="w"> </span>   return (eta1 - eta2) ** 2 + delta_phi(phi1, phi2) ** 2
+
+
+def to_pt2(x, eps=1e-8):
+<span class="w"> </span>   assert x.size(1) &gt;= 2
+<span class="w"> </span>   pt2 = x[:, :2].square().sum(dim=1, keepdim=True)
+<span class="w"> </span>   if eps is not None:
+<span class="w"> </span>       pt2 = pt2.clamp(min=eps)
+<span class="w"> </span>   return pt2
+
+
+def to_p2(x, eps=1e-8):
+<span class="w"> </span>   assert x.size(1) &gt;= 3
+<span class="w"> </span>   p2 = x[:, :3].square().sum(dim=1, keepdim=True)
+<span class="w"> </span>   if eps is not None:
+<span class="w"> </span>       p2 = p2.clamp(min=eps)
+<span class="w"> </span>   return p2
+
+
+def to_m2(x, eps=1e-8):
+<span class="w"> </span>   m2 = x[:, 3:4].square() - to_p2(x, eps=None)
+<span class="w"> </span>   if eps is not None:
+<span class="w"> </span>       m2 = m2.clamp(min=eps)
+<span class="w"> </span>   return m2
+
+
+def to_ptrapphim(x, return_mass=True, eps=1e-8):
+<span class="w"> </span>   # x: (N, 4, ...), dim1 : (px, py, pz, E)
+<span class="w"> </span>   px, py, pz, energy = x.split((1, 1, 1, 1), dim=1)
+<span class="w"> </span>   pt = torch.sqrt(to_pt2(x, eps=eps))
+<span class="w"> </span>   # rapidity = 0.5 * torch.log((energy + pz) / (energy - pz))
+<span class="w"> </span>   rapidity = 0.5 * torch.log(1 + (2 * pz) / (energy - pz).clamp(min=1e-20))
+<span class="w"> </span>   phi = torch.atan2(py, px)
+<span class="w"> </span>   if not return_mass:
+<span class="w"> </span>       return torch.cat((pt, rapidity, phi), dim=1)
+<span class="w"> </span>   else:
+<span class="w"> </span>       m = torch.sqrt(to_m2(x, eps=eps))
+<span class="w"> </span>       return torch.cat((pt, rapidity, phi, m), dim=1)
+
+
+def to_spherical(coords):
+<span class="w"> </span>   # x: (N, 4, ...), dim1 : (x, y, z, t)
+<span class="w"> </span>   x, y, z = coords[:, :3].split((1, 1, 1), dim=1)
+<span class="w"> </span>   r = torch.sqrt(to_p2(coords, eps=None))
+<span class="w"> </span>   theta = torch.acos((z / r.clamp(min=1e-8)).clamp(-1, 1))
+<span class="w"> </span>   phi = torch.atan2(y, x)
+<span class="w"> </span>   return r, theta, phi
+
+
+def to_cylindrical(coords):
+<span class="w"> </span>   # x: (N, 4, ...), dim1 : (x, y, z, t)
+<span class="w"> </span>   x, y, z = coords[:, :3].split((1, 1, 1), dim=1)
+<span class="w"> </span>   rho = torch.sqrt(to_pt2(coords, eps=None))
+<span class="w"> </span>   phi = torch.atan2(y, x)
+<span class="w"> </span>   return rho, phi, z
+
+
+def boost(x, boostp4, eps=1e-8):
+<span class="w"> </span>   # boost x to the rest frame of boostp4
+<span class="w"> </span>   # x: (N, 4, ...), dim1 : (px, py, pz, E)
+<span class="w"> </span>   p3 = -boostp4[:, :3] / boostp4[:, 3:].clamp(min=eps)
+<span class="w"> </span>   b2 = p3.square().sum(dim=1, keepdim=True)
+<span class="w"> </span>   gamma = (1 - b2).clamp(min=eps) ** (-0.5)
+<span class="w"> </span>   gamma2 = (gamma - 1) / b2
+<span class="w"> </span>   gamma2.masked_fill_(b2 == 0, 0)
+<span class="w"> </span>   bp = (x[:, :3] * p3).sum(dim=1, keepdim=True)
+<span class="w"> </span>   v = x[:, :3] + gamma2 * bp * p3 + x[:, 3:] * gamma * p3
+<span class="w"> </span>   return v
+
+
+def p3_norm(p, eps=1e-8):
+<span class="w"> </span>   return p[:, :3] / p[:, :3].norm(dim=1, keepdim=True).clamp(min=eps)
+
+
+def to_energy_momentum(x, return_unit_vector=True):
+<span class="w"> </span>   energy = x[:, 3:4]
+<span class="w"> </span>   mom = torch.sqrt(to_p2(x, eps=None))
+<span class="w"> </span>   if return_unit_vector:
+<span class="w"> </span>       return energy, mom, x[:, :3] / mom.clamp(min=1e-8)
+<span class="w"> </span>   else:
+<span class="w"> </span>       return energy, mom
+
+
+def to_cos_sin_angles(xi, xj, normed_inputs=False, eps=1e-8):
+<span class="w"> </span>   if normed_inputs:
+<span class="w"> </span>       ni, nj = xi, xj
+<span class="w"> </span>   else:
+<span class="w"> </span>       ni, nj = p3_norm(xi, eps), p3_norm(xj, eps)
+<span class="w"> </span>   cos = (ni * nj).sum(dim=1, keepdim=True).clamp(min=-1, max=1)
+<span class="w"> </span>   sin = torch.linalg.cross(ni, nj, dim=1).norm(dim=1, keepdim=True).clamp(min=0, max=1)
+<span class="w"> </span>   return cos, sin
+
+
+def pairwise_lv_fts_pp(xi, xj, num_outputs=4, eps=1e-8):
+<span class="w"> </span>   pti, rapi, phii = to_ptrapphim(xi, False, eps=None).split((1, 1, 1), dim=1)
+<span class="w"> </span>   ptj, rapj, phij = to_ptrapphim(xj, False, eps=None).split((1, 1, 1), dim=1)
+
+<span class="w"> </span>   delta = delta_r2(rapi, phii, rapj, phij).sqrt()
+<span class="w"> </span>   lndelta = torch.log(delta.clamp(min=eps))
+<span class="w"> </span>   if num_outputs == 1:
+<span class="w"> </span>       return lndelta
+
+<span class="w"> </span>   if num_outputs &gt; 1:
+<span class="w"> </span>       ptmin = torch.minimum(pti, ptj)
+<span class="w"> </span>       lnkt = torch.log((ptmin * delta).clamp(min=eps))
+<span class="w"> </span>       lnz = torch.log((ptmin / (pti + ptj).clamp(min=eps)).clamp(min=eps))
+<span class="w"> </span>       outputs = [lnkt, lnz, lndelta]
+
+<span class="w"> </span>   if num_outputs &gt; 3:
+<span class="w"> </span>       xij = xi + xj
+<span class="w"> </span>       lnm2 = torch.log(to_m2(xij, eps=eps))
+<span class="w"> </span>       outputs.append(lnm2)
+
+<span class="w"> </span>   if num_outputs &gt; 4:
+<span class="w"> </span>       lnds2 = torch.log(torch.clamp(-to_m2(xi - xj, eps=None), min=eps))
+<span class="w"> </span>       outputs.append(lnds2)
+
+<span class="w"> </span>   # the following features are not symmetric for (i, j)
+<span class="w"> </span>   if num_outputs &gt; 5:
+<span class="w"> </span>       xj_boost = boost(xj, xij)
+<span class="w"> </span>       costheta = (p3_norm(xj_boost, eps=eps) * p3_norm(xij, eps=eps)).sum(dim=1, keepdim=True)
+<span class="w"> </span>       outputs.append(costheta)
+
+<span class="w"> </span>   if num_outputs &gt; 6:
+<span class="w"> </span>       deltarap = rapi - rapj
+<span class="w"> </span>       deltaphi = delta_phi(phii, phij)
+<span class="w"> </span>       outputs += [deltarap, deltaphi]
+
+<span class="w"> </span>   assert len(outputs) == num_outputs
+<span class="w"> </span>   return torch.cat(outputs, dim=1)
+
+
+def pairwise_lv_fts_ee(xi, xj, num_outputs=6, eps=1e-8):
+<span class="w"> </span>   # outputs: [lnm2, cos_angle, sin_angle, lnkt, lnz, lnjade]
+<span class="w"> </span>   lnm2 = torch.log(to_m2(xi + xj, eps=eps))
+<span class="w"> </span>   outputs = [lnm2]
+
+<span class="w"> </span>   if num_outputs &gt; 1:
+<span class="w"> </span>       ei, pi, ni = to_energy_momentum(xi)
+<span class="w"> </span>       ej, pj, nj = to_energy_momentum(xj)
+<span class="w"> </span>       cos_angle, sin_angle = to_cos_sin_angles(ni, nj, normed_inputs=True)
+<span class="w"> </span>       outputs += [cos_angle, sin_angle]
+
+<span class="w"> </span>   if num_outputs &gt; 3:
+<span class="w"> </span>       pmin = torch.minimum(pi, pj)
+<span class="w"> </span>       lnkt = torch.log((pmin * sin_angle).clamp(min=eps))
+<span class="w"> </span>       lnz = torch.log((pmin / (pi + pj).clamp(min=eps)).clamp(min=eps))
+<span class="w"> </span>       outputs += [lnkt, lnz]
+
+<span class="w"> </span>   if num_outputs &gt; 5:
+<span class="w"> </span>       lnjade = torch.log((ei * ej * (1 - cos_angle)).clamp(min=eps))
+<span class="w"> </span>       outputs.append(lnjade)
+
+<span class="w"> </span>   assert len(outputs) == num_outputs
+<span class="w"> </span>   return torch.cat(outputs, dim=1)
+
+
+def pairwise_lv_fts_xyzt(xi, xj, num_outputs=7, coords="rectangular", eps=1e-8):
+<span class="w"> </span>   # outputs: [ln_dist2, cos_angle, sin_angle, ln_dt] + coords-diff
+<span class="w"> </span>   dij = xi - xj
+<span class="w"> </span>   ln_dist2 = torch.log(to_p2(dij, eps=eps))
+<span class="w"> </span>   outputs = [ln_dist2]
+
+<span class="w"> </span>   if num_outputs &gt; 1:
+<span class="w"> </span>       ei, pi, ni = to_energy_momentum(xi)
+<span class="w"> </span>       ej, pj, nj = to_energy_momentum(xj)
+<span class="w"> </span>       cos_angle, sin_angle = to_cos_sin_angles(ni, nj, normed_inputs=True)
+<span class="w"> </span>       outputs += [cos_angle, sin_angle]
+
+<span class="w"> </span>   if num_outputs &gt; 3:
+<span class="w"> </span>       ln_dt = torch.asinh(dij[:, 3:4])
+<span class="w"> </span>       outputs += [ln_dt]
+
+<span class="w"> </span>   if num_outputs &gt; 4:
+<span class="w"> </span>       if coords.lower().startswith("rect") or coords.lower().startswith("cart"):
+<span class="w"> </span>           # rectangular/Cartesian coordinate system
+<span class="w"> </span>           dx, dy, dz = dij[:, :3].split((1, 1, 1), dim=1)
+<span class="w"> </span>           outputs += [dx, dy, dz]
+<span class="w"> </span>       elif coords.lower().startswith("sph"):
+<span class="w"> </span>           # spherical coordinate system
+<span class="w"> </span>           r_i, theta_i, phi_i = to_spherical(xi)
+<span class="w"> </span>           r_j, theta_j, phi_j = to_spherical(xj)
+<span class="w"> </span>           outputs += [torch.asinh(r_i - r_j), theta_i - theta_j, delta_phi(phi_i, phi_j)]
+<span class="w"> </span>       elif coords.lower().startswith("cyl"):
+<span class="w"> </span>           # cylindrical coordinate system
+<span class="w"> </span>           rho_i, phi_i, z_i = to_cylindrical(xi)
+<span class="w"> </span>           rho_j, phi_j, z_j = to_cylindrical(xj)
+<span class="w"> </span>           outputs += [torch.asinh(rho_i - rho_j), delta_phi(phi_i, phi_j), torch.asinh(z_i - z_j)]
+<span class="w"> </span>       else:
+<span class="w"> </span>           raise RuntimeError(f"Unrecognized coordinate system name {coords}")
+
+<span class="w"> </span>   assert len(outputs) == num_outputs
+<span class="w"> </span>   return torch.cat(outputs, dim=1)
+
+
+def build_sparse_tensor(uu, idx, seq_len):
+<span class="w"> </span>   # inputs: uu (N, C, num_pairs), idx (N, 2, num_pairs)
+<span class="w"> </span>   # return: (N, C, seq_len, seq_len)
+<span class="w"> </span>   batch_size, num_fts, num_pairs = uu.size()
+<span class="w"> </span>   idx = torch.min(idx, torch.ones_like(idx) * seq_len)
+<span class="w"> </span>   i = torch.cat(
+<span class="w"> </span>       (
+<span class="w"> </span>           torch.arange(0, batch_size, device=uu.device).repeat_interleave(num_fts * num_pairs).unsqueeze(0),
+<span class="w"> </span>           torch.arange(0, num_fts, device=uu.device).repeat_interleave(num_pairs).repeat(batch_size).unsqueeze(0),
+<span class="w"> </span>           idx[:, :1, :].expand_as(uu).flatten().unsqueeze(0),
+<span class="w"> </span>           idx[:, 1:, :].expand_as(uu).flatten().unsqueeze(0),
+<span class="w"> </span>       ),
+<span class="w"> </span>       dim=0,
+<span class="w"> </span>   )
+<span class="w"> </span>   return torch.sparse_coo_tensor(
+<span class="w"> </span>       i, uu.flatten(), size=(batch_size, num_fts, seq_len + 1, seq_len + 1), device=uu.device
+<span class="w"> </span>   ).to_dense()[:, :, :seq_len, :seq_len]
+
+
+def tril_indices(row, col, offset=0, *, dtype=torch.long, device="cpu"):
+<span class="w"> </span>   return torch.ones(row, col, dtype=dtype, device=device).tril(offset).nonzero().T
+
+
+class SequenceTrimmer(nn.Module):
+<span class="w"> </span>   def __init__(
+<span class="w"> </span>       self, enabled=False, target=(0.9, 1.02), warmup_steps=5, round_to_32=False, num_extra_tokens=0, **kwargs
+<span class="w"> </span>   ) -&gt; None:
+<span class="w"> </span>       super().__init__(**kwargs)
+<span class="w"> </span>       self.enabled = enabled
+<span class="w"> </span>       self.target = target
+<span class="w"> </span>       self.warmup_steps = warmup_steps
+<span class="w"> </span>       self.round_to_32 = round_to_32
+<span class="w"> </span>       self.num_extra_tokens = num_extra_tokens
+<span class="w"> </span>       self.register_buffer("_counter", torch.LongTensor([0]), persistent=False)
+
+<span class="w"> </span>   def forward(self, x, v=None, mask=None, uu=None):
+<span class="w"> </span>       # x: (N, C, P)
+<span class="w"> </span>       # v: (N, 4, P) [px,py,pz,energy]
+<span class="w"> </span>       # mask: (N, 1, P) -- real particle = 1, padded = 0
+<span class="w"> </span>       # uu: (N, C', P, P)
+<span class="w"> </span>       if mask is None:
+<span class="w"> </span>           mask = torch.ones_like(x[:, :1])
+<span class="w"> </span>       mask = mask.bool()
+
+<span class="w"> </span>       if self.enabled:
+<span class="w"> </span>           if self._counter &lt; self.warmup_steps:
+<span class="w"> </span>               self._counter.add_(1)
+<span class="w"> </span>           else:
+<span class="w"> </span>               seq_len = mask.size(-1)
+<span class="w"> </span>               if v is not None:
+<span class="w"> </span>                   if not isinstance(v, (list, tuple)):
+<span class="w"> </span>                       v = [v]
+<span class="w"> </span>               if self.training:
+<span class="w"> </span>                   # Use torch RNG instead of Python random to avoid graph breaks
+<span class="w"> </span>                   q = torch.empty(1, device=mask.device).uniform_(*self.target).clamp_(max=1)
+<span class="w"> </span>                   maxlen = torch.quantile(mask.float().sum(dim=-1), q).long()
+<span class="w"> </span>                   if self.round_to_32:
+<span class="w"> </span>                       # Round up to next multiple of 32
+<span class="w"> </span>                       # effectively: ceil(x / 32) * 32
+<span class="w"> </span>                       target_len = maxlen + self.num_extra_tokens
+<span class="w"> </span>                       target_len = ((target_len + 31) // 32) * 32
+<span class="w"> </span>                       target_len = torch.clamp(target_len, min=32)
+<span class="w"> </span>                       maxlen = torch.clamp(target_len, max=seq_len) - self.num_extra_tokens
+<span class="w"> </span>                   rand = torch.rand_like(mask.float())
+<span class="w"> </span>                   rand.masked_fill_(~mask, -1)
+<span class="w"> </span>                   perm = rand.argsort(dim=-1, descending=True)  # (N, 1, P)
+<span class="w"> </span>                   mask = torch.gather(mask, -1, perm)
+<span class="w"> </span>                   x = torch.gather(x, -1, perm.expand_as(x))
+<span class="w"> </span>                   if v is not None:
+<span class="w"> </span>                       v = [torch.gather(_v, -1, perm.expand_as(_v)) for _v in v]
+<span class="w"> </span>                   if uu is not None:
+<span class="w"> </span>                       uu = torch.gather(uu, -2, perm.unsqueeze(-1).expand_as(uu))
+<span class="w"> </span>                       uu = torch.gather(uu, -1, perm.unsqueeze(-2).expand_as(uu))
+<span class="w"> </span>               else:
+<span class="w"> </span>                   maxlen = mask.sum(dim=-1).max()
+<span class="w"> </span>               maxlen = maxlen.clamp(min=1)
+<span class="w"> </span>               if maxlen &lt; seq_len:
+<span class="w"> </span>                   mask = mask[:, :, :maxlen]
+<span class="w"> </span>                   x = x[:, :, :maxlen]
+<span class="w"> </span>                   if v is not None:
+<span class="w"> </span>                       v = [_v[:, :, :maxlen] for _v in v]
+<span class="w"> </span>                   if uu is not None:
+<span class="w"> </span>                       uu = uu[:, :, :maxlen, :maxlen]
+<span class="w"> </span>               if v is not None:
+<span class="w"> </span>                   if len(v) == 1:
+<span class="w"> </span>                       v = v[0]
+
+<span class="w"> </span>       return x, v, mask, uu
+
+
+class SwiGLUFFN(nn.Module):
+<span class="w"> </span>   def __init__(
+<span class="w"> </span>       self,
+<span class="w"> </span>       in_features: int,
+<span class="w"> </span>       hidden_features: Optional[int] = None,
+<span class="w"> </span>       out_features: Optional[int] = None,
+<span class="w"> </span>       drop: float = 0.0,
+<span class="w"> </span>       bias: bool = True,
+<span class="w"> </span>   ) -&gt; None:
+<span class="w"> </span>       super().__init__()
+<span class="w"> </span>       hidden_features = hidden_features or in_features
+<span class="w"> </span>       out_features = out_features or in_features
+<span class="w"> </span>       self.w12 = nn.Linear(in_features, 2 * hidden_features, bias=bias)
+<span class="w"> </span>       self.drop = nn.Dropout(drop)
+<span class="w"> </span>       self.w3 = nn.Linear(hidden_features, out_features, bias=bias)
+
+<span class="w"> </span>   def forward(self, x: torch.Tensor) -&gt; torch.Tensor:
+<span class="w"> </span>       x12 = self.w12(x)
+<span class="w"> </span>       x1, x2 = x12.chunk(2, dim=-1)
+<span class="w"> </span>       hidden = F.silu(x1) * x2
+<span class="w"> </span>       hidden = self.drop(hidden)
+<span class="w"> </span>       return self.w3(hidden)
+
+
+class Embed(nn.Module):
+<span class="w"> </span>   def __init__(self, input_dim, dims, normalize_input=True, activation="gelu", use_conv_embed=False):
+<span class="w"> </span>       super().__init__()
+
+<span class="w"> </span>       self.input_bn = nn.BatchNorm1d(input_dim) if normalize_input else None
+<span class="w"> </span>       self.use_conv_embed = bool(use_conv_embed)
+<span class="w"> </span>       if self.use_conv_embed:
+<span class="w"> </span>           assert normalize_input == True
+<span class="w"> </span>           module_list = []
+<span class="w"> </span>           for dim in dims:
+<span class="w"> </span>               module_list.extend(
+<span class="w"> </span>                   [
+<span class="w"> </span>                       nn.Conv1d(input_dim, dim, 1, bias=False),
+<span class="w"> </span>                       nn.BatchNorm1d(dim),
+<span class="w"> </span>                       nn.GELU() if activation == "gelu" else nn.ReLU(),
+<span class="w"> </span>                   ]
+<span class="w"> </span>               )
+<span class="w"> </span>               input_dim = dim
+<span class="w"> </span>           self.conv_embed = nn.Sequential(*module_list[:-1])
+<span class="w"> </span>           self.embed = nn.Identity()
+<span class="w"> </span>       else:
+<span class="w"> </span>           module_list = []
+<span class="w"> </span>           for dim in dims:
+<span class="w"> </span>               module_list.extend(
+<span class="w"> </span>                   [
+<span class="w"> </span>                       nn.LayerNorm(input_dim),
+<span class="w"> </span>                       nn.Linear(input_dim, dim),
+<span class="w"> </span>                       nn.GELU() if activation == "gelu" else nn.ReLU(),
+<span class="w"> </span>                   ]
+<span class="w"> </span>               )
+<span class="w"> </span>               input_dim = dim
+<span class="w"> </span>           self.conv_embed = nn.Identity()
+<span class="w"> </span>           self.embed = nn.Sequential(*module_list)
+
+<span class="w"> </span>   def forward(self, x):
+<span class="w"> </span>       if self.input_bn is not None:
+<span class="w"> </span>           # x: (batch, embed_dim, seq_len)
+<span class="w"> </span>           x = self.input_bn(x)
+<span class="w"> </span>           x = self.conv_embed(x)
+<span class="w"> </span>           x = x.transpose(1, 2).contiguous()
+<span class="w"> </span>       # x: (batch, seq_len, embed_dim)
+<span class="w"> </span>       return self.embed(x)
+
+
+class PairEmbed(nn.Module):
+<span class="w"> </span>   def __init__(
+<span class="w"> </span>       self,
+<span class="w"> </span>       pairwise_lv_dim,
+<span class="w"> </span>       pairwise_input_dim,
+<span class="w"> </span>       dims,
+<span class="w"> </span>       pairwise_lv_type="pp",
+<span class="w"> </span>       remove_self_pair=False,
+<span class="w"> </span>       use_pre_activation_pair=True,
+<span class="w"> </span>       normalize_input=True,
+<span class="w"> </span>       activation="gelu",
+<span class="w"> </span>       use_bias=True,
+<span class="w"> </span>       eps=1e-8,
+<span class="w"> </span>       for_onnx=False,
+<span class="w"> </span>       sparse_eval=None,
+<span class="w"> </span>   ):
+<span class="w"> </span>       super().__init__()
+
+<span class="w"> </span>       self.pairwise_lv_dim = pairwise_lv_dim
+<span class="w"> </span>       self.pairwise_input_dim = pairwise_input_dim
+<span class="w"> </span>       self.remove_self_pair = remove_self_pair
+<span class="w"> </span>       self.for_onnx = for_onnx
+<span class="w"> </span>       self.sparse_eval = (not for_onnx) if sparse_eval is None else sparse_eval
+<span class="w"> </span>       self.tril_indices_fn = tril_indices if self.for_onnx else torch.tril_indices
+<span class="w"> </span>       self.out_dim = dims[-1]
+
+<span class="w"> </span>       if pairwise_lv_type == "pp":
+<span class="w"> </span>           self.is_symmetric = (pairwise_lv_dim &lt;= 5) and (pairwise_input_dim == 0)
+<span class="w"> </span>           self.pairwise_lv_fts = partial(pairwise_lv_fts_pp, num_outputs=pairwise_lv_dim, eps=eps)
+<span class="w"> </span>       elif pairwise_lv_type == "ee":
+<span class="w"> </span>           self.is_symmetric = (pairwise_lv_dim &lt;= 6) and (pairwise_input_dim == 0)
+<span class="w"> </span>           self.pairwise_lv_fts = partial(pairwise_lv_fts_ee, num_outputs=pairwise_lv_dim, eps=eps)
+<span class="w"> </span>       elif pairwise_lv_type.startswith("xyzt"):
+<span class="w"> </span>           coords = pairwise_lv_type.split(":")[1] if ":" in pairwise_lv_type else None
+<span class="w"> </span>           self.is_symmetric = (pairwise_lv_dim &lt;= 3) and (pairwise_input_dim == 0)
+<span class="w"> </span>           self.pairwise_lv_fts = partial(pairwise_lv_fts_xyzt, num_outputs=pairwise_lv_dim, coords=coords, eps=eps)
+<span class="w"> </span>       else:
+<span class="w"> </span>           raise RuntimeError("Invalid value for `pairwise_lv_type`: " + pairwise_lv_type)
+
+<span class="w"> </span>       if pairwise_lv_dim &gt; 0:
+<span class="w"> </span>           input_dim = pairwise_lv_dim
+<span class="w"> </span>           module_list = [nn.BatchNorm1d(input_dim)] if normalize_input else []
+<span class="w"> </span>           for dim in dims:
+<span class="w"> </span>               module_list.extend(
+<span class="w"> </span>                   [
+<span class="w"> </span>                       nn.Conv1d(input_dim, dim, 1, bias=use_bias),
+<span class="w"> </span>                       nn.BatchNorm1d(dim),
+<span class="w"> </span>                       nn.GELU() if activation == "gelu" else nn.ReLU(),
+<span class="w"> </span>                   ]
+<span class="w"> </span>               )
+<span class="w"> </span>               input_dim = dim
+<span class="w"> </span>           if use_pre_activation_pair:
+<span class="w"> </span>               module_list = module_list[:-1]
+<span class="w"> </span>           self.embed = nn.Sequential(*module_list)
+
+<span class="w"> </span>       if pairwise_input_dim &gt; 0:
+<span class="w"> </span>           input_dim = pairwise_input_dim
+<span class="w"> </span>           module_list = [nn.BatchNorm1d(input_dim)] if normalize_input else []
+<span class="w"> </span>           for dim in dims:
+<span class="w"> </span>               module_list.extend(
+<span class="w"> </span>                   [
+<span class="w"> </span>                       nn.Conv1d(input_dim, dim, 1, bias=use_bias),
+<span class="w"> </span>                       nn.BatchNorm1d(dim),
+<span class="w"> </span>                       nn.GELU() if activation == "gelu" else nn.ReLU(),
+<span class="w"> </span>                   ]
+<span class="w"> </span>               )
+<span class="w"> </span>               input_dim = dim
+<span class="w"> </span>           if use_pre_activation_pair:
+<span class="w"> </span>               module_list = module_list[:-1]
+<span class="w"> </span>           self.fts_embed = nn.Sequential(*module_list)
+
+<span class="w"> </span>   def _embed_pairs(self, x, uu):
+<span class="w"> </span>       """Run embedding networks on pair features. Returns (batch_or_1, out_dim, num_pairs)."""
+<span class="w"> </span>       elements = None
+<span class="w"> </span>       if x is not None:
+<span class="w"> </span>           elements = self.embed(x)
+<span class="w"> </span>       if uu is not None:
+<span class="w"> </span>           fts = self.fts_embed(uu)
+<span class="w"> </span>           elements = fts if elements is None else elements + fts
+<span class="w"> </span>       return elements
+
+<span class="w"> </span>   def _forward_dense(self, x, uu=None, mask=None):
+<span class="w"> </span>       # x: (batch, v_dim, seq_len)
+<span class="w"> </span>       # uu: (batch, v_dim, seq_len, seq_len)
+<span class="w"> </span>       if x is not None:
+<span class="w"> </span>           batch_size, _, seq_len = x.size()
+<span class="w"> </span>       else:
+<span class="w"> </span>           batch_size, _, seq_len, _ = uu.size()
+
+<span class="w"> </span>       if self.is_symmetric:
+<span class="w"> </span>           i, j = self.tril_indices_fn(
+<span class="w"> </span>               seq_len,
+<span class="w"> </span>               seq_len,
+<span class="w"> </span>               offset=-1 if self.remove_self_pair else 0,
+<span class="w"> </span>               device=(x if x is not None else uu).device,
+<span class="w"> </span>           )
+<span class="w"> </span>           if x is not None:
+<span class="w"> </span>               xi = x[:, :, i]  # (batch, dim, num_tril_pairs)
+<span class="w"> </span>               xj = x[:, :, j]
+<span class="w"> </span>               x = self.pairwise_lv_fts(xi, xj)
+<span class="w"> </span>           if uu is not None:
+<span class="w"> </span>               # (batch, dim, num_tril_pairs)
+<span class="w"> </span>               uu = uu[:, :, i, j]
+<span class="w"> </span>       else:
+<span class="w"> </span>           if x is not None:
+<span class="w"> </span>               x = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2))
+<span class="w"> </span>               if self.remove_self_pair:
+<span class="w"> </span>                   diag_idx = torch.arange(0, seq_len, device=x.device)
+<span class="w"> </span>                   x[:, :, diag_idx, diag_idx] = 0
+<span class="w"> </span>               x = x.reshape(batch_size, self.pairwise_lv_dim, seq_len * seq_len)
+<span class="w"> </span>           if uu is not None:
+<span class="w"> </span>               uu = uu.reshape(batch_size, self.pairwise_input_dim, seq_len * seq_len)
+
+<span class="w"> </span>       elements = self._embed_pairs(x, uu)
+
+<span class="w"> </span>       if self.is_symmetric:
+<span class="w"> </span>           y = elements.new_zeros(batch_size, self.out_dim, seq_len, seq_len)
+<span class="w"> </span>           y[:, :, i, j] = elements
+<span class="w"> </span>           y[:, :, j, i] = elements
+<span class="w"> </span>       else:
+<span class="w"> </span>           y = elements.reshape(batch_size, self.out_dim, seq_len, seq_len)
+<span class="w"> </span>       return y
+
+<span class="w"> </span>   def _forward_sparse(self, x, uu=None, mask=None):
+<span class="w"> </span>       # x: (batch, v_dim, seq_len)
+<span class="w"> </span>       # uu: (batch, v_dim, seq_len, seq_len)
+<span class="w"> </span>       if x is not None:
+<span class="w"> </span>           batch_size, _, seq_len = x.size()
+<span class="w"> </span>       else:
+<span class="w"> </span>           batch_size, _, seq_len, _ = uu.size()
+
+<span class="w"> </span>       i0, i2, i3 = (Ellipsis,) * 3
+<span class="w"> </span>       if mask is not None:
+<span class="w"> </span>           pair_mask = mask.unsqueeze(-1) * mask.unsqueeze(-2)  # (batch_size, 1, seq_len, seq_len)
+<span class="w"> </span>           if self.is_symmetric:
+<span class="w"> </span>               offset = -1 if self.remove_self_pair else 0
+<span class="w"> </span>               i0, _, i2, i3 = pair_mask.float().tril(offset).nonzero(as_tuple=True)
+<span class="w"> </span>           else:
+<span class="w"> </span>               i0, _, i2, i3 = pair_mask.nonzero(as_tuple=True)
+
+<span class="w"> </span>       if x is not None:
+<span class="w"> </span>           x = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2))
+<span class="w"> </span>           x = x.permute(0, 2, 3, 1)[i0, i2, i3, :]  # (num_elements, pairwise_lv_dim)
+<span class="w"> </span>           x = x.T.unsqueeze(0)  # (1, pairwise_lv_dim, num_elements)
+<span class="w"> </span>       if uu is not None:
+<span class="w"> </span>           uu = uu.permute(0, 2, 3, 1)[i0, i2, i3, :]  # (num_elements, pairwise_input_dim)
+<span class="w"> </span>           uu = uu.T.unsqueeze(0)  # (1, pairwise_input_dim, num_elements)
+
+<span class="w"> </span>       elements = self._embed_pairs(x, uu)
+<span class="w"> </span>       elements = elements.squeeze(0).T  # (num_elements, out_dim)
+
+<span class="w"> </span>       y = torch.zeros(batch_size, seq_len, seq_len, self.out_dim, dtype=elements.dtype, device=elements.device)
+<span class="w"> </span>       y[i0, i2, i3, :] = elements
+<span class="w"> </span>       if self.is_symmetric:
+<span class="w"> </span>           y[i0, i3, i2, :] = elements
+<span class="w"> </span>       y = y.permute(0, 3, 1, 2).contiguous()
+
+<span class="w"> </span>       return y
+
+<span class="w"> </span>   def forward(self, x, uu=None, mask=None):
+<span class="w"> </span>       if self.sparse_eval and mask is not None:
+<span class="w"> </span>           return self._forward_sparse(x, uu=uu, mask=mask)
+<span class="w"> </span>       else:
+<span class="w"> </span>           return self._forward_dense(x, uu=uu, mask=mask)
+
+
+def _canonical_mask(
+<span class="w"> </span>   mask: Optional[torch.Tensor],
+<span class="w"> </span>   mask_name: str,
+<span class="w"> </span>   other_type: Optional[Any],
+<span class="w"> </span>   other_name: str,
+<span class="w"> </span>   target_type: Any,
+<span class="w"> </span>   check_other: bool = True,
+) -&gt; Optional[torch.Tensor]:
+
+<span class="w"> </span>   if mask is not None:
+<span class="w"> </span>       _mask_dtype = mask.dtype
+<span class="w"> </span>       _mask_is_float = torch.is_floating_point(mask)
+<span class="w"> </span>       if _mask_dtype != torch.bool and not _mask_is_float:
+<span class="w"> </span>           raise AssertionError(f"only bool and floating types of {mask_name} are supported")
+<span class="w"> </span>       if not _mask_is_float:
+<span class="w"> </span>           mask = torch.zeros_like(mask, dtype=target_type).masked_fill_(mask, float("-inf"))
+<span class="w"> </span>   return mask
+
+
+def _none_or_dtype(input: Optional[torch.Tensor]):
+<span class="w"> </span>   if input is None:
+<span class="w"> </span>       return None
+<span class="w"> </span>   elif isinstance(input, torch.Tensor):
+<span class="w"> </span>       return input.dtype
+<span class="w"> </span>   raise RuntimeError("input to _none_or_dtype() must be None or torch.Tensor")
+
+
+class Attention(torch.nn.Module):
+<span class="w"> </span>   def __init__(
+<span class="w"> </span>       self,
+<span class="gi">+       attention,</span>
+<span class="w"> </span>       embed_dim,
+<span class="w"> </span>       num_heads,
+<span class="w"> </span>       dropout=0.0,
+<span class="w"> </span>       bias=True,
+<span class="w"> </span>       use_qk_norm=False,
+<span class="w"> </span>       norm_layer=nn.LayerNorm,
+<span class="w"> </span>       headwise_attn_output_gate=False,
+<span class="w"> </span>       elementwise_attn_output_gate=False,
+<span class="w"> </span>       device=None,
+<span class="w"> </span>       dtype=None,
+<span class="w"> </span>   ) -&gt; None:
+<span class="w"> </span>       factory_kwargs = {"device": device, "dtype": dtype}
+<span class="w"> </span>       super().__init__()
+<span class="w"> </span>       self.embed_dim = embed_dim
+<span class="w"> </span>       self.num_heads = num_heads
+<span class="w"> </span>       self.dropout = dropout
+<span class="w"> </span>       self.head_dim = embed_dim // num_heads
+<span class="w"> </span>       assert self.head_dim * num_heads == self.embed_dim, "embed_dim must be divisible by num_heads"
+
+<span class="w"> </span>       self.in_proj = torch.nn.Linear(embed_dim, 3 * embed_dim, bias=bias, **factory_kwargs)
+<span class="w"> </span>       self.out_proj = torch.nn.Linear(embed_dim, embed_dim, bias=bias, **factory_kwargs)
+<span class="gi">+       self.attention = attention</span>
+
+<span class="w"> </span>       if use_qk_norm:
+<span class="w"> </span>           self.q_norm = norm_layer(self.head_dim)
+<span class="w"> </span>           self.k_norm = norm_layer(self.head_dim)
+<span class="w"> </span>       else:
+<span class="w"> </span>           self.q_norm = self.k_norm = nn.Identity()
+
+<span class="w"> </span>       assert not (headwise_attn_output_gate and elementwise_attn_output_gate)
+<span class="w"> </span>       self.headwise_attn_output_gate = headwise_attn_output_gate
+<span class="w"> </span>       self.elementwise_attn_output_gate = elementwise_attn_output_gate
+<span class="w"> </span>       if self.headwise_attn_output_gate:
+<span class="w"> </span>           self.gate_proj = torch.nn.Linear(embed_dim, num_heads, bias=bias, **factory_kwargs)
+<span class="w"> </span>       elif self.elementwise_attn_output_gate:
+<span class="w"> </span>           self.gate_proj = torch.nn.Linear(embed_dim, embed_dim, bias=bias, **factory_kwargs)
+<span class="gd">-</span>
+<span class="gd">-       self.use_sdpa = hasattr(torch.nn.functional, "scaled_dot_product_attention")</span>
+<span class="gd">-       if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] &lt; 7:</span>
+<span class="gd">-           self.use_sdpa = False</span>
+
+<span class="w"> </span>   def _load_from_state_dict(
+<span class="w"> </span>       self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
+<span class="w"> </span>   ):
+
+<span class="w"> </span>       for k in list(state_dict.keys()):
+<span class="w"> </span>           if k.endswith("in_proj_weight"):
+<span class="w"> </span>               state_dict[k.replace("_weight", ".weight")] = state_dict.pop(k)
+<span class="w"> </span>           elif k.endswith("in_proj_bias"):
+<span class="w"> </span>               state_dict[k.replace("_bias", ".bias")] = state_dict.pop(k)
+
+<span class="w"> </span>       super()._load_from_state_dict(
+<span class="w"> </span>           state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
+<span class="w"> </span>       )
+
+<span class="w"> </span>   def forward(
+<span class="w"> </span>       self,
+<span class="w"> </span>       query: torch.Tensor,
+<span class="w"> </span>       key: torch.Tensor,
+<span class="w"> </span>       value: torch.Tensor,
+<span class="w"> </span>       key_padding_mask: Optional[torch.Tensor] = None,
+<span class="w"> </span>       attn_mask: Optional[torch.Tensor] = None,
+<span class="w"> </span>   ) -&gt; Tuple[torch.Tensor, Optional[torch.Tensor]]:
+
+<span class="w"> </span>       bsz, tgt_len, _ = query.shape
+<span class="w"> </span>       _, src_len, _ = key.shape
+
+<span class="w"> </span>       # (bsz, src_len)
+<span class="w"> </span>       key_padding_mask = _canonical_mask(
+<span class="w"> </span>           mask=key_padding_mask,
+<span class="w"> </span>           mask_name="key_padding_mask",
+<span class="w"> </span>           other_type=_none_or_dtype(attn_mask),
+<span class="w"> </span>           other_name="attn_mask",
+<span class="w"> </span>           target_type=query.dtype,
+<span class="w"> </span>       )
+
+<span class="w"> </span>       # (bsz, num_heads, tgt_len, src_len)
+<span class="w"> </span>       attn_mask = _canonical_mask(
+<span class="w"> </span>           mask=attn_mask,
+<span class="w"> </span>           mask_name="attn_mask",
+<span class="w"> </span>           other_type=None,
+<span class="w"> </span>           other_name="",
+<span class="w"> </span>           target_type=query.dtype,
+<span class="w"> </span>           check_other=False,
+<span class="w"> </span>       )
+
+<span class="w"> </span>       # merge key padding and attention masks
+<span class="w"> </span>       if key_padding_mask is not None:
+<span class="w"> </span>           assert key_padding_mask.shape == (bsz, src_len), (
+<span class="w"> </span>               f"expecting key_padding_mask shape of {(bsz, src_len)}, but got {key_padding_mask.shape}"
+<span class="w"> </span>           )
+<span class="w"> </span>           key_padding_mask = key_padding_mask.view(bsz, 1, 1, src_len).expand(-1, self.num_heads, -1, -1)
+<span class="w"> </span>           if attn_mask is None:
+<span class="w"> </span>               attn_mask = key_padding_mask
+<span class="w"> </span>           else:
+<span class="w"> </span>               assert attn_mask.shape == (bsz, self.num_heads, tgt_len, src_len), (
+<span class="w"> </span>                   f"expecting attn_mask shape of {(bsz, self.num_heads, tgt_len, src_len)}, but got {attn_mask.shape}"
+<span class="w"> </span>               )
+<span class="w"> </span>               attn_mask = attn_mask + key_padding_mask
+
+<span class="w"> </span>       # (bsz, seq_len, num_heads*head_dim)
+<span class="w"> </span>       q, k, v = F._in_projection_packed(query, key, value, self.in_proj.weight, self.in_proj.bias)
+
+<span class="w"> </span>       # -&gt; (bsz, num_heads, src/tgt_len, head_dim)
+<span class="w"> </span>       q = self.q_norm(q.view(bsz, tgt_len, self.num_heads, self.head_dim)).transpose(1, 2)
+<span class="w"> </span>       k = self.k_norm(k.view(bsz, src_len, self.num_heads, self.head_dim)).transpose(1, 2)
+<span class="w"> </span>       v = v.view(bsz, src_len, self.num_heads, self.head_dim).transpose(1, 2)
+
+<span class="w"> </span>       dropout_p = self.dropout if self.training else 0.0
+
+<span class="gd">-       if self.use_sdpa:</span>
+<span class="gi">+       if self.attention is not None:</span>
+<span class="gi">+           # particle attention with frame-to-frame transformations</span>
+<span class="gi">+           # attn_output: (bsz, num_heads, tgt_len, head_dim)</span>
+<span class="gi">+           attn_output = self.attention(q, k, v, attn_mask=attn_mask, dropout_p=dropout_p)</span>
+<span class="gi">+       else:</span>
+<span class="gi">+           # class token attention</span>
+<span class="w"> </span>           # attn_output: (bsz, num_heads, tgt_len, head_dim)
+<span class="w"> </span>           attn_output = F.scaled_dot_product_attention(q, k, v, attn_mask, dropout_p)
+<span class="gd">-       else:</span>
+<span class="gd">-           q_scaled = q * math.sqrt(1.0 / float(self.head_dim))  # (bsz, num_heads, tgt_len, head_dim)</span>
+<span class="gd">-           attn_weight = q_scaled @ k.transpose(-2, -1)  # (bsz, num_heads, tgt_len, src_len)</span>
+<span class="gd">-           if attn_mask is not None:</span>
+<span class="gd">-               attn_weight = attn_weight + attn_mask</span>
+<span class="gd">-           attn_weight = F.softmax(attn_weight, dim=-1)</span>
+<span class="gd">-           if dropout_p &gt; 0:</span>
+<span class="gd">-               attn_weight = F.dropout(attn_weight, p=dropout_p)</span>
+<span class="gd">-           attn_output = attn_weight @ v  # (bsz, num_heads, tgt_len, head_dim)</span>
+
+<span class="w"> </span>       attn_output = attn_output.transpose(1, 2).contiguous()  # (bsz, tgt_len, num_heads, head_dim)
+
+<span class="w"> </span>       if self.headwise_attn_output_gate:
+<span class="w"> </span>           gate_score = torch.sigmoid(self.gate_proj(query))  # (bsz, tgt_len, num_heads)
+<span class="w"> </span>           attn_output = attn_output * gate_score.reshape(bsz, tgt_len, self.num_heads, 1)
+<span class="w"> </span>       elif self.elementwise_attn_output_gate:
+<span class="w"> </span>           gate_score = torch.sigmoid(self.gate_proj(query))  # (bsz, tgt_len, num_heads * head_dim)
+<span class="w"> </span>           attn_output = attn_output * gate_score.reshape(bsz, tgt_len, self.num_heads, self.head_dim)
+
+<span class="w"> </span>       attn_output = attn_output.reshape(bsz, tgt_len, self.embed_dim)
+<span class="w"> </span>       attn_output = self.out_proj(attn_output)
+<span class="w"> </span>       return attn_output, None
+
+
+class LayerScale(nn.Module):
+<span class="w"> </span>   def __init__(
+<span class="w"> </span>       self,
+<span class="w"> </span>       dim: int,
+<span class="w"> </span>       init_values: float = 1e-5,
+<span class="w"> </span>       inplace: bool = False,
+<span class="w"> </span>   ) -&gt; None:
+<span class="w"> </span>       super().__init__()
+<span class="w"> </span>       self.inplace = inplace
+<span class="w"> </span>       self.gamma = nn.Parameter(init_values * torch.ones(dim))
+
+<span class="w"> </span>   def forward(self, x: torch.Tensor) -&gt; torch.Tensor:
+<span class="w"> </span>       return x.mul_(self.gamma) if self.inplace else x * self.gamma
+
+
+def drop_path(x, drop_prob: float = 0.0, training: bool = False, scale_by_keep: bool = True):
+<span class="w"> </span>   """Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks).
+
+<span class="w"> </span>   This is the same as the DropConnect impl I created for EfficientNet, etc networks, however,
+<span class="w"> </span>   the original name is misleading as 'Drop Connect' is a different form of dropout in a separate paper...
+<span class="w"> </span>   See discussion: https://github.com/tensorflow/tpu/issues/494#issuecomment-532968956 ... I've opted for
+<span class="w"> </span>   changing the layer and argument names to 'drop path' rather than mix DropConnect as a layer name and use
+<span class="w"> </span>   'survival rate' as the argument.
+
+<span class="w"> </span>   """
+<span class="w"> </span>   if drop_prob == 0.0 or not training:
+<span class="w"> </span>       return x
+<span class="w"> </span>   keep_prob = 1 - drop_prob
+<span class="w"> </span>   shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # work with diff dim tensors, not just 2D ConvNets
+<span class="w"> </span>   random_tensor = x.new_empty(shape).bernoulli_(keep_prob)
+<span class="w"> </span>   if keep_prob &gt; 0.0 and scale_by_keep:
+<span class="w"> </span>       random_tensor.div_(keep_prob)
+<span class="w"> </span>   return x * random_tensor
+
+
+class DropPath(nn.Module):
+<span class="w"> </span>   """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks)."""
+
+<span class="w"> </span>   def __init__(self, drop_prob: float = 0.0, scale_by_keep: bool = True):
+<span class="w"> </span>       super(DropPath, self).__init__()
+<span class="w"> </span>       self.drop_prob = drop_prob
+<span class="w"> </span>       self.scale_by_keep = scale_by_keep
+
+<span class="w"> </span>   def forward(self, x):
+<span class="w"> </span>       return drop_path(x, self.drop_prob, self.training, self.scale_by_keep)
+
+<span class="w"> </span>   def extra_repr(self):
+<span class="w"> </span>       return f"drop_prob={round(self.drop_prob, 3):0.3f}"
+
+
+class Block(nn.Module):
+<span class="w"> </span>   def __init__(
+<span class="w"> </span>       self,
+<span class="gi">+       attention,</span>
+<span class="w"> </span>       embed_dim=128,
+<span class="w"> </span>       num_heads=8,
+<span class="w"> </span>       ffn_ratio=4,
+<span class="w"> </span>       dropout=0.1,
+<span class="w"> </span>       attn_dropout=0.1,
+<span class="w"> </span>       activation_dropout=0.1,
+<span class="w"> </span>       activation="gelu",
+<span class="w"> </span>       use_rmsnorm=False,
+<span class="w"> </span>       use_bias=True,
+<span class="w"> </span>       use_qk_norm=False,
+<span class="w"> </span>       headwise_attn_output_gate=False,
+<span class="w"> </span>       elementwise_attn_output_gate=False,
+<span class="w"> </span>       layer_scale_init_values=None,
+<span class="w"> </span>       drop_path_rate=0.0,
+<span class="w"> </span>       scale_attn_mask=False,
+<span class="w"> </span>       scale_attn=True,
+<span class="w"> </span>       scale_fc=True,
+<span class="w"> </span>       scale_heads=True,
+<span class="w"> </span>       scale_resids=True,
+<span class="w"> </span>   ):
+<span class="w"> </span>       super().__init__()
+
+<span class="w"> </span>       self.embed_dim = embed_dim
+<span class="w"> </span>       self.num_heads = num_heads
+<span class="w"> </span>       self.head_dim = embed_dim // num_heads
+<span class="w"> </span>       self.ffn_dim = embed_dim * ffn_ratio
+
+<span class="w"> </span>       norm_layer = nn.RMSNorm if use_rmsnorm else nn.LayerNorm
+<span class="w"> </span>       self.pre_attn_norm = norm_layer(embed_dim)
+<span class="w"> </span>       self.attn = Attention(
+<span class="gi">+           attention,</span>
+<span class="w"> </span>           embed_dim,
+<span class="w"> </span>           num_heads,
+<span class="w"> </span>           dropout=attn_dropout,
+<span class="w"> </span>           bias=use_bias,
+<span class="w"> </span>           use_qk_norm=use_qk_norm,
+<span class="w"> </span>           norm_layer=norm_layer,
+<span class="w"> </span>           headwise_attn_output_gate=headwise_attn_output_gate,
+<span class="w"> </span>           elementwise_attn_output_gate=elementwise_attn_output_gate,
+<span class="w"> </span>       )
+<span class="w"> </span>       self.post_attn_norm = norm_layer(embed_dim) if scale_attn else nn.Identity()
+<span class="w"> </span>       self.dropout = nn.Dropout(dropout)
+<span class="w"> </span>       self.ls1 = (
+<span class="w"> </span>           LayerScale(embed_dim, init_values=layer_scale_init_values) if layer_scale_init_values else nn.Identity()
+<span class="w"> </span>       )
+<span class="w"> </span>       self.drop_path1 = DropPath(drop_path_rate) if drop_path_rate &gt; 0.0 else nn.Identity()
+
+<span class="w"> </span>       self.pre_fc_norm = norm_layer(embed_dim)
+<span class="w"> </span>       self.fc1 = nn.Linear(embed_dim, self.ffn_dim, bias=use_bias)
+<span class="w"> </span>       if activation == "swiglu":
+<span class="w"> </span>           self.fc1_g = nn.Linear(embed_dim, self.ffn_dim, bias=use_bias)
+<span class="w"> </span>           self.act = nn.SiLU()
+<span class="w"> </span>       else:
+<span class="w"> </span>           self.fc1_g = None
+<span class="w"> </span>           self.act = nn.GELU() if activation == "gelu" else nn.ReLU()
+<span class="w"> </span>       self.act_dropout = nn.Dropout(activation_dropout)
+<span class="w"> </span>       self.post_fc_norm = norm_layer(self.ffn_dim) if scale_fc else nn.Identity()
+<span class="w"> </span>       self.fc2 = nn.Linear(self.ffn_dim, embed_dim, bias=use_bias)
+<span class="w"> </span>       self.ls2 = (
+<span class="w"> </span>           LayerScale(embed_dim, init_values=layer_scale_init_values) if layer_scale_init_values else nn.Identity()
+<span class="w"> </span>       )
+<span class="w"> </span>       self.drop_path2 = DropPath(drop_path_rate) if drop_path_rate &gt; 0.0 else nn.Identity()
+
+<span class="w"> </span>       self.c_mask = nn.Parameter(torch.ones(1), requires_grad=True) if scale_attn_mask else None
+<span class="w"> </span>       self.c_attn = nn.Parameter(torch.ones(num_heads), requires_grad=True) if scale_heads else None
+<span class="w"> </span>       self.w_resid = nn.Parameter(torch.ones(embed_dim), requires_grad=True) if scale_resids else None
+
+<span class="w"> </span>   def forward(self, x, x_cls=None, padding_mask=None, attn_mask=None):
+<span class="w"> </span>       """
+<span class="w"> </span>       Args:
+<span class="w"> </span>           x (Tensor): input to the layer of shape `(batch, seq_len, embed_dim)`
+<span class="w"> </span>           x_cls (Tensor, optional): class token input to the layer of shape `(batch, 1, embed_dim)`
+<span class="w"> </span>           padding_mask (ByteTensor, optional): binary
+<span class="w"> </span>               ByteTensor of shape `(batch, seq_len)` where padding
+<span class="w"> </span>               elements are indicated by ``True``.
+
+<span class="w"> </span>       Returns:
+<span class="w"> </span>           encoded output of shape `(batch, seq_len, embed_dim)`
+<span class="w"> </span>       """
+
+<span class="w"> </span>       if x_cls is not None:
+<span class="w"> </span>           with torch.no_grad():
+<span class="w"> </span>               # prepend one element for x_cls: -&gt; (batch, 1+seq_len)
+<span class="w"> </span>               padding_mask = torch.cat((torch.zeros_like(padding_mask[:, :1]), padding_mask), dim=1)
+<span class="w"> </span>           # class attention: https://arxiv.org/pdf/2103.17239.pdf
+<span class="w"> </span>           residual = x_cls
+<span class="w"> </span>           u = torch.cat((x_cls, x), dim=1)  # (batch, 1+seq_len, embed_dim)
+<span class="w"> </span>           u = self.pre_attn_norm(u)
+<span class="gi">+           # default attention for convenience (could be more fancy here)</span>
+<span class="w"> </span>           x = self.attn(x_cls, u, u, key_padding_mask=padding_mask)[0]  # (batch, 1, embed_dim)
+<span class="w"> </span>       else:
+<span class="w"> </span>           if self.c_mask is not None and attn_mask is not None:
+<span class="w"> </span>               attn_mask = torch.mul(self.c_mask, attn_mask)
+<span class="w"> </span>           residual = x
+<span class="w"> </span>           x = self.pre_attn_norm(x)
+<span class="w"> </span>           x = self.attn(x, x, x, key_padding_mask=padding_mask, attn_mask=attn_mask)[0]  # (batch, seq_len, embed_dim)
+
+<span class="w"> </span>       if self.c_attn is not None:
+<span class="w"> </span>           bsz, tgt_len, _ = x.size()
+<span class="w"> </span>           x = x.view(bsz, tgt_len, self.num_heads, self.head_dim)
+<span class="w"> </span>           x = x * self.c_attn.view(1, 1, self.num_heads, 1)
+<span class="w"> </span>           x = x.reshape(bsz, tgt_len, self.embed_dim)
+<span class="w"> </span>       x = self.post_attn_norm(x)
+<span class="w"> </span>       x = self.dropout(x)
+<span class="w"> </span>       x = self.drop_path1(self.ls1(x))
+<span class="w"> </span>       x = x + residual
+
+<span class="w"> </span>       residual = x
+<span class="w"> </span>       x = self.pre_fc_norm(x)
+<span class="w"> </span>       if self.fc1_g is None:
+<span class="w"> </span>           x = self.act(self.fc1(x))
+<span class="w"> </span>       else:
+<span class="w"> </span>           x_gate = self.fc1_g(x)
+<span class="w"> </span>           x = self.fc1(x)
+<span class="w"> </span>           x = self.act(x_gate) * x
+<span class="w"> </span>       x = self.act_dropout(x)
+<span class="w"> </span>       x = self.post_fc_norm(x)
+<span class="w"> </span>       x = self.fc2(x)
+<span class="w"> </span>       x = self.dropout(x)
+<span class="w"> </span>       x = self.drop_path2(self.ls2(x))
+<span class="w"> </span>       if self.w_resid is not None:
+<span class="w"> </span>           residual = torch.mul(self.w_resid, residual)
+<span class="w"> </span>       x = x + residual
+
+<span class="w"> </span>       return x
+
+
+class ParticleTransformer(nn.Module):
+<span class="w"> </span>   def __init__(
+<span class="w"> </span>       self,
+<span class="w"> </span>       input_dim,
+<span class="gi">+       attn_reps,</span>
+<span class="w"> </span>       num_classes=None,
+<span class="w"> </span>       # network configurations
+<span class="w"> </span>       pair_input_type="pp",
+<span class="w"> </span>       pair_input_dim=None,
+<span class="w"> </span>       pair_extra_dim=0,
+<span class="w"> </span>       remove_self_pair=False,
+<span class="w"> </span>       use_pre_activation_pair=True,
+<span class="w"> </span>       use_conv_embed=False,
+<span class="w"> </span>       embed_dims=(128, 512, 128),
+<span class="w"> </span>       pair_embed_dims=(64, 64, 64),
+<span class="w"> </span>       num_heads=8,
+<span class="w"> </span>       num_layers=8,
+<span class="w"> </span>       block_params=None,
+<span class="w"> </span>       block_ids_with_attn_mask=None,
+<span class="w"> </span>       include_global_token=False,
+<span class="w"> </span>       num_cls_layers=2,
+<span class="w"> </span>       cls_block_params=None,
+<span class="w"> </span>       fc_params=(),
+<span class="w"> </span>       activation="gelu",
+<span class="w"> </span>       # misc
+<span class="w"> </span>       version=1,
+<span class="w"> </span>       weight_init="moco",
+<span class="w"> </span>       fix_init=True,
+<span class="gd">-       trim=True,</span>
+<span class="gi">+       trim=False,</span>
+<span class="w"> </span>       for_inference=False,
+<span class="w"> </span>       for_segmentation=False,
+<span class="gd">-       use_amp=False,</span>
+<span class="w"> </span>       compile_model=False,
+<span class="w"> </span>       **kwargs,
+<span class="w"> </span>   ) -&gt; None:
+<span class="w"> </span>       super().__init__(**kwargs)
+
+<span class="w"> </span>       self.for_inference = for_inference
+<span class="w"> </span>       self.for_segmentation = for_segmentation
+<span class="gd">-       self.use_amp = use_amp</span>
+
+<span class="gd">-       embed_dim = embed_dims[-1] if len(embed_dims) &gt; 0 else input_dim</span>
+<span class="gi">+       attn_reps = TensorReps(attn_reps)</span>
+<span class="gi">+       embed_dim = attn_reps.dim * num_heads</span>
+<span class="gi">+       self.attention = LLoCaAttention(attn_reps, num_heads, preserve_variance=False)</span>
+<span class="w"> </span>       default_cfg = dict(
+<span class="w"> </span>           embed_dim=embed_dim,
+<span class="w"> </span>           num_heads=num_heads,
+<span class="w"> </span>           ffn_ratio=4,
+<span class="w"> </span>           dropout=0.1,
+<span class="w"> </span>           attn_dropout=0.1,
+<span class="w"> </span>           activation_dropout=0.1,
+<span class="w"> </span>           activation=activation,
+<span class="w"> </span>           use_rmsnorm=False,
+<span class="w"> </span>           use_bias=True,
+<span class="w"> </span>           use_qk_norm=False,
+<span class="w"> </span>           headwise_attn_output_gate=False,
+<span class="w"> </span>           elementwise_attn_output_gate=False,
+<span class="w"> </span>           layer_scale_init_values=None,
+<span class="w"> </span>           drop_path_rate=0.0,
+<span class="w"> </span>           scale_attn_mask=False,
+<span class="w"> </span>           scale_fc=True,
+<span class="w"> </span>           scale_attn=True,
+<span class="w"> </span>           scale_heads=True,
+<span class="w"> </span>           scale_resids=True,
+<span class="w"> </span>       )
+<span class="w"> </span>       if version &gt; 1:
+<span class="w"> </span>           default_cfg.update(
+<span class="w"> </span>               activation="swiglu",
+<span class="w"> </span>               scale_fc=False,
+<span class="w"> </span>               scale_attn=False,
+<span class="w"> </span>               scale_heads=False,
+<span class="w"> </span>               scale_resids=False,
+<span class="w"> </span>           )
+<span class="w"> </span>       if version &gt; 2:
+<span class="w"> </span>           default_cfg.update(
+<span class="w"> </span>               use_rmsnorm=True,
+<span class="w"> </span>               use_bias=False,
+<span class="w"> </span>               dropout=0,
+<span class="w"> </span>               attn_dropout=0,
+<span class="w"> </span>               activation_dropout=0,
+<span class="w"> </span>               drop_path_rate=0.1,
+<span class="w"> </span>           )
+<span class="w"> </span>           # TODO: still experimental
+<span class="w"> </span>           if version == 3.5:
+<span class="w"> </span>               default_cfg.update(
+<span class="w"> </span>                   use_qk_norm=True,
+<span class="w"> </span>                   elementwise_attn_output_gate=True,
+<span class="w"> </span>               )
+<span class="w"> </span>           if version == 3.6:
+<span class="w"> </span>               default_cfg.update(
+<span class="w"> </span>                   use_qk_norm=True,
+<span class="w"> </span>                   elementwise_attn_output_gate=True,
+<span class="w"> </span>               )
+<span class="w"> </span>               include_global_token = True
+<span class="w"> </span>               num_cls_layers = 0
+<span class="w"> </span>       norm_layer = nn.RMSNorm if default_cfg["use_rmsnorm"] else nn.LayerNorm
+
+<span class="w"> </span>       cfg_block = copy.deepcopy(default_cfg)
+<span class="w"> </span>       if block_params is not None:
+<span class="w"> </span>           cfg_block.update(block_params)
+
+<span class="w"> </span>       if num_cls_layers &gt; 0:
+<span class="w"> </span>           cfg_cls_block = copy.deepcopy(default_cfg)
+<span class="w"> </span>           cfg_cls_block.update({"dropout": 0, "attn_dropout": 0, "activation_dropout": 0})
+<span class="w"> </span>           if cls_block_params is not None:
+<span class="w"> </span>               cfg_cls_block.update(cls_block_params)
+
+<span class="w"> </span>       if block_ids_with_attn_mask is None:
+<span class="w"> </span>           self.block_ids_with_attn_mask = [True] * num_layers
+<span class="w"> </span>       else:
+<span class="w"> </span>           self.block_ids_with_attn_mask = [False] * num_layers
+<span class="w"> </span>           for idx in block_ids_with_attn_mask:
+<span class="w"> </span>               self.block_ids_with_attn_mask[idx] = True
+
+<span class="gd">-       self.embed = (</span>
+<span class="gd">-           Embed(input_dim, embed_dims, activation=activation, use_conv_embed=use_conv_embed)</span>
+<span class="gd">-           if len(embed_dims) &gt; 0</span>
+<span class="gd">-           else nn.Identity()</span>
+<span class="gd">-       )</span>
+<span class="gi">+       self.embed = Embed(</span>
+<span class="gi">+           input_dim,</span>
+<span class="gi">+           embed_dims if len(embed_dims) &gt; 0 else [embed_dim],</span>
+<span class="gi">+           activation=activation,</span>
+<span class="gi">+           use_conv_embed=use_conv_embed,</span>
+<span class="gi">+       )</span>
+
+<span class="w"> </span>       if pair_input_dim is None:
+<span class="w"> </span>           if pair_input_type == "pp":
+<span class="w"> </span>               pair_input_dim = 4
+<span class="w"> </span>           elif pair_input_type == "ee":
+<span class="w"> </span>               pair_input_dim = 6
+<span class="w"> </span>           elif pair_input_type.startswith("xyzt"):
+<span class="w"> </span>               pair_input_dim = 7
+<span class="w"> </span>       self.pair_extra_dim = pair_extra_dim
+<span class="w"> </span>       self.pair_embed = (
+<span class="w"> </span>           PairEmbed(
+<span class="w"> </span>               pair_input_dim,
+<span class="w"> </span>               pair_extra_dim,
+<span class="w"> </span>               (*pair_embed_dims, cfg_block["num_heads"]),
+<span class="w"> </span>               pairwise_lv_type=pair_input_type,
+<span class="w"> </span>               remove_self_pair=remove_self_pair,
+<span class="w"> </span>               use_pre_activation_pair=use_pre_activation_pair,
+<span class="w"> </span>               use_bias=default_cfg["use_bias"],
+<span class="w"> </span>               for_onnx=for_inference,
+<span class="w"> </span>           )
+<span class="w"> </span>           if pair_embed_dims is not None and pair_input_dim + pair_extra_dim &gt; 0
+<span class="w"> </span>           else None
+<span class="w"> </span>       )
+<span class="gd">-       self.blocks = nn.ModuleList([Block(**cfg_block) for _ in range(num_layers)])</span>
+<span class="gi">+       self.blocks = nn.ModuleList([Block(attention=self.attention, **cfg_block) for _ in range(num_layers)])</span>
+<span class="w"> </span>       self.cls_blocks = (
+<span class="gd">-           nn.ModuleList([Block(**cfg_cls_block) for _ in range(num_cls_layers)]) if num_cls_layers &gt; 0 else None</span>
+<span class="gi">+           nn.ModuleList([Block(attention=None, **cfg_cls_block) for _ in range(num_cls_layers)]) if num_cls_layers &gt; 0 else None</span>
+<span class="w"> </span>       )
+<span class="w"> </span>       self.norm = norm_layer(embed_dim)
+
+<span class="w"> </span>       if fc_params is not None:
+<span class="w"> </span>           fcs = []
+<span class="w"> </span>           in_dim = embed_dim
+<span class="w"> </span>           for param in fc_params:
+<span class="w"> </span>               try:
+<span class="w"> </span>                   out_dim, drop_rate, act = param
+<span class="w"> </span>               except ValueError:
+<span class="w"> </span>                   (out_dim, drop_rate), act = param, "relu"
+<span class="w"> </span>               if act == "swiglu":
+<span class="w"> </span>                   layer = nn.Sequential(
+<span class="w"> </span>                       SwiGLUFFN(in_dim, out_dim * 4, out_dim, drop=drop_rate, bias=default_cfg["use_bias"]),
+<span class="w"> </span>                       norm_layer(out_dim),
+<span class="w"> </span>                   )
+<span class="w"> </span>               else:
+<span class="w"> </span>                   layer = nn.Sequential(
+<span class="w"> </span>                       nn.Linear(in_dim, out_dim, bias=default_cfg["use_bias"]),
+<span class="w"> </span>                       nn.GELU() if act == "gelu" else nn.ReLU(),
+<span class="w"> </span>                       nn.Dropout(drop_rate),
+<span class="w"> </span>                   )
+<span class="w"> </span>               fcs.append(layer)
+<span class="w"> </span>               in_dim = out_dim
+<span class="w"> </span>           fcs.append(nn.Linear(in_dim, num_classes))
+<span class="w"> </span>           self.fc = nn.Sequential(*fcs)
+<span class="w"> </span>       else:
+<span class="w"> </span>           self.fc = None
+
+<span class="w"> </span>       assert not (include_global_token and num_cls_layers &gt; 0)
+<span class="w"> </span>       self.include_global_token = include_global_token
+
+<span class="w"> </span>       # cls tokens
+<span class="w"> </span>       if self.include_global_token or (not self.for_segmentation and num_cls_layers &gt; 0):
+<span class="w"> </span>           self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim), requires_grad=True)
+<span class="w"> </span>           nn.init.trunc_normal_(self.cls_token, std=0.02)
+<span class="w"> </span>       else:
+<span class="w"> </span>           self.cls_token = None
+
+<span class="w"> </span>       # sequence trimmer
+<span class="gi">+       # The trimmer permutes and truncates the particle sequence, but the local frames are</span>
+<span class="gi">+       # prepared once in forward() and are not permuted along, so the two would go out of sync.</span>
+<span class="gi">+       assert not trim, "trim=True is not supported with LLoCa"</span>
+<span class="w"> </span>       num_extra_tokens = 1 if self.include_global_token else 0
+<span class="w"> </span>       self.trimmer = SequenceTrimmer(
+<span class="w"> </span>           enabled=trim and not for_inference, round_to_32=compile_model, num_extra_tokens=num_extra_tokens
+<span class="w"> </span>       )
+
+<span class="w"> </span>       # weight initialization
+<span class="w"> </span>       if weight_init is not None:
+<span class="w"> </span>           self.init_weights(weight_init)
+<span class="w"> </span>       if fix_init:
+<span class="w"> </span>           self.fix_init_weight()
+
+<span class="w"> </span>   def fix_init_weight(self):
+<span class="w"> </span>       def rescale(param, _layer_id):
+<span class="w"> </span>           param.div_(math.sqrt(2.0 * _layer_id))
+
+<span class="w"> </span>       for layer_id, layer in enumerate(self.blocks):
+<span class="w"> </span>           rescale(layer.attn.out_proj.weight.data, layer_id + 1)
+<span class="w"> </span>           rescale(layer.fc2.weight.data, layer_id + 1)
+
+<span class="w"> </span>   def init_weights(self, mode: str = "") -&gt; None:
+<span class="w"> </span>       assert mode in ("timm", "moco")
+<span class="w"> </span>       if mode == "timm":
+<span class="w"> </span>           named_apply(init_weights_vit_timm, self)
+<span class="w"> </span>       elif mode == "moco":
+<span class="w"> </span>           named_apply(init_weights_vit_moco, self)
+
+<span class="w"> </span>   @torch.jit.ignore
+<span class="w"> </span>   def no_weight_decay(self):
+<span class="w"> </span>       return {
+<span class="w"> </span>           "cls_token",
+<span class="w"> </span>       }
+
+<span class="w"> </span>   def _forward_encoder(self, x, v=None, mask=None, uu=None, uu_idx=None):
+<span class="w"> </span>       with torch.set_grad_enabled(x.requires_grad):
+<span class="w"> </span>           if not self.for_inference:
+<span class="w"> </span>               if uu_idx is not None:
+<span class="w"> </span>                   uu = build_sparse_tensor(uu, uu_idx, x.size(-1))
+<span class="w"> </span>           x, v, mask, uu = self.trimmer(x, v, mask, uu)
+<span class="w"> </span>           padding_mask = ~mask.squeeze(1)  # (batch_size, seq_len) -- `True`` means masked/ignored
+
+<span class="w"> </span>       # input embedding
+<span class="w"> </span>       x = self.embed(x).masked_fill(~mask.transpose(1, 2), 0)  # (batch_size, seq_len, embed_dim)
+<span class="w"> </span>       attn_mask = None
+<span class="w"> </span>       if (v is not None or uu is not None) and self.pair_embed is not None:
+<span class="w"> </span>           attn_mask = self.pair_embed(v, uu=uu, mask=mask)  # (batch_size, num_heads, seq_len, seq_len)
+
+<span class="w"> </span>       if self.include_global_token:
+<span class="w"> </span>           cls_tokens = self.cls_token.expand(x.size(0), -1, -1)
+<span class="w"> </span>           x = torch.cat((cls_tokens, x), dim=1)  # (batch, 1+seq_len, embed_dim)
+<span class="w"> </span>           padding_mask = F.pad(padding_mask, (1, 0), mode="constant", value=False)
+<span class="w"> </span>           if attn_mask is not None:
+<span class="w"> </span>               attn_mask = F.pad(attn_mask, (1, 0, 1, 0), mode="constant", value=0)
+
+<span class="w"> </span>       # transform
+<span class="w"> </span>       for idx, block in enumerate(self.blocks):
+<span class="w"> </span>           x = block(
+<span class="w"> </span>               x,
+<span class="w"> </span>               x_cls=None,
+<span class="w"> </span>               padding_mask=padding_mask,
+<span class="w"> </span>               attn_mask=attn_mask if self.block_ids_with_attn_mask[idx] else None,
+<span class="w"> </span>           )
+
+<span class="w"> </span>       # x: (batch, seq_len, embed_dim)
+<span class="w"> </span>       # padding_mask: (batch, seq_len)
+<span class="w"> </span>       return x, padding_mask
+
+<span class="w"> </span>   def _forward_aggregator(self, x, padding_mask):
+<span class="w"> </span>       if self.include_global_token:
+<span class="w"> </span>           cls_tokens = x[:, 0, :]  # (batch, embed_dim)
+<span class="w"> </span>       elif self.cls_blocks is not None:
+<span class="w"> </span>           # for classification: extract using class token
+<span class="w"> </span>           cls_tokens = self.cls_token.expand(x.size(0), -1, -1)  # (batch, 1, embed_dim)
+<span class="w"> </span>           for block in self.cls_blocks:
+<span class="w"> </span>               cls_tokens = block(x, x_cls=cls_tokens, padding_mask=padding_mask)  # (batch, 1, embed_dim)
+<span class="w"> </span>           cls_tokens = cls_tokens.squeeze(1)  # (batch, embed_dim)
+<span class="w"> </span>       else:
+<span class="w"> </span>           # for classification: simple average pooling
+<span class="w"> </span>           mask = ~padding_mask.unsqueeze(-1)  # (batch, seq_len, 1)
+<span class="w"> </span>           counts = mask.float().sum(dim=1).clamp(min=1)  # (batch, 1)
+<span class="w"> </span>           cls_tokens = (x * mask).sum(dim=1) / counts  # (batch, embed_dim)
+
+<span class="w"> </span>       x_cls = self.norm(cls_tokens)  # (batch, embed_dim)
+<span class="w"> </span>       return x_cls
+
+<span class="gd">-   def forward(self, x, v=None, mask=None, uu=None, uu_idx=None):</span>
+<span class="gi">+   def forward(self, x, frames, v=None, mask=None, uu=None, uu_idx=None):</span>
+<span class="w"> </span>       # x: (batch_size, num_fts, seq_len)
+<span class="gi">+       # frames: local frames of shape (batch_size, seq_len, 4, 4)</span>
+<span class="w"> </span>       # v: (batch_size, 4, seq_len) [px,py,pz,energy]
+<span class="w"> </span>       # mask: (batch_size, 1, seq_len) -- real particle = 1, padded = 0
+<span class="w"> </span>       # for pytorch: uu (batch_size, C', num_pairs), uu_idx (batch_size, 2, num_pairs)
+<span class="w"> </span>       # for onnx: uu (batch_size, C', seq_len, seq_len), uu_idx=None
+<span class="gi">+       self.attention.prepare_frames(frames)</span>
+
+<span class="w"> </span>       x, padding_mask = self._forward_encoder(x, v=v, mask=mask, uu=uu, uu_idx=uu_idx)
+
+<span class="w"> </span>       if self.cls_blocks is None and self.fc is None:
+<span class="w"> </span>           # x: (batch, seq_len, embed_dim)
+<span class="w"> </span>           # padding_mask: (batch, seq_len)
+<span class="w"> </span>           return x, padding_mask
+
+<span class="w"> </span>       # === for segmentation ===
+<span class="w"> </span>       if self.for_segmentation:
+<span class="w"> </span>           if self.include_global_token:
+<span class="w"> </span>               x = x[:, 1:, :]
+<span class="w"> </span>           x = self.norm(x)
+<span class="w"> </span>           if self.fc is not None:
+<span class="w"> </span>               x = self.fc(x)
+<span class="w"> </span>           # x: (batch, seq_len, embed_dim) -&gt; output: (batch, embed_dim, seq_len)
+<span class="w"> </span>           output = x.transpose(1, 2).contiguous()
+<span class="w"> </span>           if self.for_inference:
+<span class="w"> </span>               output = torch.softmax(output, dim=1)
+<span class="w"> </span>           # print('output:\n', output)
+<span class="w"> </span>           return output
+
+<span class="w"> </span>       x_cls = self._forward_aggregator(x, padding_mask)
+<span class="w"> </span>       if self.fc is None:
+<span class="w"> </span>           return x_cls
+
+<span class="w"> </span>       # fc
+<span class="w"> </span>       output = self.fc(x_cls)
+<span class="w"> </span>       if self.for_inference:
+<span class="w"> </span>           output = torch.softmax(output, dim=1)
+<span class="w"> </span>       # print('output:\n', output)
+<span class="w"> </span>       return output
+
+
+### weight initialization methods ###
+def init_weights_vit_timm(module: nn.Module, name: str = "") -&gt; None:
+<span class="w"> </span>   """ViT weight initialization, original timm impl (for reproducibility)"""
+<span class="w"> </span>   if isinstance(module, nn.Linear):
+<span class="w"> </span>       nn.init.trunc_normal_(module.weight, std=0.02)
+<span class="w"> </span>       if module.bias is not None:
+<span class="w"> </span>           nn.init.zeros_(module.bias)
+<span class="w"> </span>   elif hasattr(module, "init_weights"):
+<span class="w"> </span>       module.init_weights()
+
+
+def init_weights_vit_moco(module: nn.Module, name: str = "") -&gt; None:
+<span class="w"> </span>   """ViT weight initialization, matching moco-v3 impl minus fixed PatchEmbed"""
+<span class="w"> </span>   if isinstance(module, nn.Linear):
+<span class="w"> </span>       if "in_proj" in name:
+<span class="w"> </span>           # treat the weights of Q, K, V separately
+<span class="w"> </span>           val = math.sqrt(6.0 / float(module.weight.shape[0] // 3 + module.weight.shape[1]))
+<span class="w"> </span>           nn.init.uniform_(module.weight, -val, val)
+<span class="w"> </span>       else:
+<span class="w"> </span>           nn.init.xavier_uniform_(module.weight)
+<span class="w"> </span>       if module.bias is not None:
+<span class="w"> </span>           nn.init.zeros_(module.bias)
+<span class="w"> </span>   elif hasattr(module, "init_weights"):
+<span class="w"> </span>       module.init_weights()
+
+
+def named_apply(
+<span class="w"> </span>   fn: Callable,
+<span class="w"> </span>   module: nn.Module,
+<span class="w"> </span>   name="",
+<span class="w"> </span>   depth_first: bool = True,
+<span class="w"> </span>   include_root: bool = False,
+) -&gt; nn.Module:
+<span class="w"> </span>   if not depth_first and include_root:
+<span class="w"> </span>       fn(module=module, name=name)
+<span class="w"> </span>   for child_name, child_module in module.named_children():
+<span class="w"> </span>       child_name = ".".join((name, child_name)) if name else child_name
+<span class="w"> </span>       named_apply(fn=fn, module=child_module, name=child_name, depth_first=depth_first, include_root=True)
+<span class="w"> </span>   if depth_first and include_root:
+<span class="w"> </span>       fn(module=module, name=name)
+<span class="w"> </span>   return module
+</pre></div>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="transformer.html" class="btn btn-neutral float-left" title="LLoCa-Transformer" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="graphnet.html" class="btn btn-neutral float-right" title="LLoCa-GraphNet" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Jonas Spinner, Luigi Favaro.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

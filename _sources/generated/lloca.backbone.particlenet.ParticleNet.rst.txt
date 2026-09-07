@@ -1,0 +1,8 @@
+﻿lloca.backbone.particlenet.ParticleNet
+======================================
+
+.. autoclass:: lloca.backbone.particlenet.ParticleNet
+   :members:
+   :inherited-members: False
+   :undoc-members:
+   :show-inheritance:

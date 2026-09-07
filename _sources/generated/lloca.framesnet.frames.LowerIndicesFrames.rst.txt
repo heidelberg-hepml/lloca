@@ -1,0 +1,8 @@
+﻿lloca.framesnet.frames.LowerIndicesFrames
+=========================================
+
+.. autoclass:: lloca.framesnet.frames.LowerIndicesFrames
+   :members:
+   :inherited-members: False
+   :undoc-members:
+   :show-inheritance:

@@ -1,0 +1,6 @@
+﻿lloca.backbone.attention\_backends.mask.get\_sparse\_attention\_mask
+====================================================================
+
+.. currentmodule:: lloca.backbone.attention_backends.mask
+
+.. autofunction:: get_sparse_attention_mask

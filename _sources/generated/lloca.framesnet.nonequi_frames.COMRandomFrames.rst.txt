@@ -1,0 +1,8 @@
+﻿lloca.framesnet.nonequi_frames.COMRandomFrames
+==============================================
+
+.. autoclass:: lloca.framesnet.nonequi_frames.COMRandomFrames
+   :members:
+   :inherited-members: False
+   :undoc-members:
+   :show-inheritance:
