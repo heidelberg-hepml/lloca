@@ -280,12 +280,6 @@ class LowerIndicesFrames(Frames):
     """
     Frames with lower indices, obtained by multiplying with the metric.
     Used in LLoCaAttention to lower the key indices.
-
-    The metric contributes a factor det(metric) = -1 to the determinant, but it is an
-    index-lowering operation and not a Lorentz transformation, so it must not contribute to
-    the parity: the parity is inherited from ``frames``. Otherwise parity-odd channels would
-    be negated on the key side only, flipping the sign of their contribution to the attention
-    logits relative to the parity-even channels.
     """
 
     def __init__(self, frames):
