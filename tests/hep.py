@@ -3,7 +3,9 @@ import torch
 EPS = 1e-10
 CUTOFF = 10
 
-# weaver defaults for tagging features standardization (mean, std)
+# weaver defaults for tagging feature preprocessing, as (subtract_by, multiply_by):
+# the feature is transformed as (x - subtract_by) * multiply_by. Note multiply_by is a
+# scale factor, not a standard deviation -- it is not divided by.
 TAGGING_FEATURES_PREPROCESSING = [
     [1.7, 0.7],  # log_pt
     [2.0, 0.7],  # log_energy
@@ -80,7 +82,7 @@ def get_tagging_features(fourmomenta, jet, eps=1e-10):
         dr,
     ]
     for i, feature in enumerate(features):
-        mean, factor = TAGGING_FEATURES_PREPROCESSING[i]
-        features[i] = (feature - mean) * factor
+        subtract_by, multiply_by = TAGGING_FEATURES_PREPROCESSING[i]
+        features[i] = (feature - subtract_by) * multiply_by
     features = torch.cat(features, dim=-1)
     return features

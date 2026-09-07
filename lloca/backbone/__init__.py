@@ -1,3 +1,5 @@
+"""Backbone architectures and the LLoCa attention / message-passing building blocks."""
+
 from .attention import LLoCaAttention
 from .graphnet import GraphNet
 from .lloca_message_passing import LLoCaMessagePassing

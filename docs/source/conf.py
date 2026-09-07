@@ -8,12 +8,21 @@
 
 import os
 import sys
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 
 sys.path.insert(0, os.path.abspath("../.."))
 
 project = "LLoCa"
-copyright = "2025, Jonas Spinner"
-author = "Jonas Spinner"
+copyright = "2026, Jonas Spinner, Luigi Favaro"
+author = "Jonas Spinner, Luigi Favaro"
+
+# Version comes from setuptools-scm via the installed package; falls back for uninstalled checkouts.
+try:
+    release = _pkg_version("lloca")
+except PackageNotFoundError:
+    release = "0.0.0"
+version = ".".join(release.split(".")[:2])
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

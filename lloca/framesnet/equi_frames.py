@@ -63,17 +63,16 @@ class LearnedFrames(FramesPredictor):
 
     def mass_regularize(self, fourmomenta):
         if self.mass_reg is not None:
-            fourmomenta = fourmomenta.clone()
             mask = lorentz_squarednorm(fourmomenta) < self.mass_reg**2
-            fourmomenta[mask, 0] = (
-                (fourmomenta[mask, 1:] ** 2).sum(dim=-1).add(self.mass_reg**2).sqrt()
-            )
+            energy_reg = (fourmomenta[..., 1:] ** 2).sum(dim=-1).add(self.mass_reg**2).sqrt()
+            energy = torch.where(mask, energy_reg, fourmomenta[..., 0])
+            fourmomenta = torch.cat([energy.unsqueeze(-1), fourmomenta[..., 1:]], dim=-1)
 
         return fourmomenta
 
     def __repr__(self):
         classname = self.__class__.__name__
-        method = self.ortho_kwargs["method"]
+        method = self.ortho_kwargs.get("method", "gramschmidt")
         string = f"{classname}(method={method})"
         return string
 
@@ -90,8 +89,6 @@ class LearnedPDFrames(LearnedFrames):
         *args,
         gamma_max: float = None,
         gamma_hardness: float | None = None,
-        deterministic_boost: str | None = None,
-        compile: bool = False,
         **kwargs,
     ):
         """
@@ -105,23 +102,10 @@ class LearnedPDFrames(LearnedFrames):
         gamma_hardness: float | None
             Hardness, i.e. beta factor in the softplus regularization.
             If None, a hard clamp is applied.
-        deterministic_boost: str or None
-            Deprecated option
-        compile: bool
-            Option to compile the orthonormalization procedure.
-            Does not yet give significant speedups in our tests.
         """
         super().__init__(*args, n_vectors=3, **kwargs)
         self.gamma_max = gamma_max
         self.gamma_hardness = gamma_hardness
-        assert deterministic_boost is None, "deterministic_boost option is deprecated"
-
-        if compile:
-            self.polar_decomposition = torch.compile(
-                polar_decomposition, dynamic=True, fullgraph=True
-            )
-        else:
-            self.polar_decomposition = polar_decomposition
 
     def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         """
@@ -153,7 +137,7 @@ class LearnedPDFrames(LearnedFrames):
             boost, gamma_max=self.gamma_max, gamma_hardness=self.gamma_hardness
         )
 
-        trafo, reg_lightlike, reg_collinear = self.polar_decomposition(
+        trafo, reg_lightlike, reg_collinear = polar_decomposition(
             boost,
             rotation_references,
             **self.ortho_kwargs,
@@ -177,7 +161,6 @@ class LearnedSO13Frames(LearnedFrames):
     def __init__(
         self,
         *args,
-        compile: bool = False,
         **kwargs,
     ):
         """
@@ -185,15 +168,8 @@ class LearnedSO13Frames(LearnedFrames):
         ----------
         *args, **kwargs:
             Passed to LearnedFrames
-        compile: bool
-            Option to compile the orthonormalization procedure.
-            Does not yet give significant speedups in our tests.
         """
         super().__init__(*args, n_vectors=3, **kwargs)
-        if compile:
-            self.orthogonalize_4d = torch.compile(orthogonalize_4d, dynamic=True, fullgraph=True)
-        else:
-            self.orthogonalize_4d = orthogonalize_4d
 
     def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         """
@@ -220,7 +196,7 @@ class LearnedSO13Frames(LearnedFrames):
         vecs = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr, **kwargs)
         vecs = self.globalize_vecs_or_not(vecs, ptr)
 
-        trafo, reg_lightlike, reg_coplanar = self.orthogonalize_4d(
+        trafo, reg_lightlike, reg_coplanar = orthogonalize_4d(
             vecs, **self.ortho_kwargs, return_reg=True
         )
 
@@ -241,7 +217,6 @@ class LearnedRestFrames(LearnedFrames):
     def __init__(
         self,
         *args,
-        compile: bool = False,
         **kwargs,
     ):
         """
@@ -249,17 +224,8 @@ class LearnedRestFrames(LearnedFrames):
         ----------
         *args, **kwargs:
             Passed to LearnedFrames
-        compile: bool
-            Option to compile the orthonormalization procedure.
-            Does not yet give significant speedups in our tests.
         """
         super().__init__(*args, n_vectors=2, **kwargs)
-        if compile:
-            self.polar_decomposition = torch.compile(
-                polar_decomposition, dynamic=True, fullgraph=True
-            )
-        else:
-            self.polar_decomposition = polar_decomposition
 
     def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         """
@@ -286,7 +252,7 @@ class LearnedRestFrames(LearnedFrames):
         references = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr, **kwargs)
         references = self.globalize_vecs_or_not(references, ptr)
 
-        trafo, reg_lightlike, reg_collinear = self.polar_decomposition(
+        trafo, reg_lightlike, reg_collinear = polar_decomposition(
             fourmomenta,
             references,
             **self.ortho_kwargs,
@@ -306,7 +272,6 @@ class LearnedSO3Frames(LearnedFrames):
     def __init__(
         self,
         *args,
-        compile: bool = False,
         **kwargs,
     ):
         """
@@ -314,18 +279,8 @@ class LearnedSO3Frames(LearnedFrames):
         ----------
         *args, **kwargs:
             Passed to LearnedFrames
-        compile: bool
-            Option to compile the orthonormalization procedure.
-            Does not yet give significant speedups in our tests.
         """
         super().__init__(*args, n_vectors=2, **kwargs)
-
-        if compile:
-            self.polar_decomposition = torch.compile(
-                polar_decomposition, dynamic=True, fullgraph=True
-            )
-        else:
-            self.polar_decomposition = polar_decomposition
 
     def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         """
@@ -355,7 +310,7 @@ class LearnedSO3Frames(LearnedFrames):
             fourmomenta.shape[:-1], device=fourmomenta.device, dtype=fourmomenta.dtype
         )[..., 0]  # only difference compared to LearnedPolarDecompositionFrames
 
-        trafo, reg_lightlike, reg_collinear = self.polar_decomposition(
+        trafo, reg_lightlike, reg_collinear = polar_decomposition(
             fourmomenta,
             references,
             **self.ortho_kwargs,
@@ -380,7 +335,6 @@ class LearnedZFrames(LearnedFrames):
         *args,
         gamma_max: float = None,
         gamma_hardness: float | None = None,
-        compile: bool = False,
         **kwargs,
     ):
         """
@@ -394,19 +348,10 @@ class LearnedZFrames(LearnedFrames):
         gamma_hardness: float | None
             Hardness, i.e. beta factor in the softplus regularization.
             If None, a hard clamp is applied.
-        compile: bool
-            Option to compile the orthonormalization procedure.
-            Does not yet give significant speedups in our tests.
         """
         super().__init__(*args, n_vectors=2, **kwargs)
         self.gamma_max = gamma_max
         self.gamma_hardness = gamma_hardness
-        if compile:
-            self.polar_decomposition = torch.compile(
-                polar_decomposition, dynamic=True, fullgraph=True
-            )
-        else:
-            self.polar_decomposition = polar_decomposition
 
     def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         """
@@ -430,10 +375,9 @@ class LearnedZFrames(LearnedFrames):
         """
         self.init_weights_or_not()
         fourmomenta = self.mass_regularize(fourmomenta)
-        vecs = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr)
+        vecs = self.equivectors(fourmomenta, scalars=scalars, ptr=ptr, **kwargs)
         vecs = self.globalize_vecs_or_not(vecs, ptr)
-        boost = vecs[..., 0, :]
-        boost[..., [1, 2]] = 0.0  # only z-boost (keeps timelike vectors timelike)
+        boost = vecs[..., 0, :] * vecs.new_tensor([1.0, 0.0, 0.0, 1.0])
         rotation_references = vecs[..., 1, :]
         boost, reg_gammamax, gamma_mean, gamma_max = clamp_boost(
             boost, gamma_max=self.gamma_max, gamma_hardness=self.gamma_hardness
@@ -446,7 +390,7 @@ class LearnedZFrames(LearnedFrames):
         )[..., 3]  # difference 2 compared LearnedPolarDecompositionFrames
         rotation_references = torch.stack([rotation_references, spurion_references], dim=-2)
 
-        trafo, reg_lightlike, reg_collinear = self.polar_decomposition(
+        trafo, reg_lightlike, reg_collinear = polar_decomposition(
             boost,
             rotation_references,
             **self.ortho_kwargs,
@@ -473,7 +417,6 @@ class LearnedSO2Frames(LearnedFrames):
     def __init__(
         self,
         *args,
-        compile: bool = False,
         **kwargs,
     ):
         """
@@ -481,17 +424,8 @@ class LearnedSO2Frames(LearnedFrames):
         ----------
         *args, **kwargs:
             Passed to LearnedFrames
-        compile: bool
-            Option to compile the orthonormalization procedure.
-            Does not yet give significant speedups in our tests.
         """
         super().__init__(*args, n_vectors=1, **kwargs)
-        if compile:
-            self.polar_decomposition = torch.compile(
-                polar_decomposition, dynamic=True, fullgraph=True
-            )
-        else:
-            self.polar_decomposition = polar_decomposition
 
     def forward(self, fourmomenta, scalars=None, ptr=None, return_tracker=False, **kwargs):
         """
@@ -527,7 +461,7 @@ class LearnedSO2Frames(LearnedFrames):
         )[..., 3]  # difference 2 compared LearnedPolarDecompositionFrames
         references = torch.stack([spurion_references, extra_references[..., 0, :]], dim=-2)
 
-        trafo, reg_lightlike, reg_collinear = self.polar_decomposition(
+        trafo, reg_lightlike, reg_collinear = polar_decomposition(
             fourmomenta,
             references,
             **self.ortho_kwargs,
@@ -540,8 +474,10 @@ class LearnedSO2Frames(LearnedFrames):
 
 
 def clamp_boost(x, gamma_max, gamma_hardness):
-    mass = lorentz_squarednorm(x).clamp(min=0).sqrt().unsqueeze(-1)
     t0 = x.narrow(-1, 0, 1)
+    finfo = torch.finfo(x.dtype)
+    mass_min = (t0.abs() * finfo.eps**0.5).clamp_min(finfo.tiny**0.5)
+    mass = lorentz_squarednorm(x).unsqueeze(-1).clamp_min(mass_min.square()).sqrt()
     beta = x[..., 1:] / t0.clamp_min(1e-10)
     gamma = t0 / mass
     gamma_max_realized = gamma.max().detach()
@@ -582,7 +518,7 @@ def average_event(vecs, ptr=None):
     if ptr is None:
         vecs = vecs.mean(dim=1, keepdim=True).expand_as(vecs)
     else:
-        batch = get_batch_from_ptr(ptr)
+        batch = get_batch_from_ptr(ptr, num_items=vecs.shape[0])
         vecs = scatter(vecs, batch, dim=0, reduce="mean").index_select(0, batch)
     return vecs
 

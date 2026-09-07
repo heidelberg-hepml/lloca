@@ -10,14 +10,24 @@ from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.utils.rand_transforms import rand_lorentz
 from tests.constants import FRAMES_PREDICTOR, LOGM2_MEAN_STD, REPS, TOLERANCES
-from tests.helpers import equivectors_builder, sample_particle
+from tests.helpers import equivectors_builder, sample_particle, sweep
+
+INVARIANCE_SWEEP = sweep(
+    dict(
+        FramesPredictor=FRAMES_PREDICTOR[0],
+        attn_reps=REPS[0],
+        logm2_mean=0,
+        logm2_std=1,
+    ),
+    ("FramesPredictor", FRAMES_PREDICTOR),
+    ("attn_reps", REPS),
+    ("logm2_mean,logm2_std", LOGM2_MEAN_STD),
+)
 
 
 @pytest.mark.parametrize("transformer_type", [Transformer, TransformerV2])
-@pytest.mark.parametrize("FramesPredictor", FRAMES_PREDICTOR)
 @pytest.mark.parametrize("batch_dims", [[10]])
-@pytest.mark.parametrize("attn_reps", REPS)
-@pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
+@pytest.mark.parametrize(*INVARIANCE_SWEEP)
 def test_transformer_invariance_equivariance(
     transformer_type,
     FramesPredictor,
@@ -61,12 +71,12 @@ def test_transformer_invariance_equivariance(
     fm_transformed = torch.einsum("...ij,...j->...i", random, fm)
     frames_transformed = predictor(fm_transformed)
     fm_tr_local = trafo(fm_transformed, frames_transformed)
-    fm_tr_prime_local = net(fm_tr_local, frames_transformed)
+    fm_tr_prime_local = net(fm_tr_local, frames_transformed, p_ref=fm_transformed.sum(dim=-2))
     # back to global frame
     fm_tr_prime_global = trafo(fm_tr_prime_local, InverseFrames(frames_transformed))
 
     # transformer - global
-    fm_prime_local = net(fm_local, frames)
+    fm_prime_local = net(fm_local, frames, p_ref=fm.sum(dim=-2))
     # back to global
     fm_prime_global = trafo(fm_prime_local, InverseFrames(frames))
     fm_prime_tr_global = torch.einsum("...ij,...j->...i", random, fm_prime_global)
@@ -75,14 +85,19 @@ def test_transformer_invariance_equivariance(
     torch.testing.assert_close(fm_tr_prime_global, fm_prime_tr_global, **TOLERANCES)
 
 
+SHAPE_SWEEP = sweep(
+    dict(FramesPredictor=IdentityFrames, checkpoint_blocks=False, compile=False),
+    ("FramesPredictor", [LearnedPDFrames]),
+    ("checkpoint_blocks", [True]),
+    ("compile", [True]),
+)
+
+
 @pytest.mark.parametrize("transformer_type", [Transformer, TransformerV2])
-@pytest.mark.parametrize("FramesPredictor", [IdentityFrames, LearnedPDFrames])
 @pytest.mark.parametrize("batch_dims", [[10]])
 @pytest.mark.parametrize("attn_reps", [REPS[-1]])
 @pytest.mark.parametrize("logm2_mean,logm2_std", [LOGM2_MEAN_STD[0]])
-@pytest.mark.parametrize(
-    "checkpoint_blocks,compile", [(False, False), (True, False), (False, True)]
-)
+@pytest.mark.parametrize(*SHAPE_SWEEP)
 def test_transformer_shape(
     transformer_type,
     FramesPredictor,
@@ -123,5 +138,35 @@ def test_transformer_shape(
     fm_local = trafo(fm, frames)
 
     # call transformer
-    out = net(fm_local, frames)
+    out = net(fm_local, frames, p_ref=fm.sum(dim=-2))
+    assert out.shape == (*batch_dims, 4)
+
+
+@pytest.mark.parametrize("transformer_type", [Transformer, TransformerV2])
+@pytest.mark.parametrize("batch_dims", [[10]])
+def test_transformer_checkpoint_with_attn_kwargs(transformer_type, batch_dims):
+    """checkpoint_blocks must still reach the block with its attention kwargs.
+
+    Both transformers now bind attn_kwargs with functools.partial instead of routing them
+    through checkpoint(), whose own keyword arguments would otherwise shadow same-named
+    attention kwargs. Nothing else covered this combination.
+    """
+    predictor = IdentityFrames()
+    fm = sample_particle(batch_dims, 1.0, 0.0)
+    frames = predictor(fm)
+
+    in_reps = TensorReps("1x1n")
+    trafo = TensorRepsTransform(TensorReps(in_reps))
+    net = transformer_type(
+        in_channels=in_reps.dim,
+        attn_reps=REPS[-1],
+        out_channels=in_reps.dim,
+        num_blocks=2,
+        num_heads=2,
+        checkpoint_blocks=True,
+    )
+
+    n = batch_dims[0]
+    attn_mask = torch.ones(n, n, dtype=torch.bool).tril()
+    out = net(trafo(fm, frames), frames, p_ref=fm.sum(dim=-2), attn_mask=attn_mask)
     assert out.shape == (*batch_dims, 4)

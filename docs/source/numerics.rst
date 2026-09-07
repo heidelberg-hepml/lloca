@@ -82,6 +82,41 @@ The text above refers to the :class:`~lloca.framesnet.equi_frames.LearnedPDFrame
 and we implement this option in the class :class:`~lloca.framesnet.equi_frames.LearnedSO13Frames`. However, this approach is less numerically stable and requires additional
 regularizations to explicitly take into account coplanar vectors. Although the two approaches are mathematically equivalent, we recommend using the :class:`~lloca.framesnet.equi_frames.LearnedPDFrames` class.
 
+Preserving the variance under boosts
+------------------------------------
+
+We recently included the ``preserve_variance`` option, which we strongly recommend to use.
+It helps to tame gradient norm spikes early in training and also the general gradient norm
+during training for large networks, see `Appendix A of the comparison paper <https://arxiv.org/abs/2608.02735>`_.
+We discuss this below in more detail.
+
+Local frames make the backbone inputs invariant, but the frame-to-frame transformations inside the
+backbone can blow up the variance of the latent features. For a latent vector :math:`x\in\mathbb{R}^4`
+with :math:`\langle x \rangle = 0` and :math:`\langle x x^T \rangle = \sigma^2\mathbb{1}`, a Lorentz
+transformation :math:`L` gives the total variance
+$$\\mathrm{tr}\\left( L \\langle x x^T\\rangle L^T \\right) = \\sigma^2 \\|L\\|_F^2 ,$$
+so the variance grows by a factor :math:`\|L\|_F^2/4` relative to the original :math:`4\sigma^2`.
+For a pure rotation :math:`\|L\|_F = 2` and nothing happens, but for a boost with Lorentz factor
+:math:`\gamma` we have :math:`\|L\|_F = 2\gamma`. Strongly boosted local frames therefore amplify the
+latent features by :math:`\gamma`, which destabilizes the training of large networks.
+
+We avoid this by rescaling :math:`L \to 2 L / \|L\|_F = L/\gamma`. The rescaling has to be Lorentz
+invariant to preserve equivariance, so we read the boost factor of each local frame :math:`L_i` off a
+reference four-momentum :math:`p_\text{ref}` in the global frame,
+$$\\gamma_i = \\frac{\\left( L_i\\, p_{\\text{ref}} \\right)^0}{\\sqrt{\\langle p_{\\text{ref}}, p_{\\text{ref}}\\rangle}} .$$
+For jet tagging we use the jet momentum, hence :math:`\gamma_i = (L_i\, p_\text{jet})^0 / m_\text{jet}`.
+The attention update then reads
+$$f_i \\gets \\rho\\left( \\frac{L_i}{\\gamma_i} \\right) \\sum_j \\mathrm{softmax}\\Big( \\dots \\Big)\\, \\rho\\left( \\frac{L_j^{-1}}{\\gamma_j} \\right) v_j .$$
+Since a rank-:math:`n` representation :math:`\rho` applies the frame matrix :math:`n` times, this
+divides rank-:math:`n` channels by :math:`\gamma_i^n` and leaves the scalars untouched.
+
+This is implemented as the ``preserve_variance`` option of :class:`~lloca.backbone.attention.LLoCaAttention`
+and of the transformer backbones, where it is switched on by default. It requires the reference momentum
+``p_ref`` in the ``forward`` pass, see :doc:`quickstart`. The ``variance_eps`` option adds a small mass
+floor :math:`m_\text{ref} = \sqrt{\epsilon^2 + \langle p_\text{ref}, p_\text{ref}\rangle}` that keeps
+:math:`\gamma_i` finite for near-lightlike references. The :math:`\gamma_i` are detached, so the
+rescaling acts as a fixed normalization and does not propagate gradients into the Frames-Net.
+
 Gram-Schimdt orthonormalization in 3D
 -------------------------------------
 

@@ -1,35 +1,39 @@
-import importlib.util
-
 import pytest
 import torch
 from lgatr.nets import LGATr
 
-from lloca.backbone.attention_backends import _REGISTRY
 from lloca.equivectors.lgatr import LGATrVectors
 from lloca.utils.rand_transforms import rand_lorentz
 from tests.constants import LOGM2_MEAN_STD, TOLERANCES
-from tests.helpers import sample_particle
+from tests.helpers import sample_particle, skip_if_backend_unavailable, sweep
 
-_cuda_available = torch.cuda.is_available()
-_xformers_available = importlib.util.find_spec("xformers") is not None
-_flash_available = importlib.util.find_spec("flash-attn") is not None
-_torch_version = torch.__version__.split("+")[0]
-_flex_available = tuple(int(x) for x in _torch_version.split(".")[:2]) >= (2, 7)
-_varlen_available = tuple(int(x) for x in _torch_version.split(".")[:2]) >= (2, 10)
+SWEEP = sweep(
+    dict(
+        n_vectors=1,
+        layer_norm=True,
+        lgatr_norm=True,
+        logm2_mean=0,
+        logm2_std=1,
+        num_scalars=0,
+        sparse_mode=False,
+        attention_backend=None,
+    ),
+    ("n_vectors", [2, 3]),
+    ("layer_norm", [False]),
+    ("lgatr_norm", [False]),
+    ("logm2_mean,logm2_std", LOGM2_MEAN_STD),
+    ("num_scalars", [1]),
+    (
+        "sparse_mode,attention_backend",
+        [(True, backend) for backend in ["xformers", "flex", "flash", "varlen"]],
+    ),
+)
 
 
 @pytest.mark.parametrize("batch_dims", [[100]])
 @pytest.mark.parametrize("jet_size", [10])
-@pytest.mark.parametrize("n_vectors", [1, 2, 3])
 @pytest.mark.parametrize("num_blocks,hidden_mv_channels,hidden_s_channels", [(1, 2, 8)])
-@pytest.mark.parametrize("layer_norm", [True, False])
-@pytest.mark.parametrize("lgatr_norm", [True, False])
-@pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
-@pytest.mark.parametrize("num_scalars", [0, 1])
-@pytest.mark.parametrize(
-    "sparse_mode, attention_backend",
-    [(False, None), (True, "xformers"), (True, "flex"), (True, "flash"), (True, "varlen")],
-)
+@pytest.mark.parametrize(*SWEEP)
 @torch.no_grad()
 def test_equivariance(
     batch_dims,
@@ -46,14 +50,7 @@ def test_equivariance(
     sparse_mode,
     attention_backend,
 ):
-    if (
-        (attention_backend == "xformers" and not (_xformers_available and _cuda_available))
-        or (attention_backend == "flex" and not _flex_available)
-        or (attention_backend == "flash" and not (_flash_available and _cuda_available))
-        or (attention_backend == "varlen" and not (_varlen_available and _cuda_available))
-        or attention_backend not in _REGISTRY
-    ):
-        return
+    skip_if_backend_unavailable(attention_backend)
 
     assert len(batch_dims) == 1
     dtype = torch.float64

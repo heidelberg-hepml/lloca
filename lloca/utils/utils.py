@@ -5,7 +5,7 @@ import torch
 from .lorentz import lorentz_squarednorm
 
 
-def get_batch_from_ptr(ptr):
+def get_batch_from_ptr(ptr, num_items=None):
     """Reconstruct batch indices (batch) from pointer (ptr).
 
     Parameters
@@ -13,6 +13,9 @@ def get_batch_from_ptr(ptr):
     ptr : torch.Tensor
         Pointer tensor indicating the start of each batch.
         Tensor of shape (B+1,) where B is the number of batches.
+    num_items : int, optional
+        Total number of items across all batches, i.e. ptr[-1]. Passing it
+        avoids a device-to-host sync when ptr lives on an accelerator.
 
     Returns
     -------
@@ -22,10 +25,11 @@ def get_batch_from_ptr(ptr):
     """
     return torch.arange(len(ptr) - 1, device=ptr.device).repeat_interleave(
         ptr[1:] - ptr[:-1],
+        output_size=num_items,
     )
 
 
-def get_ptr_from_batch(batch):
+def get_ptr_from_batch(batch, num_graphs=None):
     """Reconstruct pointer (ptr) from batch indices (batch).
 
     Parameters
@@ -33,6 +37,10 @@ def get_ptr_from_batch(batch):
     batch : torch.Tensor
         A tensor where each element indicates the batch index for each item.
         Tensor of shape (N,) where N is the total number of items across all batches.
+    num_graphs : int, optional
+        Number of batches B. Passing it avoids a device-to-host sync when
+        batch lives on an accelerator, and keeps empty batches as zero-length
+        ptr segments instead of dropping them.
 
     Returns
     -------
@@ -40,6 +48,10 @@ def get_ptr_from_batch(batch):
         A pointer tensor indicating the start of each batch.
         Tensor of shape (B+1,) where B is the number of batches.
     """
+    if num_graphs is not None:
+        return torch.searchsorted(
+            batch, torch.arange(num_graphs + 1, device=batch.device, dtype=batch.dtype)
+        )
     ptr = torch.cat(
         [
             torch.tensor([0], device=batch.device),

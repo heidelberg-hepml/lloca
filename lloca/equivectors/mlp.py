@@ -99,6 +99,7 @@ class EquiEdgeConv(MessagePassing):
             self.register_buffer("edge_inited", torch.tensor(False, dtype=torch.bool))
             self.register_buffer("edge_mean", torch.tensor(0.0))
             self.register_buffer("edge_std", torch.tensor(1.0))
+            self._edge_inited_checked = False
 
     def init_standardization(self, fourmomenta, edge_index):
         if self.include_edges and not self.edge_inited:
@@ -107,6 +108,7 @@ class EquiEdgeConv(MessagePassing):
             self.edge_mean = edge_attr.mean().detach()
             self.edge_std = edge_attr.std().clamp(min=1e-5).detach()
             self.edge_inited.fill_(True)
+            self._edge_inited_checked = True
 
     def forward(self, fourmomenta, scalars, edge_index, ptr, batch=None):
         """
@@ -131,7 +133,9 @@ class EquiEdgeConv(MessagePassing):
         # calculate and standardize edge attributes
         fourmomenta = fourmomenta.reshape(-1, 1, 4)
         if self.include_edges:
-            assert self.edge_inited
+            if not self._edge_inited_checked:
+                assert self.edge_inited
+                self._edge_inited_checked = True
             edge_attr = get_edge_attr(fourmomenta, edge_index)
             edge_attr = (edge_attr - self.edge_mean) / self.edge_std
             edge_attr = edge_attr.reshape(edge_attr.shape[0], -1)
@@ -193,7 +197,7 @@ class EquiEdgeConv(MessagePassing):
         prefactor = torch.cat([s_i, s_j], dim=-1)
         if edge_attr is not None:
             prefactor = torch.cat([prefactor, edge_attr], dim=-1)
-        with torch.autocast("cuda", enabled=self.use_amp):
+        with torch.autocast(prefactor.device.type, enabled=self.use_amp):
             prefactor = self.mlp(prefactor)
         prefactor = self.nonlinearity(
             prefactor, index=edge_index[0], node_ptr=node_ptr, node_batch=node_batch
@@ -373,7 +377,7 @@ def get_edge_index_and_batch(fourmomenta, ptr, remove_self_loops=True):
         edge_index, batch = get_edge_index_from_shape(
             fourmomenta.shape, fourmomenta.device, remove_self_loops=remove_self_loops
         )
-        ptr = get_ptr_from_batch(batch)
+        ptr = get_ptr_from_batch(batch, num_graphs=in_shape[0])
     else:
         if ptr is None:
             # assume batch contains only one particle
@@ -381,5 +385,5 @@ def get_edge_index_and_batch(fourmomenta, ptr, remove_self_loops=True):
         edge_index = get_edge_index_from_ptr(
             ptr, shape=fourmomenta.shape, remove_self_loops=remove_self_loops
         )
-        batch = get_batch_from_ptr(ptr)
+        batch = get_batch_from_ptr(ptr, num_items=fourmomenta.shape[0])
     return edge_index, batch, ptr

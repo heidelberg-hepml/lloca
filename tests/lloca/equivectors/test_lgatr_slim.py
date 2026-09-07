@@ -1,56 +1,71 @@
 import pytest
 import torch
+from lgatr.nets import LGATrSlim
 
-from lloca.equivectors.mlp import MLPVectors
+from lloca.equivectors.lgatr import LGATrSlimVectors
 from lloca.utils.rand_transforms import rand_lorentz
 from tests.constants import LOGM2_MEAN_STD, TOLERANCES
-from tests.helpers import sample_particle, sweep
+from tests.helpers import sample_particle, skip_if_backend_unavailable, sweep
 
 SWEEP = sweep(
     dict(
         n_vectors=1,
+        layer_norm=True,
+        lgatr_norm=True,
         logm2_mean=0,
         logm2_std=1,
         num_scalars=0,
-        include_edges=True,
-        operation="diff",
-        fm_norm=True,
-        nonlinearity="softplus",
         sparse_mode=False,
+        attention_backend=None,
     ),
     ("n_vectors", [2, 3]),
+    ("layer_norm", [False]),
+    ("lgatr_norm", [False]),
     ("logm2_mean,logm2_std", LOGM2_MEAN_STD),
-    ("num_scalars,include_edges", [(1, False)]),
+    ("num_scalars", [1]),
     (
-        "operation,fm_norm",
-        [("diff", False), ("add", True), ("add", False), ("single", False)],
+        "sparse_mode,attention_backend",
+        [(True, backend) for backend in ["xformers", "flex", "flash", "varlen"]],
     ),
-    ("nonlinearity", ["exp", "softmax"]),
-    ("sparse_mode", [True]),
 )
 
 
 @pytest.mark.parametrize("batch_dims", [[100]])
 @pytest.mark.parametrize("jet_size", [10])
-@pytest.mark.parametrize("hidden_channels,num_layers_mlp", [(16, 1)])
+@pytest.mark.parametrize("num_blocks,hidden_v_channels,hidden_s_channels", [(1, 2, 8)])
 @pytest.mark.parametrize(*SWEEP)
+@torch.no_grad()
 def test_equivariance(
     batch_dims,
     jet_size,
     n_vectors,
-    hidden_channels,
-    num_layers_mlp,
+    hidden_v_channels,
+    hidden_s_channels,
+    num_blocks,
+    layer_norm,
+    lgatr_norm,
     logm2_std,
     logm2_mean,
-    include_edges,
     num_scalars,
-    operation,
-    nonlinearity,
-    fm_norm,
     sparse_mode,
+    attention_backend,
 ):
+    skip_if_backend_unavailable(attention_backend)
+
     assert len(batch_dims) == 1
     dtype = torch.float64
+
+    def builder(in_s_channels, out_v_channels, out_s_channels):
+        return LGATrSlim(
+            in_v_channels=1,
+            out_v_channels=out_v_channels,
+            hidden_v_channels=hidden_v_channels,
+            in_s_channels=in_s_channels,
+            out_s_channels=out_s_channels,
+            hidden_s_channels=hidden_s_channels,
+            num_blocks=num_blocks,
+            num_heads=1,
+        )
 
     # construct sparse tensors containing a set of equal-multiplicity jets
     ptr = torch.arange(0, (batch_dims[0] + 1) * jet_size, jet_size) if sparse_mode else None
@@ -59,15 +74,15 @@ def test_equivariance(
     def calc_node_attr(fm):
         return torch.zeros(*fm.shape[:-1], num_scalars, dtype=dtype)
 
-    equivectors = MLPVectors(
+    equivectors = LGATrSlimVectors(
+        net=builder,
         n_vectors=n_vectors,
         num_scalars=num_scalars,
-        hidden_channels=hidden_channels,
-        num_layers_mlp=num_layers_mlp,
-        include_edges=include_edges,
-        operation=operation,
-        nonlinearity=nonlinearity,
-        fm_norm=fm_norm,
+        hidden_v_channels=hidden_v_channels,
+        hidden_s_channels=hidden_s_channels,
+        layer_norm=layer_norm,
+        lgatr_norm=lgatr_norm,
+        attention_backend=attention_backend,
     ).to(dtype=dtype)
 
     fm_test = sample_particle(batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype)

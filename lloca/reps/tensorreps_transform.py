@@ -3,7 +3,7 @@
 import torch
 
 from ..framesnet.frames import Frames
-from ..utils.misc import minimum_autocast_precision
+from ..utils.autocast import minimum_autocast_precision
 from .tensorreps import TensorReps
 
 
@@ -11,56 +11,39 @@ class TensorRepsTransform(torch.nn.Module):
     def __init__(
         self,
         reps: TensorReps,
-        use_naive=False,
     ):
         """Tensor representation transformation module.
 
         Parameters
         ----------
         reps: TensorReps
-            Tensor representations to transform.
-        use_naive: bool
-            Whether to use the naive transformation method.
-            If False, uses an efficient transformation method.
-            Default is False.
+            Tensor representations to transform, sorted by order.
         """
         super().__init__()
+        assert reps.is_sorted, f"reps have to be sorted by order, but got {reps}"
         self.reps = reps
-        self.transform = self._transform_naive if use_naive else self._transform_efficient
+        self.max_order = reps.max_rep.rep.order
 
-        # cache idx_start and idx_end for each rep
-        self.start_end_idx = []
+        # dimension covered by each order; because the reps are sorted, the reps of a given
+        # order (there can be two of them, one per parity) form a single contiguous block
+        dims = [0] * (self.max_order + 1)
+        parity_odd = torch.zeros(reps.dim, dtype=torch.bool)
         idx = 0
-        for mul_rep in self.reps:
-            _, rep = mul_rep
-            self.start_end_idx.append([idx, idx + mul_rep.dim])
+        for mul_rep in reps:
+            dims[mul_rep.rep.order] += mul_rep.dim
+            parity_odd[idx : idx + mul_rep.dim] = mul_rep.rep.parity == -1
             idx += mul_rep.dim
 
-        # build parity_mask
-        parity_odd = torch.zeros(self.reps.dim, dtype=torch.bool)
-        idx = 0
-        for mul_rep in self.reps:
-            _, rep = mul_rep
-            parity_odd[idx : idx + mul_rep.dim] = True if rep.parity == -1 else False
-            idx += mul_rep.dim
+        # start and end index of the block of each order
+        self.blocks, start = [], 0
+        for dim in dims:
+            self.blocks.append((start, start + dim))
+            start += dim
+        self.dim_scalars = dims[0]
+
+        # parity-odd states pick up a factor sign(det Lambda)
         self.register_buffer("parity_odd", parity_odd.unsqueeze(0))
-        self.no_parity_odd = self.parity_odd.sum().item() == 0
-
-        if not use_naive:
-            # build mapping from order to element in the reps list
-            # only used in _transform_efficient
-            self.map_rep = [None for _ in range(self.reps.max_rep.rep.order + 1)]
-            idx_rep = 0
-            for i in range(self.reps.max_rep.rep.order + 1):
-                if self.reps[idx_rep].rep.order == i:
-                    self.map_rep[i] = idx_rep
-                    idx_rep += 1
-
-        if self.reps.max_rep.rep.order <= 1:
-            # super efficient shortcut if only scalar and vector reps are present
-            self.transform = self._transform_only_scalars_and_vectors
-
-        self.has_higher_orders = self.reps.max_rep.rep.order > 0
+        self.no_parity_odd = not parity_odd.any().item()
 
     @minimum_autocast_precision(torch.float32)
     def forward(self, tensor: torch.Tensor, frames: Frames):
@@ -78,189 +61,43 @@ class TensorRepsTransform(torch.nn.Module):
         torch.Tensor
             The transformed tensor, shape (..., self.reps.dim).
         """
-        if frames.is_identity or (self.no_parity_odd and not self.has_higher_orders):
+        if frames.is_identity or (self.no_parity_odd and self.max_order == 0):
             return tensor
 
-        in_shape = tensor.shape
-        if len(frames.shape) > 3:
-            frames = frames.reshape(-1, 4, 4)
-        tensor = tensor.reshape(-1, tensor.shape[-1])
-        assert tensor.shape[0] == frames.shape[0], (
-            f"Batch dimension is {tensor.shape[0]} for tensor, but {frames.shape[0]} for frames."
+        # flatten the batch dimensions, everything below operates on a single batch dimension
+        shape = tensor.shape
+        tensor = tensor.reshape(-1, shape[-1])
+        matrices = frames.matrices.reshape(-1, 4, 4)
+        assert tensor.shape[0] == matrices.shape[0], (
+            f"Batch dimension is {tensor.shape[0]} for tensor, but {matrices.shape[0]} for frames."
         )
 
-        tensor_transformed = self.transform(tensor, frames) if self.has_higher_orders else tensor
-        tensor_transformed = self.transform_parity(tensor_transformed, frames)
+        if self.max_order > 0:
+            tensor = self._transform(tensor, matrices.to(tensor.dtype))
+        if not self.no_parity_odd:
+            tensor = self._transform_parity(tensor, frames.parity.reshape(-1, 1))
+        return tensor.view(shape)
 
-        tensor_transformed = tensor_transformed.view(*in_shape)
-        return tensor_transformed
+    def _transform(self, tensor, matrices):
+        # Transform one tensor index at a time, starting at the highest order. Each transformed
+        # index is absorbed into the channel dimension C, so one operation per index handles all
+        # reps that still have untransformed indices left.
+        out = None
+        for order in range(self.max_order, 0, -1):
+            start, end = self.blocks[order]
+            if end > start:
+                block = tensor[:, start:end].unflatten(-1, (-1, 4**order))
+                out = block if out is None else torch.cat((block, out), dim=-2)
 
-    def _transform_naive(self, tensor, frames):
-        """Naive transform: Apply n transformations to a tensor of n'th order.
+            # contract the leading index of (N, C, 4, R) with the frames and merge it into C
+            out = out.unflatten(-1, (4, 4 ** (order - 1)))
+            out = (matrices[:, None, :, :, None] * out[:, :, None]).sum(-2).flatten(-3, -2)
 
-        Parameters
-        ----------
-        tensor: torch.Tensor
-            The tensor to transform, shape (N, self.reps.dim).
-        frames: Frames
-            The local frames to apply the transformation with, shape (N, 4, 4).
+        out = out.flatten(-2, -1)
+        if self.dim_scalars == 0:
+            return out
+        return torch.cat((tensor[:, : self.dim_scalars], out), dim=-1)
 
-        Returns
-        -------
-        torch.Tensor
-            The transformed tensor, shape (N, self.reps.dim).
-        """
-        output = tensor.clone()
-        frames = frames.matrices.clone().to(tensor.dtype)
-        for mul_rep, [idx_start, idx_end] in zip(self.reps, self.start_end_idx, strict=True):
-            mul, rep = mul_rep
-            if mul == 0 or rep.order == 0:
-                continue
-
-            x = tensor[:, idx_start:idx_end].reshape(-1, mul, *([4] * rep.order))
-
-            einsum_string = get_einsum_string(rep.order)
-            x_transformed = torch.einsum(einsum_string, *([frames] * rep.order), x)
-            output[:, idx_start:idx_end] = x_transformed.reshape(-1, mul_rep.dim)
-
-        return output
-
-    def _transform_efficient(self, tensor, frames):
-        """Efficient transform:
-        Starting with the highest-order tensor contribution,
-        add the next contribution, apply frames transformation
-        and flatten first dimension before continueing with next order.
-
-        This is more efficient, because we use the
-        maximum amount of parallelization possible.
-
-        Parameters
-        ----------
-        tensor: torch.Tensor
-            The tensor to transform, shape (N, self.reps.dim).
-        frames: Frames
-            The local frames to apply the transformation with, shape (N, 4, 4).
-
-        Returns
-        -------
-        torch.Tensor
-            The transformed tensor, shape (N, self.reps.dim).
-        """
-        output = None
-        bframes = frames.matrices.clone().to(tensor.dtype)
-        for order in reversed(range(self.reps.max_rep.rep.order + 1)):
-            if self.map_rep[order] is not None:
-                # add new contribution to the mix
-                idx_start, idx_end = self.start_end_idx[self.map_rep[order]]
-                contribution = tensor[:, idx_start:idx_end].reshape(
-                    tensor.shape[0], -1, *(order * (4,))
-                )
-                output = (
-                    torch.cat([contribution, output], dim=1)
-                    if order < self.reps.max_rep.rep.order
-                    else contribution
-                )
-
-            if order > 0:
-                # apply transformation, then flatten because transformation is done
-                output = torch.einsum("ijk,ilk...->ilj...", bframes, output)
-                output = output.flatten(start_dim=1, end_dim=2)
-
-        return output
-
-    def _transform_only_scalars_and_vectors(self, tensor, frames):
-        """Super efficient transform that assumes that only scalars and vectors are present.
-        Follows the same recipe as _transform_efficient, but avoids small overheads from
-        torch.cat and torch.reshape.
-
-        Parameters
-        ----------
-        tensor: torch.Tensor
-            The tensor to transform, shape (N, self.reps.dim).
-        frames: Frames
-            The local frames to apply the transformation with, shape (N, 4, 4).
-
-        Returns
-        -------
-        torch.Tensor
-            The transformed tensor, shape (N, self.reps.dim).
-        """
-        N, D = tensor.shape
-        vec_start, vec_end = self.start_end_idx[-1]
-        vec_width = vec_end - vec_start
-        L = vec_width // 4
-        vectors = tensor.narrow(1, vec_start, vec_width).view(N, L, 4)
-        mats = frames.matrices
-        if mats.dtype != vectors.dtype:
-            mats = mats.to(vectors.dtype)
-
-        out_vecs = torch.matmul(vectors, mats.transpose(1, 2))
-
-        if vec_start == 0 and vec_end == D:
-            out = out_vecs.view(N, D)
-        else:
-            out = torch.empty_like(tensor)
-            if vec_start > 0:
-                out[:, :vec_start] = tensor[:, :vec_start]
-            out[:, vec_start:vec_end] = out_vecs.view(N, vec_width)
-        return out
-
-    def transform_parity(self, tensor, frames):
-        """Parity transform: Multiply parity-odd states by sign(det Lambda).
-
-        Parameters
-        ----------
-        tensor: torch.Tensor
-            The tensor to transform, shape (N, self.reps.dim).
-        frames: Frames
-            The local frames to apply the transformation with, shape (N, 4, 4).
-
-        Returns
-        -------
-        torch.Tensor
-            The transformed tensor, shape (N, self.reps.dim).
-        """
-        if self.no_parity_odd:
-            return tensor
-        else:
-            return torch.where(self.parity_odd, frames.det.sign().unsqueeze(-1) * tensor, tensor)
-
-
-def get_einsum_string(order):
-    """Create einsum string for transformation of order-n tensor in _transform_naive.
-
-    Parameters
-    ----------
-    order: int
-        The order of the tensor representation.
-
-    Returns
-    -------
-    str
-        The einsum string for the transformation.
-    """
-    if order > 12:
-        raise NotImplementedError("Running out of letters for order>12")
-
-    einsum = ""
-    start = ord("A")
-    batch_index = ord("a")
-
-    # list of frames
-    for i in range(order):
-        einsum += chr(batch_index) + chr(start + 2 * i) + chr(start + 2 * i + 1) + ","
-
-    # tensor
-    einsum += chr(batch_index)
-    einsum += chr(start + 2 * order + 1)
-    for i in range(order):
-        einsum += chr(start + 2 * i + 1)
-
-    # output
-    einsum += "->"
-    einsum += chr(batch_index)
-    einsum += chr(start + 2 * order + 1)
-    for i in range(order):
-        einsum += chr(start + 2 * i)
-
-    return einsum
+    def _transform_parity(self, tensor, parity):
+        # Parity transform: multiply parity-odd states by sign(det Lambda), see Frames.parity
+        return torch.where(self.parity_odd, parity.to(tensor.dtype) * tensor, tensor)

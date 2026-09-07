@@ -1,10 +1,14 @@
 """Baseline LLoCa-Transformer."""
 
+from collections.abc import Mapping
+from functools import partial
+
 import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
 
 from ..reps.tensorreps import TensorReps
+from ..utils.compile import compile_model
 from .attention import LLoCaAttention
 
 
@@ -320,12 +324,16 @@ class Transformer(nn.Module):
         Use multi-query attention instead of multi-head attention.
     dropout_prob : float
         Dropout probability for output.
+    preserve_variance : bool
+        Rescale the frame-to-frame transforms by the invariant Lorentz factor of each particle
+        frame, to prevent the variance blowup from large boosts. Needs the reference momentum
+        ``p_ref`` in :meth:`forward`.
     compile : bool, optional
         Whether to compile the model with torch.compile, by default False.
-    compile_mode : str
-        torch.compile compilation mode, see torch docs for more information.
-    compile_dynamic : bool
-        Whether to use dynamic shapes with torch.compile, by default True.
+    compile_kwargs : Mapping, optional
+        Dict forwarded verbatim to :func:`torch.compile` (via
+        :func:`lloca.utils.compile.compile_model`) when ``compile=True`` (e.g. ``mode``,
+        ``dynamic``, ``fullgraph``). Omitted keys fall back to torch's own defaults.
     """
 
     def __init__(
@@ -340,15 +348,19 @@ class Transformer(nn.Module):
         mlp_factor: int = 4,
         multi_query: bool = False,
         dropout_prob: float | None = None,
+        preserve_variance: bool = True,
         compile: bool = False,
-        compile_mode: str = "default",
-        compile_dynamic: bool = True,
+        compile_kwargs: Mapping | None = None,
     ) -> None:
         super().__init__()
         attn_reps = TensorReps(attn_reps)
         self.hidden_channels = attn_reps.dim * num_heads // attention_factor
         self.checkpoint_blocks = checkpoint_blocks
-        self.attention = LLoCaAttention(attn_reps, num_heads)
+        self.attention = LLoCaAttention(
+            attn_reps,
+            num_heads,
+            preserve_variance=preserve_variance,
+        )
 
         self.linear_in = nn.Linear(in_channels, self.hidden_channels)
         self.blocks = nn.ModuleList(
@@ -368,14 +380,11 @@ class Transformer(nn.Module):
         self.linear_out = nn.Linear(self.hidden_channels, out_channels)
 
         if compile:
-            # ugly hack to make torch.compile convenient for users
-            # the clean solution is model = torch.compile(model, **kwargs) outside of the constructor
-            # note that we need fullgraph=False because of the torch.compiler.disable for attention
-            self.__class__ = torch.compile(
-                self.__class__, dynamic=compile_dynamic, mode=compile_mode
-            )
+            compile_model(self, compile_kwargs=compile_kwargs)
 
-    def forward(self, inputs: torch.Tensor, frames, **attn_kwargs) -> torch.Tensor:
+    def forward(
+        self, inputs: torch.Tensor, frames, p_ref=None, ptr=None, **attn_kwargs
+    ) -> torch.Tensor:
         """Forward pass.
 
         Parameters
@@ -384,6 +393,12 @@ class Transformer(nn.Module):
             Input data with shape (..., num_items, in_channels)
         frames : Frames
             Local frames used for invariant particle attention
+        p_ref : Tensor, optional
+            Reference (jet) 4-momentum in the global frame, energy-first: per event ``(..., 4)``
+            for a dense layout or per jet ``(num_jets, 4)`` with ``ptr`` for a packed layout.
+            Required when a ``preserve_variance`` flag is on, ignored otherwise.
+        ptr : Tensor, optional
+            Jet boundaries for a packed layout; maps the per-jet ``p_ref`` to each token.
         **attn_kwargs
 
         Returns
@@ -391,12 +406,13 @@ class Transformer(nn.Module):
         outputs : Tensor
             Outputs with shape (..., num_items, out_channels)
         """
-        self.attention.prepare_frames(frames)
+        self.attention.prepare_frames(frames, p_ref=p_ref, ptr=ptr)
 
         h = self.linear_in(inputs)
         for block in self.blocks:
             if self.checkpoint_blocks:
-                h = checkpoint(block, h, use_reentrant=False, **attn_kwargs)
+                fn = partial(block, **attn_kwargs)
+                h = checkpoint(fn, h, use_reentrant=False)
             else:
                 h = block(h, **attn_kwargs)
         outputs = self.linear_out(h)

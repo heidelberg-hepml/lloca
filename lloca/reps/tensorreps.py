@@ -197,7 +197,7 @@ class TensorReps(tuple):
         if not self.is_sorted:
             return False
 
-        return all(self[i].rep.order != self[i + 1].rep.order for i in range(len(self[:-1])))
+        return all(self[i].rep != self[i + 1].rep for i in range(len(self[:-1])))
 
 
 def parse_tensorreps_string(input):

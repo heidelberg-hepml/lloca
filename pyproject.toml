@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "setuptools-scm>=8", "wheel>=0.42"]
+requires = ["setuptools>=77", "setuptools-scm>=8", "wheel>=0.42"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,14 +8,27 @@ dynamic = ["version"] # comes from setuptools-scm
 description = "Lorentz Local Canonicalization"
 requires-python = ">=3.10"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
   { name = "Jonas Spinner", email = "j.spinner@thphys.uni-heidelberg.de" },
   { name = "Luigi Favaro", email = "luigi.favaro@uclouvain.be" },
 ]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Physics",
+]
 dependencies = [
-    "torch>=2.1",
+    "torch>=2.4",
     "torch-geometric>=2.3.0",
-    "lgatr",
+    "lgatr>=2.0.0",
     "pelican-lite",
 ]
 
@@ -36,15 +49,16 @@ dev = [
 ]
 
 [project.entry-points."lloca.backbone.attention_backends"]
-native = "lloca.backbone.attention_backends.native"
 varlen = "lloca.backbone.attention_backends.varlen"
 xformers = "lloca.backbone.attention_backends.xformers"
 flex = "lloca.backbone.attention_backends.flex"
 flash = "lloca.backbone.attention_backends.flash"
 
 [project.urls]
-homepage = "https://github.com/heidelberg-hepml/lloca"
+homepage = "https://heidelberg-hepml.github.io/lloca"
+documentation = "https://heidelberg-hepml.github.io/lloca"
 repository = "https://github.com/heidelberg-hepml/lloca"
+changelog = "https://github.com/heidelberg-hepml/lloca/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 packages = { find =  { include = ["lloca", "lloca.*"] } }
@@ -52,6 +66,9 @@ packages = { find =  { include = ["lloca", "lloca.*"] } }
 [tool.setuptools_scm]
 version_scheme = "post-release"
 local_scheme = "no-local-version"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]  # don't collect the stale copy of the package under build/
 
 [tool.ruff]
 line-length = 100
