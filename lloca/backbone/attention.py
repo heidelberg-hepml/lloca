@@ -77,6 +77,7 @@ class LLoCaAttention(torch.nn.Module):
         self.frames_qkv = None
         self.frames_out = None
 
+    @torch.no_grad()
     def _compute_gamma(self, frames, p_ref, ptr=None):
         """Invariant per-particle Lorentz factor gamma_i >= 1 that prevents variance blowup."""
         dtype = torch.promote_types(p_ref.dtype, torch.float32)
@@ -91,7 +92,7 @@ class LLoCaAttention(torch.nn.Module):
             p_ref = p_ref.index_select(0, seg)
         m_ref = torch.sqrt(self.variance_eps**2 + lorentz_squarednorm(p_ref).clamp(min=0))
         gamma = torch.einsum("...nij,...nj->...ni", L, p_ref)[..., 0] / m_ref
-        return gamma.detach()  # fixed normalization: no gradient into the frames
+        return gamma
 
     @minimum_autocast_precision(torch.float32)
     def prepare_frames(self, frames, p_ref=None, ptr=None):
