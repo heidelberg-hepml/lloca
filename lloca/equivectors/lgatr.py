@@ -5,7 +5,7 @@ import math
 import torch
 from lgatr import embed_vector
 from lgatr.layers import EquiLayerNorm, SlimRMSNorm
-from lgatr.primitives.invariants import _load_inner_product_factors
+from lgatr.primitives import inner_product_factors
 from torch_geometric.nn import MessagePassing
 
 from ..backbone.attention_backends.mask import get_sparse_attention_mask
@@ -198,7 +198,7 @@ class LGATrVectors(_LGATrVectorsBase):
         return embed_vector(fourmomenta).unsqueeze(-2)
 
     def _get_qk_metric(self, device, dtype):
-        return _load_inner_product_factors(device=device, dtype=dtype)
+        return inner_product_factors(device=device, dtype=dtype)
 
     def _apply_lgatr_norm(self, vectors, scalars):
         return self.lgatr_norm(vectors, scalars)
