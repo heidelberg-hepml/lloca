@@ -79,19 +79,19 @@ class LLoCaAttention(torch.nn.Module):
 
     def _compute_gamma(self, frames, p_ref, ptr=None):
         """Invariant per-particle Lorentz factor gamma_i >= 1 that prevents variance blowup."""
-        dtype = torch.promote_types(p_ref.dtype, torch.float32)
-        L = frames.matrices.to(dtype)
-        p_ref = p_ref.to(dtype)
-        if ptr is None:
-            # dense: one reference momentum per event, broadcast over the token axis
-            p_ref = p_ref.unsqueeze(-2).expand(*L.shape[:-2], 4)
-        else:
-            # packed: map the per-jet reference momentum to each token
-            seg = get_batch_from_ptr(ptr, num_items=L.shape[-3])
-            p_ref = p_ref.index_select(0, seg)
-        m_ref = torch.sqrt(self.variance_eps**2 + lorentz_squarednorm(p_ref).clamp(min=0))
-        gamma = torch.einsum("...nij,...nj->...ni", L, p_ref)[..., 0] / m_ref
-        return gamma.detach()  # fixed normalization: no gradient into the frames
+        # fixed normalization: no gradient into the frames, so skip autograd bookkeeping entirely
+        with torch.no_grad():
+            dtype = torch.promote_types(p_ref.dtype, torch.float32)
+            L = frames.matrices.to(dtype)
+            p_ref = p_ref.to(dtype)
+            if ptr is None:
+                p_ref = p_ref.unsqueeze(-2).expand(*L.shape[:-2], 4)
+            else:
+                seg = get_batch_from_ptr(ptr, num_items=L.shape[-3])
+                p_ref = p_ref.index_select(0, seg)
+            m_ref = torch.sqrt(self.variance_eps**2 + lorentz_squarednorm(p_ref).clamp(min=0))
+            gamma = torch.einsum("...nij,...nj->...ni", L, p_ref)[..., 0] / m_ref
+        return gamma
 
     @minimum_autocast_precision(torch.float32)
     def prepare_frames(self, frames, p_ref=None, ptr=None):
