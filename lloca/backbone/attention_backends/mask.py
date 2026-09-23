@@ -2,7 +2,7 @@
 
 import torch
 
-from . import SPARSE_BACKENDS, _backend_unavailable_message, _resolve_backend
+from . import _REGISTRY, SPARSE_BACKENDS, _backend_unavailable_message
 
 
 def get_sparse_attention_mask(
@@ -40,7 +40,7 @@ def get_sparse_attention_mask(
         mask = torch.zeros_like(blockdiag, dtype=dtype).masked_fill_(~blockdiag, float("-inf"))
         return {"attn_mask": mask}
 
-    module = _resolve_backend(attention_backend)
+    module = _REGISTRY.get(attention_backend)
     if module is None:
         raise ValueError(
             f"{_backend_unavailable_message(attention_backend)} "

@@ -80,6 +80,5 @@ def test_dispatch_reports_why_a_backend_is_unavailable():
     with pytest.raises(ValueError, match="flash"):
         get_attention_backend(cu_seqlens_q=torch.tensor([0, 3], dtype=torch.int32))
 
-    # the second lookup goes through the cached-unavailable path
     with pytest.raises(ValueError, match="Attention backend 'flash' is not available"):
         get_attention_backend(backend="flash")
