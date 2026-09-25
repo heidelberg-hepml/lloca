@@ -192,7 +192,7 @@ class LGATrVectors(_LGATrVectorsBase):
             out_mv_channels=out_mv_channels,
             out_s_channels=out_s_channels,
         )
-        self.lgatr_norm = EquiLayerNorm() if lgatr_norm else None
+        self.lgatr_norm = EquiLayerNorm(primitives=self.net.primitives) if lgatr_norm else None
 
     def _embed_input(self, fourmomenta):
         return embed_vector(fourmomenta).unsqueeze(-2)
