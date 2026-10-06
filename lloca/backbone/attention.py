@@ -8,7 +8,7 @@ from torch import Tensor
 from ..framesnet.frames import Frames, InverseFrames, LowerIndicesFrames
 from ..reps.tensorreps import TensorReps
 from ..reps.tensorreps_transform import TensorRepsTransform
-from ..utils.autocast import minimum_autocast_precision
+from ..utils.autocast import autocast_dtype, autocast_enabled, minimum_autocast_precision
 from ..utils.lorentz import lorentz_squarednorm
 from ..utils.utils import get_batch_from_ptr
 from .attention_backends import get_attention_backend
@@ -77,21 +77,23 @@ class LLoCaAttention(torch.nn.Module):
         self.frames_qkv = None
         self.frames_out = None
 
-    @torch.no_grad()
-    def _compute_gamma(self, frames, p_ref, ptr=None):
-        """Invariant per-particle Lorentz factor gamma_i >= 1 that prevents variance blowup."""
-        dtype = torch.promote_types(p_ref.dtype, torch.float32)
-        L = frames.matrices.to(dtype)
+    @staticmethod
+    def _broadcast_p_ref(frames, p_ref, ptr=None):
+        """Reference momentum per token, shape (..., 1, 4) (dense) or (N, 4) (packed)."""
+        dtype = torch.promote_types(torch.promote_types(p_ref.dtype, frames.dtype), torch.float32)
         p_ref = p_ref.to(dtype)
         if ptr is None:
             # dense: one reference momentum per event, broadcast over the token axis
-            p_ref = p_ref.unsqueeze(-2).expand(*L.shape[:-2], 4)
-        else:
-            # packed: map the per-jet reference momentum to each token
-            seg = get_batch_from_ptr(ptr, num_items=L.shape[-3])
-            p_ref = p_ref.index_select(0, seg)
+            return p_ref.unsqueeze(-2)
+        # packed: map the per-jet reference momentum to each token
+        seg = get_batch_from_ptr(ptr, num_items=frames.shape[-3])
+        return p_ref.index_select(0, seg)
+
+    @torch.no_grad()
+    def _compute_gamma(self, frames, p_ref):
+        """Invariant per-particle Lorentz factor gamma_i >= 1 that prevents variance blowup."""
         m_ref = torch.sqrt(self.variance_eps**2 + lorentz_squarednorm(p_ref).clamp(min=0))
-        gamma = torch.einsum("...nij,...nj->...ni", L, p_ref)[..., 0] / m_ref
+        gamma = (frames.matrices[..., 0, :] * p_ref).sum(dim=-1) / m_ref
         return gamma
 
     @minimum_autocast_precision(torch.float32)
@@ -111,32 +113,35 @@ class LLoCaAttention(torch.nn.Module):
         """
         self.frames = frames
         if not frames.is_global:
-            inv_gamma = None
             if self.preserve_variance:
                 if p_ref is None:
                     raise ValueError("preserve_variance requires `p_ref` in prepare_frames.")
-                gamma = self._compute_gamma(frames, p_ref, ptr=ptr)
-                # (..., 1, N, 1, 1): broadcasts over heads and the 4x4 matrix. Folded directly
+                p_ref = self._broadcast_p_ref(frames, p_ref, ptr=ptr)
+
+            # create inv_frames and lower_inv_frames
+            inv_frames = InverseFrames(frames)
+            lower_inv_frames = LowerIndicesFrames(inv_frames)
+
+            frames_out = frames
+
+            if self.preserve_variance:
+                gamma = self._compute_gamma(frames, p_ref)
+                # (..., N, 1, 1): broadcasts over the 4x4 matrix. Folded directly
                 # into the frame matrices (see _scale_frames) rather than applied per-channel
                 # to every q/k/v/output tensor in every layer, since a grade-n tensor transform
                 # applies the frame matrix n times: scaling the matrix by 1/gamma is equivalent
                 # to, but far cheaper than, dividing the post-transform tensor by gamma**grade.
-                inv_gamma = (1 / gamma)[..., None, :, None, None]
-
-            # insert frames head dimension
-            frames_out = frames.reshape(*frames.shape[:-3], 1, frames.shape[-3], 4, 4)
-            frames_out = frames_out.expand(
-                *frames.shape[:-3], self.num_heads, frames.shape[-3], 4, 4
-            )
-
-            # create inv_frames and lower_inv_frames
-            inv_frames = InverseFrames(frames_out)
-            lower_inv_frames = LowerIndicesFrames(inv_frames)
-
-            if self.preserve_variance:
-                # rescale the pre-attention (local->global) q/k/v transform
+                inv_gamma = (1 / gamma)[..., None, None]
                 inv_frames = _scale_frames(inv_frames, inv_gamma)
                 lower_inv_frames = _scale_frames(lower_inv_frames, inv_gamma)
+                frames_out = _scale_frames(frames_out, inv_gamma)
+
+            # insert frames head dimension
+            shape = (*frames.shape[:-3], self.num_heads, frames.shape[-3], 4, 4)
+            inv_frames, lower_inv_frames, frames_out = (
+                f.reshape(*frames.shape[:-3], 1, frames.shape[-3], 4, 4).expand(*shape)
+                for f in (inv_frames, lower_inv_frames, frames_out)
+            )
 
             # qkv = (inv_frames, lower_inv_frames, inv_frames)
             # note that (lower_inv_frames, inv_frames, inv_frames) is equivalent
@@ -157,10 +162,6 @@ class LLoCaAttention(torch.nn.Module):
                 ),
                 inv=torch.cat([inv_frames.inv, lower_inv_frames.inv, inv_frames.inv], dim=0),
             )
-
-            if self.preserve_variance:
-                # rescale the post-attention (global->local) output transform
-                frames_out = _scale_frames(frames_out, inv_gamma)
 
             # flatten frames (preparation for tensorreps_transform)
             self.frames_out = frames_out.reshape(-1, 4, 4)
@@ -243,25 +244,32 @@ def scaled_dot_product_attention(
     **attn_kwargs,
 ) -> Tensor:
     """Execute scaled dot-product attention.
-    The attention backend is determined dynamically
-    based on the ``**attn_kwargs``.
+
+    The attention backend is determined dynamically based on the ``attn_kwargs`` provided
+    (see :func:`lloca.backbone.attention_backends.get_attention_backend`). Under autocast,
+    non-float64 inputs are cast to the autocast dtype of their device.
 
     Parameters
     ----------
-    query : torch.Tensor
-        Tensor of shape (..., items_out, channels)
-    key : torch.Tensor
-        Tensor of shape (..., items_in, channels)
-    value : torch.Tensor
-        Tensor of shape (..., items_in, channels)
+    query
+        Tensor of shape ``(..., items_out, channels)``.
+    key
+        Tensor of shape ``(..., items_in, channels)``.
+    value
+        Tensor of shape ``(..., items_in, channels)``.
     **attn_kwargs
-        Optional keyword arguments passed to attention.
+        Optional keyword arguments forwarded to the attention backend.
 
     Returns
     -------
-    torch.Tensor
-        Tensor of shape (..., head, item_out, channels)
+    outputs
+        Tensor of shape ``(..., items_out, channels)``.
     """
     backend = attn_kwargs.pop("backend", None)
     attention_backend = get_attention_backend(backend=backend, **attn_kwargs)
+    device_type = query.device.type
+    if autocast_enabled(device_type) and query.dtype != torch.float64:
+        # non-torch backends ignore autocast
+        dtype = autocast_dtype(device_type)
+        query, key, value = query.to(dtype), key.to(dtype), value.to(dtype)
     return attention_backend(query, key, value, **attn_kwargs)

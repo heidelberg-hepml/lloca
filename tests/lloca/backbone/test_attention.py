@@ -8,7 +8,7 @@ from lloca.framesnet.frames import Frames, InverseFrames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
 from lloca.utils.rand_transforms import rand_lorentz
-from tests.constants import FRAMES_PREDICTOR, LOGM2_MEAN_STD, REPS, TOLERANCES
+from tests.constants import FRAMES_PREDICTOR, LOGM2_MEAN_STD, REPS, STRICT_TOLERANCES, TOLERANCES
 from tests.helpers import equivectors_builder, sample_particle
 
 
@@ -113,20 +113,27 @@ def test_preserve_variance_off_ignores_p_ref():
     torch.testing.assert_close(attention.frames_qkv.matrices, qkv_without, **TOLERANCES)
 
 
-def test_preserve_variance_packed_matches_dense():
-    """The packed (``ptr``) branch of _compute_gamma must agree with the dense one."""
+def test_packed_matches_dense():
+    """The packed (``ptr``) layout with several jets agrees with separate dense calls per jet."""
     dtype = torch.float64
-    frames, fm = _frames_and_momenta(n=10, dtype=dtype)
-    attention = LLoCaAttention(TensorReps("4x0n+2x1n"), 1).to(dtype=dtype)
+    sizes = [4, 7, 5]
+    reps = TensorReps("2x0n+2x1n+1x2n+1x1p")
+    attention = LLoCaAttention(reps, 2).to(dtype=dtype)
+    jets = [_frames_and_momenta(n=n, dtype=dtype) for n in sizes]
+    qkv = [torch.randn(1, 2, sum(sizes), reps.dim, dtype=dtype) for _ in range(3)]
 
-    # dense: one event of 10 particles
-    attention.prepare_frames(frames, p_ref=fm.sum(dim=-2))
-    dense = attention.frames_qkv.matrices.clone()
+    dense = []
+    for (frames, fm), *x in zip(jets, *(x.split(sizes, dim=-2) for x in qkv), strict=True):
+        attention.prepare_frames(frames, p_ref=fm.sum(dim=-2))
+        dense.append(attention(*x))
 
-    # packed: the same 10 particles as a single jet described by ptr
-    ptr = torch.tensor([0, 10])
-    attention.prepare_frames(frames, p_ref=fm.sum(dim=-2, keepdim=True), ptr=ptr)
-    torch.testing.assert_close(attention.frames_qkv.matrices, dense, **TOLERANCES)
+    matrices = torch.cat([frames.matrices.detach() for frames, _ in jets])
+    ptr = torch.tensor([0, *sizes]).cumsum(0)
+    batch = torch.repeat_interleave(torch.arange(len(sizes)), torch.tensor(sizes))
+    p_ref = torch.stack([fm.sum(dim=-2) for _, fm in jets])
+    attention.prepare_frames(Frames(matrices), p_ref=p_ref, ptr=ptr)
+    packed = attention(*qkv, attn_mask=batch[:, None] == batch[None, :])
+    torch.testing.assert_close(packed, torch.cat(dense, dim=-2), **STRICT_TOLERANCES)
 
 
 def test_preserve_variance_bounds_boosted_variance():
