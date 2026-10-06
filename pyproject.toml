@@ -28,7 +28,7 @@ classifiers = [
 dependencies = [
     "torch>=2.4",
     "torch-geometric>=2.3.0",
-    "lgatr>=2.0.0",
+    "lgatr @ git+https://github.com/hqucms/lgatr.git@lightcone-coordinates",
     "pelican-lite",
 ]
 
