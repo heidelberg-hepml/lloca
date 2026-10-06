@@ -6,7 +6,7 @@ import torch
 from lloca.backbone.attention import scaled_dot_product_attention
 from lloca.backbone.attention_backends import SPARSE_BACKENDS, get_attention_backend
 from lloca.backbone.attention_backends.mask import get_sparse_attention_mask
-from tests.constants import STRICT_TOLERANCES
+from tests.constants import MILD_TOLERANCES, STRICT_TOLERANCES
 from tests.helpers import skip_if_backend_available, skip_if_backend_unavailable
 
 
@@ -61,7 +61,7 @@ def test_sparse_mask_matches_dense_attention_on_cpu(attention_backend):
 
 def test_sparse_mask_rejects_unknown_backend():
     batch = torch.tensor([0, 0, 1])
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError, match="does not support sparse"):
         get_sparse_attention_mask(batch, "not-a-backend", torch.float32)
 
 
@@ -82,3 +82,19 @@ def test_dispatch_reports_why_a_backend_is_unavailable():
 
     with pytest.raises(ValueError, match="Attention backend 'flash' is not available"):
         get_attention_backend(backend="flash")
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="xformers requires CUDA")
+@pytest.mark.parametrize("compile", [False, True])
+def test_xformers_strided_channels(compile):
+    """Inputs whose channel dim is not contiguous still match the default backend."""
+    skip_if_backend_unavailable("xformers")
+    from lloca.backbone.attention_backends.xformers import attention
+
+    qkv = [
+        torch.randn(32, 8, 32, 5, dtype=torch.float16, device="cuda").transpose(-1, -2)
+        for _ in range(3)
+    ]
+    backend_fn = torch.compile(attention, fullgraph=True) if compile else attention
+    expected = torch.nn.functional.scaled_dot_product_attention(*qkv)
+    torch.testing.assert_close(backend_fn(*qkv), expected, **MILD_TOLERANCES)

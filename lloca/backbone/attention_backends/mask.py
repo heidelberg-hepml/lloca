@@ -19,16 +19,19 @@ def get_sparse_attention_mask(
     attention_backend : str
         Attention backend to use ("varlen", "xformers", "flex", or "flash").
     dtype : torch.dtype
-        Data type of the attention mask (for xformers backend).
+        Data type of the dense additive mask used as CPU fallback for the backends without a
+        CPU kernel (xformers, flash, varlen); ignored otherwise.
 
     Returns
     -------
     dict[str, torch.Tensor | BlockMask | BlockDiagonalMask]
         Attention mask for the specified backend.
     """
-    assert attention_backend in SPARSE_BACKENDS, (
-        f"attention_backend={attention_backend} does not support sparse representations, should be one of {SPARSE_BACKENDS}"
-    )
+    if attention_backend not in SPARSE_BACKENDS:
+        raise ValueError(
+            f"attention_backend={attention_backend!r} does not support sparse attention masks; "
+            f"should be one of {SPARSE_BACKENDS}."
+        )
 
     on_cpu = batch.device == torch.device("cpu")
     if on_cpu and attention_backend in {"xformers", "flash", "varlen"}:
@@ -42,10 +45,7 @@ def get_sparse_attention_mask(
 
     module = _REGISTRY.get(attention_backend)
     if module is None:
-        raise ValueError(
-            f"{_backend_unavailable_message(attention_backend)} "
-            f"Run 'pip install lloca[{attention_backend}-attention]'."
-        )
+        raise ValueError(_backend_unavailable_message(attention_backend))
     if attention_backend == "xformers":
         bincounts = torch.bincount(batch).tolist()
         return {"attn_bias": module.BlockDiagonalMask.from_seqlens(bincounts)}
