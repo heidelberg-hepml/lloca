@@ -1,3 +1,5 @@
+import math
+
 import pytest
 import torch
 from torch.nn import Linear
@@ -7,6 +9,7 @@ from lloca.framesnet.equi_frames import LearnedPDFrames
 from lloca.framesnet.frames import Frames, InverseFrames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
+from lloca.utils.polar_decomposition import restframe_boost
 from lloca.utils.rand_transforms import rand_lorentz
 from tests.constants import FRAMES_PREDICTOR, LOGM2_MEAN_STD, REPS, STRICT_TOLERANCES, TOLERANCES
 from tests.helpers import equivectors_builder, sample_particle
@@ -91,12 +94,20 @@ def _frames_and_momenta(n=10, dtype=torch.float64):
     return predictor(fm), fm
 
 
-def test_preserve_variance_requires_p_ref():
-    """``preserve_variance`` needs a reference momentum and must say so."""
+@pytest.mark.parametrize("kwargs", [{}, dict(preserve_variance=False, lightcone=True)])
+def test_requires_p_ref(kwargs):
+    """``preserve_variance`` and ``lightcone`` need a reference momentum and must say so."""
     frames, _ = _frames_and_momenta()
-    attention = LLoCaAttention(TensorReps("4x0n+2x1n"), 1).to(dtype=torch.float64)
+    attention = LLoCaAttention(TensorReps("4x0n+2x1n"), 1, **kwargs).to(dtype=torch.float64)
     with pytest.raises(ValueError, match="p_ref"):
         attention.prepare_frames(frames)
+
+
+def test_global_frames_lightcone_needs_no_p_ref():
+    """Global frames fall back to standard attention, so ``lightcone`` needs no ``p_ref``."""
+    frames = Frames(is_identity=True, shape=(10,), device="cpu", dtype=torch.float64)
+    attention = LLoCaAttention(TensorReps("4x0n+2x1n"), 1, lightcone=True)
+    attention.prepare_frames(frames)
 
 
 def test_preserve_variance_off_ignores_p_ref():
@@ -113,12 +124,13 @@ def test_preserve_variance_off_ignores_p_ref():
     torch.testing.assert_close(attention.frames_qkv.matrices, qkv_without, **TOLERANCES)
 
 
-def test_packed_matches_dense():
+@pytest.mark.parametrize("lightcone", [False, True])
+def test_packed_matches_dense(lightcone):
     """The packed (``ptr``) layout with several jets agrees with separate dense calls per jet."""
     dtype = torch.float64
     sizes = [4, 7, 5]
     reps = TensorReps("2x0n+2x1n+1x2n+1x1p")
-    attention = LLoCaAttention(reps, 2).to(dtype=dtype)
+    attention = LLoCaAttention(reps, 2, lightcone=lightcone).to(dtype=dtype)
     jets = [_frames_and_momenta(n=n, dtype=dtype) for n in sizes]
     qkv = [torch.randn(1, 2, sum(sizes), reps.dim, dtype=dtype) for _ in range(3)]
 
@@ -153,6 +165,61 @@ def test_preserve_variance_bounds_boosted_variance():
     assert scales[True] < scales[False], (
         f"preserve_variance did not reduce the global-frame scale: {scales}"
     )
+
+
+def test_lightcone_matches_cartesian():
+    """Light-cone coordinates are an exact change of basis: same outputs and gradients."""
+    dtype = torch.float64
+    frames, fm = _frames_and_momenta(dtype=dtype)
+    matrices = frames.matrices.detach()
+    reps = TensorReps("2x0n+2x1n+2x2n+2x1p")
+    qkv = [torch.randn(1, 2, fm.shape[0], reps.dim, dtype=dtype) for _ in range(3)]
+
+    results = []
+    for lightcone in (False, True):
+        attention = LLoCaAttention(reps, 2, lightcone=lightcone).to(dtype=dtype)
+        inputs = [x.clone().requires_grad_() for x in (matrices, *qkv)]
+        attention.prepare_frames(Frames(inputs[0]), p_ref=fm.sum(dim=-2))
+        outputs = attention(*inputs[1:])
+        outputs.square().sum().backward()
+        results.append((attention.frames_qkv.matrices, outputs, *(x.grad for x in inputs)))
+
+    (qkv_frames, *cartesian), (qkv_frames_lc, *lightcone) = results
+    assert not torch.allclose(qkv_frames, qkv_frames_lc)  # the option takes effect
+    for x, x_lc in zip(cartesian, lightcone, strict=True):
+        torch.testing.assert_close(x_lc, x, **STRICT_TOLERANCES)
+
+
+@pytest.mark.parametrize(
+    "device",
+    [
+        "cpu",
+        pytest.param(
+            "cuda", marks=pytest.mark.skipif(not torch.cuda.is_available(), reason="no CUDA")
+        ),
+    ],
+)
+@pytest.mark.parametrize("lightcone", [False, True])
+def test_lightcone_bfloat16_boosted(lightcone, device):
+    """Under bfloat16 autocast, only light-cone coordinates keep a boosted jet accurate."""
+    frames, fm = _frames_and_momenta(n=32)
+    sinh, cosh = math.sinh(4.0), math.cosh(4.0)  # boost with rapidity 4
+    boost = restframe_boost(torch.tensor([cosh, 0.6 * sinh, 0.0, 0.8 * sinh], dtype=torch.float64))
+    matrices = (frames.matrices @ boost.inverse()).detach().to(device)
+    p_ref = (fm @ boost.mT).sum(dim=-2).to(device)
+    reps = TensorReps("4x0n+2x1n+1x2n")
+    attention = LLoCaAttention(reps, 2, lightcone=lightcone).to(device)
+    qkv = [torch.randn(1, 2, 32, reps.dim, device=device, dtype=torch.bfloat16) for _ in range(3)]
+
+    attention.prepare_frames(Frames(matrices), p_ref=p_ref)
+    reference = attention(*(x.double() for x in qkv))
+    with torch.autocast(device, dtype=torch.bfloat16):
+        # float32 frames as from the Frames-Net, bfloat16 q/k/v as from a linear layer
+        attention.prepare_frames(Frames(matrices.float()), p_ref=p_ref.float())
+        outputs = attention(*qkv)
+    assert outputs.dtype == torch.bfloat16
+    error = ((outputs.double() - reference).norm() / reference.norm()).item()
+    assert (error < 2e-2) == lightcone
 
 
 @pytest.mark.parametrize("order", [1, 2])

@@ -18,10 +18,12 @@ INVARIANCE_SWEEP = sweep(
         attn_reps=REPS[0],
         logm2_mean=0,
         logm2_std=1,
+        lightcone=False,
     ),
     ("FramesPredictor", FRAMES_PREDICTOR),
     ("attn_reps", REPS),
     ("logm2_mean,logm2_std", LOGM2_MEAN_STD),
+    ("attn_reps,lightcone", [(REPS[-1], True)]),
 )
 
 
@@ -35,6 +37,7 @@ def test_transformer_invariance_equivariance(
     logm2_std,
     logm2_mean,
     attn_reps,
+    lightcone,
     num_blocks=2,
     num_heads=2,
 ):
@@ -56,6 +59,7 @@ def test_transformer_invariance_equivariance(
         out_channels=in_reps.dim,
         num_blocks=num_blocks,
         num_heads=num_heads,
+        lightcone=lightcone,
     ).to(dtype=dtype)
 
     # get global transformation

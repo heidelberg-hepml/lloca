@@ -120,11 +120,13 @@ def test_block_invariance_equivariance(
 )
 @pytest.mark.parametrize("batch_dims", [[10]])
 @pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
+@pytest.mark.parametrize("lightcone", [False, True])
 def test_ParT_invariance(
     FramesPredictor,
     batch_dims,
     logm2_std,
     logm2_mean,
+    lightcone,
 ):
     dtype = torch.float64
 
@@ -143,6 +145,7 @@ def test_ParT_invariance(
         num_classes=1,
         attn_reps="8x0n+2x1n",
         num_layers=2,
+        lightcone=lightcone,
     ).to(dtype=dtype)
     model.eval()  # turn off dropout
 

@@ -979,6 +979,7 @@ class ParticleTransformer(nn.Module):
         for_segmentation=False,
         checkpoint_blocks=False,
         preserve_variance=True,
+        lightcone=False,
         compile=False,
         compile_kwargs: Mapping | None = None,
     ) -> None:
@@ -994,6 +995,7 @@ class ParticleTransformer(nn.Module):
             attn_reps,
             num_heads,
             preserve_variance=preserve_variance,
+            lightcone=lightcone,
         )
         default_cfg = dict(
             embed_dim=embed_dim,
@@ -1298,7 +1300,7 @@ class ParticleTransformer(nn.Module):
         # for pytorch: uu (batch_size, C', num_pairs), uu_idx (batch_size, 2, num_pairs)
         # for onnx: uu (batch_size, C', seq_len, seq_len), uu_idx=None
         # p_ref: reference (jet) 4-momentum in the global frame (batch_size, 4), required when
-        # preserve_variance is on
+        # preserve_variance or lightcone is on
         self.attention.prepare_frames(frames, p_ref=p_ref)
 
         x, padding_mask = self._forward_encoder(x, v=v, mask=mask, uu=uu, uu_idx=uu_idx)

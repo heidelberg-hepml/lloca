@@ -3,6 +3,7 @@
 from math import prod
 
 import torch
+from lgatr import get_lightcone_frame
 from torch import Tensor
 
 from ..framesnet.frames import Frames, InverseFrames, LowerIndicesFrames
@@ -44,6 +45,17 @@ def _scale_frames(frames: Frames, scale: torch.Tensor) -> Frames:
     )
 
 
+def _to_lightcone(frames: Frames, T: torch.Tensor) -> Frames:
+    """Frames ``T @ L`` for the orthogonal light-cone map ``T`` with ``det T = 1``."""
+    return Frames(
+        matrices=T @ frames.matrices,
+        is_global=frames.is_global,
+        inv=frames.inv @ T.mT,
+        det=frames.det,
+        parity=frames.parity,
+    )
+
+
 class LLoCaAttention(torch.nn.Module):
     def __init__(
         self,
@@ -51,6 +63,7 @@ class LLoCaAttention(torch.nn.Module):
         num_heads,
         preserve_variance=True,
         variance_eps=1e-2,
+        lightcone=False,
     ):
         """Attention with frame-to-frame transformations.
 
@@ -66,12 +79,17 @@ class LLoCaAttention(torch.nn.Module):
             momentum ``p_ref`` in :meth:`prepare_frames`.
         variance_eps : float
             Small mass floor (energy units) that keeps gamma_i finite for near-lightlike jets.
+        lightcone : bool
+            Represent the global frame in the light-cone coordinates of ``p_ref``, which keeps the
+            attention accurate in float16/bfloat16. Tokens that attend to each other must share
+            ``p_ref``. Needs ``p_ref`` in :meth:`prepare_frames`, except for global frames.
         """
         super().__init__()
         self.transform = TensorRepsTransform(TensorReps(attn_reps))
         self.num_heads = num_heads
         self.preserve_variance = preserve_variance
         self.variance_eps = variance_eps
+        self.lightcone = lightcone
 
         self.frames = None
         self.frames_qkv = None
@@ -107,22 +125,30 @@ class LLoCaAttention(torch.nn.Module):
         p_ref: torch.tensor, optional
             Reference 4-momentum in the global frame (energy-first), i.e. the total (jet) momentum:
             per event ``(..., 4)`` for a dense layout, or per jet ``(num_jets, 4)`` with ``ptr`` for
-            a packed layout. Required when the ``preserve_variance`` flag is on, ignored otherwise.
+            a packed layout. Required when the ``preserve_variance`` or ``lightcone`` flag is on,
+            ignored otherwise.
         ptr: torch.tensor, optional
             Jet boundaries for a packed layout; maps the per-jet ``p_ref`` to each token.
         """
         self.frames = frames
         if not frames.is_global:
-            if self.preserve_variance:
+            if self.preserve_variance or self.lightcone:
                 if p_ref is None:
-                    raise ValueError("preserve_variance requires `p_ref` in prepare_frames.")
+                    raise ValueError(
+                        "preserve_variance and lightcone require `p_ref` in prepare_frames."
+                    )
                 p_ref = self._broadcast_p_ref(frames, p_ref, ptr=ptr)
 
             # create inv_frames and lower_inv_frames
             inv_frames = InverseFrames(frames)
             lower_inv_frames = LowerIndicesFrames(inv_frames)
 
-            frames_out = frames
+            if self.lightcone:
+                # T is orthogonal and cancels in the attention
+                T = get_lightcone_frame(p_ref.detach()).to(frames.dtype)
+                inv_frames = _to_lightcone(inv_frames, T)
+                lower_inv_frames = _to_lightcone(lower_inv_frames, T)
+            frames_out = InverseFrames(inv_frames)
 
             if self.preserve_variance:
                 gamma = self._compute_gamma(frames, p_ref)

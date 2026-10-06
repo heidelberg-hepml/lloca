@@ -328,6 +328,9 @@ class Transformer(nn.Module):
         Rescale the frame-to-frame transforms by the invariant Lorentz factor of each particle
         frame, to prevent the variance blowup from large boosts. Needs the reference momentum
         ``p_ref`` in :meth:`forward`.
+    lightcone : bool
+        Compute the attention in the light-cone coordinates of ``p_ref``, which keeps it accurate in
+        float16/bfloat16. Needs the reference momentum ``p_ref`` in :meth:`forward`.
     compile : bool, optional
         Whether to compile the model with torch.compile, by default False.
     compile_kwargs : Mapping, optional
@@ -349,6 +352,7 @@ class Transformer(nn.Module):
         multi_query: bool = False,
         dropout_prob: float | None = None,
         preserve_variance: bool = True,
+        lightcone: bool = False,
         compile: bool = False,
         compile_kwargs: Mapping | None = None,
     ) -> None:
@@ -360,6 +364,7 @@ class Transformer(nn.Module):
             attn_reps,
             num_heads,
             preserve_variance=preserve_variance,
+            lightcone=lightcone,
         )
 
         self.linear_in = nn.Linear(in_channels, self.hidden_channels)
@@ -396,7 +401,7 @@ class Transformer(nn.Module):
         p_ref : Tensor, optional
             Reference (jet) 4-momentum in the global frame, energy-first: per event ``(..., 4)``
             for a dense layout or per jet ``(num_jets, 4)`` with ``ptr`` for a packed layout.
-            Required when a ``preserve_variance`` flag is on, ignored otherwise.
+            Required when the ``preserve_variance`` or ``lightcone`` flag is on, ignored otherwise.
         ptr : Tensor, optional
             Jet boundaries for a packed layout; maps the per-jet ``p_ref`` to each token.
         **attn_kwargs
