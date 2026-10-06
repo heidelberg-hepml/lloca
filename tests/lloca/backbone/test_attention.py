@@ -167,7 +167,8 @@ def test_preserve_variance_bounds_boosted_variance():
     )
 
 
-def test_lightcone_matches_cartesian():
+@pytest.mark.parametrize("preserve_variance", [False, True])
+def test_lightcone_matches_cartesian(preserve_variance):
     """Light-cone coordinates are an exact change of basis: same outputs and gradients."""
     dtype = torch.float64
     frames, fm = _frames_and_momenta(dtype=dtype)
@@ -177,7 +178,9 @@ def test_lightcone_matches_cartesian():
 
     results = []
     for lightcone in (False, True):
-        attention = LLoCaAttention(reps, 2, lightcone=lightcone).to(dtype=dtype)
+        attention = LLoCaAttention(
+            reps, 2, preserve_variance=preserve_variance, lightcone=lightcone
+        ).to(dtype=dtype)
         inputs = [x.clone().requires_grad_() for x in (matrices, *qkv)]
         attention.prepare_frames(Frames(inputs[0]), p_ref=fm.sum(dim=-2))
         outputs = attention(*inputs[1:])

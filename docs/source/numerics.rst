@@ -119,14 +119,14 @@ rescaling acts as a fixed normalization and does not propagate gradients into th
 Light-cone coordinates for mixed precision
 ------------------------------------------
 
-For boosted jets, the global-frame queries and keys :math:`L_i^{-1} q_i` are nearly collinear with
-the jet axis, so their Minkowski products in the attention lose accuracy in float16/bfloat16. The
-``lightcone`` option of :class:`~lloca.backbone.attention.LLoCaAttention` and the transformer
-backbones represents the global frame in
-`light-cone coordinates <https://heidelberg-hepml.github.io/lgatr/efficiency.html#light-cone-coordinates>`_.
+For boosted jets, the global-frame queries, keys and values :math:`L_i^{-1} q_i` are nearly
+collinear with the jet axis, so their Minkowski products and the frame-to-frame transformations
+:math:`L_i L_j^{-1}` in the attention lose accuracy in float16/bfloat16. The ``lightcone`` option
+of :class:`~lloca.backbone.attention.LLoCaAttention` and the transformer backbones represents the
+global frame in `light-cone coordinates <https://heidelberg-hepml.github.io/lgatr/efficiency.html#light-cone-coordinates>`_.
 Unlike in L-GATr, no inputs or outputs have to be mapped: the light-cone map :math:`T` of ``p_ref``
 is folded into the frame-to-frame transformations, :math:`L_i^{-1} \to T L_i^{-1}`, and cancels
-exactly, so tokens that attend to each other must share ``p_ref``. Global frames ignore the option.
+exactly if tokens that attend to each other share ``p_ref``. Global frames ignore the option.
 The Frames-Net should still run in full precision, outside the autocast region:
 
 .. code-block:: python

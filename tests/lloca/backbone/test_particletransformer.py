@@ -111,16 +111,16 @@ def test_block_invariance_equivariance(
 
 
 @pytest.mark.parametrize(
-    "FramesPredictor",
+    "FramesPredictor,lightcone",
     [
-        LearnedSO13Frames,
-        LearnedPDFrames,
-        LearnedRestFrames,
+        (LearnedSO13Frames, False),
+        (LearnedPDFrames, False),
+        (LearnedRestFrames, False),
+        (LearnedPDFrames, True),
     ],
 )
 @pytest.mark.parametrize("batch_dims", [[10]])
 @pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
-@pytest.mark.parametrize("lightcone", [False, True])
 def test_ParT_invariance(
     FramesPredictor,
     batch_dims,

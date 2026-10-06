@@ -112,7 +112,7 @@ class LLoCaAttention(torch.nn.Module):
         """Invariant per-particle Lorentz factor gamma_i >= 1 that prevents variance blowup."""
         m_ref = torch.sqrt(self.variance_eps**2 + lorentz_squarednorm(p_ref).clamp(min=0))
         gamma = (frames.matrices[..., 0, :] * p_ref).sum(dim=-1) / m_ref
-        return gamma
+        return gamma.to(frames.dtype)
 
     @minimum_autocast_precision(torch.float32)
     def prepare_frames(self, frames, p_ref=None, ptr=None):
@@ -135,7 +135,7 @@ class LLoCaAttention(torch.nn.Module):
             if self.preserve_variance or self.lightcone:
                 if p_ref is None:
                     raise ValueError(
-                        "preserve_variance and lightcone require `p_ref` in prepare_frames."
+                        "preserve_variance or lightcone requires `p_ref` in prepare_frames."
                     )
                 p_ref = self._broadcast_p_ref(frames, p_ref, ptr=ptr)
 
@@ -151,13 +151,7 @@ class LLoCaAttention(torch.nn.Module):
             frames_out = InverseFrames(inv_frames)
 
             if self.preserve_variance:
-                gamma = self._compute_gamma(frames, p_ref)
-                # (..., N, 1, 1): broadcasts over the 4x4 matrix. Folded directly
-                # into the frame matrices (see _scale_frames) rather than applied per-channel
-                # to every q/k/v/output tensor in every layer, since a grade-n tensor transform
-                # applies the frame matrix n times: scaling the matrix by 1/gamma is equivalent
-                # to, but far cheaper than, dividing the post-transform tensor by gamma**grade.
-                inv_gamma = (1 / gamma)[..., None, None]
+                inv_gamma = (1 / self._compute_gamma(frames, p_ref))[..., None, None]
                 inv_frames = _scale_frames(inv_frames, inv_gamma)
                 lower_inv_frames = _scale_frames(lower_inv_frames, inv_gamma)
                 frames_out = _scale_frames(frames_out, inv_gamma)
@@ -198,16 +192,16 @@ class LLoCaAttention(torch.nn.Module):
         assert k_local.shape == v_local.shape == q_local.shape  # has to match perfectly
         assert 3 * prod(k_local.shape[:-1]) == self.frames_qkv.shape[-3]
 
-        # transform q, k, v into global frame (preserve_variance rescaling, if enabled, is
-        # already folded into self.frames_qkv, see prepare_frames)
+        # transform q, k, v into global frame (preserve_variance and lightcone are folded into
+        # self.frames_qkv, see prepare_frames)
         qkv_local = torch.cat([q_local, k_local, v_local], dim=0)
         qkv_global = self.transform(qkv_local, self.frames_qkv)
         q_global, k_global, v_global = qkv_global.chunk(3, dim=0)
         return q_global, k_global, v_global
 
     def _global_to_local(self, out_global):
-        # transform result back into local frame (preserve_variance rescaling, if enabled,
-        # is already folded into self.frames_out, see prepare_frames)
+        # transform result back into local frame (preserve_variance and lightcone are folded into
+        # self.frames_out, see prepare_frames)
         return self.transform(out_global, self.frames_out)
 
     @staticmethod
