@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Attention backends are imported together with `lloca` again instead of lazily on first use
+- `copy.deepcopy` and `torch.save` of whole models, also after a training step
 
 ## [2.0.0] - 07.09.2026
 

@@ -95,6 +95,11 @@ class LLoCaAttention(torch.nn.Module):
         self.frames_qkv = None
         self.frames_out = None
 
+    def __getstate__(self):
+        state = super().__getstate__()
+        state.update(frames=None, frames_qkv=None, frames_out=None)
+        return state
+
     @staticmethod
     def _broadcast_p_ref(frames, p_ref, ptr=None):
         """Reference momentum per token, shape (..., 1, 4) (dense) or (N, 4) (packed)."""

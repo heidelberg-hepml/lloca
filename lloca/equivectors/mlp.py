@@ -187,6 +187,25 @@ def softmax(src, ptr):
     return out / out_sum
 
 
+def _single(fm_i, fm_j):
+    return fm_j
+
+
+def _exp(x, *args, **kwargs):
+    return torch.clamp(x, min=-10, max=10).exp()
+
+
+def _softplus(x, *args, **kwargs):
+    return torch.nn.functional.softplus(x)
+
+
+def _softmax_fully_connected(x, index, node_ptr, node_batch, remove_self_loops=True):
+    edge_ptr = get_node_to_edge_ptr_fully_connected(
+        node_ptr, node_batch, remove_self_loops=remove_self_loops
+    )
+    return softmax(x, ptr=edge_ptr)
+
+
 def get_operation(operation):
     """
     Parameters
@@ -204,7 +223,7 @@ def get_operation(operation):
     elif operation == "add":
         return torch.add
     elif operation == "single":
-        return lambda fm_i, fm_j: fm_j
+        return _single
     else:
         raise ValueError(f"Invalid operation {operation}. Options are (add, diff, single).")
 
@@ -223,18 +242,11 @@ def get_nonlinearity(nonlinearity):
         A function that applies the specified nonlinearity to the input tensor.
     """
     if nonlinearity == "exp":
-        return lambda x, *args, **kwargs: torch.clamp(x, min=-10, max=10).exp()
+        return _exp
     elif nonlinearity == "softplus":
-        return lambda x, *args, **kwargs: torch.nn.functional.softplus(x)
+        return _softplus
     elif nonlinearity == "softmax":
-
-        def func(x, index, node_ptr, node_batch, remove_self_loops=True):
-            edge_ptr = get_node_to_edge_ptr_fully_connected(
-                node_ptr, node_batch, remove_self_loops=remove_self_loops
-            )
-            return softmax(x, ptr=edge_ptr)
-
-        return func
+        return _softmax_fully_connected
     else:
         raise ValueError(
             f"Invalid nonlinearity {nonlinearity}. Options are (exp, softplus, softmax)."
