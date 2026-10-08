@@ -119,4 +119,3 @@ Finally, we provide a range of utility functions for Lorentz transformations, ra
    lloca.utils.orthogonalize_4d
    lloca.utils.polar_decomposition
    lloca.utils.autocast
-   lloca.utils.compile

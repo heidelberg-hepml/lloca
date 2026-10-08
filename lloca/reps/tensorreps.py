@@ -23,6 +23,9 @@ class TensorRep(tuple):
         ], f"parity must be either -1 (p) or 1 (n), but got {parity}"
         return super().__new__(cls, (order, parity))
 
+    def __getnewargs__(self):
+        return tuple(self)
+
     def __deepcopy__(self, memo):
         return self
 
@@ -64,6 +67,9 @@ class _TensorMulRep(tuple):
         )
 
         return super().__new__(cls, (mul, rep))
+
+    def __getnewargs__(self):
+        return tuple(self)
 
     def __deepcopy__(self, memo):
         return self
@@ -125,6 +131,9 @@ class TensorReps(tuple):
     def __repr__(self):
         """Returns a string representation of the tensor reps."""
         return "+".join(f"{mul_ir}" for mul_ir in self)
+
+    def __getnewargs__(self):
+        return tuple(self), False
 
     def __deepcopy__(self, memo):
         return self

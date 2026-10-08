@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Improve xformers attention backend padding
+- Equivectors use plain torch instead of `torch_geometric`
+
+### Removed
+
+- `compile` and `compile_kwargs` arguments of the transformer and ParT backbones; compile with `net.compile(...)` instead, which unlike the old per-instance `forward` override keeps working after `copy.deepcopy` and `torch.save`
+
+### Fixed
+
+- Attention backends are imported together with `lloca` again instead of lazily on first use
+- `copy.deepcopy` and `torch.save` of whole models, also after a training step
+- Equivectors work with `torch.compile`
+
 ## [2.0.0] - 07.09.2026
 
 ### Added

@@ -3,12 +3,13 @@
 from math import prod
 
 import torch
+from lgatr import get_lightcone_frame
 from torch import Tensor
 
 from ..framesnet.frames import Frames, InverseFrames, LowerIndicesFrames
 from ..reps.tensorreps import TensorReps
 from ..reps.tensorreps_transform import TensorRepsTransform
-from ..utils.autocast import minimum_autocast_precision
+from ..utils.autocast import autocast_dtype, autocast_enabled, minimum_autocast_precision
 from ..utils.lorentz import lorentz_squarednorm
 from ..utils.utils import get_batch_from_ptr
 from .attention_backends import get_attention_backend
@@ -44,6 +45,17 @@ def _scale_frames(frames: Frames, scale: torch.Tensor) -> Frames:
     )
 
 
+def _to_lightcone(frames: Frames, T: torch.Tensor) -> Frames:
+    """Frames ``T @ L`` for the orthogonal light-cone map ``T`` with ``det T = 1``."""
+    return Frames(
+        matrices=T @ frames.matrices,
+        is_global=frames.is_global,
+        inv=frames.inv @ T.mT,
+        det=frames.det,
+        parity=frames.parity,
+    )
+
+
 class LLoCaAttention(torch.nn.Module):
     def __init__(
         self,
@@ -51,6 +63,7 @@ class LLoCaAttention(torch.nn.Module):
         num_heads,
         preserve_variance=True,
         variance_eps=1e-2,
+        lightcone=False,
     ):
         """Attention with frame-to-frame transformations.
 
@@ -66,32 +79,45 @@ class LLoCaAttention(torch.nn.Module):
             momentum ``p_ref`` in :meth:`prepare_frames`.
         variance_eps : float
             Small mass floor (energy units) that keeps gamma_i finite for near-lightlike jets.
+        lightcone : bool
+            Represent the global frame in the light-cone coordinates of ``p_ref``, which keeps the
+            attention accurate in float16/bfloat16. Tokens that attend to each other must share
+            ``p_ref``. Needs ``p_ref`` in :meth:`prepare_frames`, except for global frames.
         """
         super().__init__()
         self.transform = TensorRepsTransform(TensorReps(attn_reps))
         self.num_heads = num_heads
         self.preserve_variance = preserve_variance
         self.variance_eps = variance_eps
+        self.lightcone = lightcone
 
         self.frames = None
         self.frames_qkv = None
         self.frames_out = None
 
-    def _compute_gamma(self, frames, p_ref, ptr=None):
-        """Invariant per-particle Lorentz factor gamma_i >= 1 that prevents variance blowup."""
-        dtype = torch.promote_types(p_ref.dtype, torch.float32)
-        L = frames.matrices.to(dtype)
+    def __getstate__(self):
+        state = super().__getstate__()
+        state.update(frames=None, frames_qkv=None, frames_out=None)
+        return state
+
+    @staticmethod
+    def _broadcast_p_ref(frames, p_ref, ptr=None):
+        """Reference momentum per token, shape (..., 1, 4) (dense) or (N, 4) (packed)."""
+        dtype = torch.promote_types(torch.promote_types(p_ref.dtype, frames.dtype), torch.float32)
         p_ref = p_ref.to(dtype)
         if ptr is None:
             # dense: one reference momentum per event, broadcast over the token axis
-            p_ref = p_ref.unsqueeze(-2).expand(*L.shape[:-2], 4)
-        else:
-            # packed: map the per-jet reference momentum to each token
-            seg = get_batch_from_ptr(ptr, num_items=L.shape[-3])
-            p_ref = p_ref.index_select(0, seg)
+            return p_ref.unsqueeze(-2)
+        # packed: map the per-jet reference momentum to each token
+        seg = get_batch_from_ptr(ptr, num_items=frames.shape[-3])
+        return p_ref.index_select(0, seg)
+
+    @torch.no_grad()
+    def _compute_gamma(self, frames, p_ref):
+        """Invariant per-particle Lorentz factor gamma_i >= 1 that prevents variance blowup."""
         m_ref = torch.sqrt(self.variance_eps**2 + lorentz_squarednorm(p_ref).clamp(min=0))
-        gamma = torch.einsum("...nij,...nj->...ni", L, p_ref)[..., 0] / m_ref
-        return gamma.detach()  # fixed normalization: no gradient into the frames
+        gamma = (frames.matrices[..., 0, :] * p_ref).sum(dim=-1) / m_ref
+        return gamma.to(frames.dtype)
 
     @minimum_autocast_precision(torch.float32)
     def prepare_frames(self, frames, p_ref=None, ptr=None):
@@ -104,38 +130,43 @@ class LLoCaAttention(torch.nn.Module):
         p_ref: torch.tensor, optional
             Reference 4-momentum in the global frame (energy-first), i.e. the total (jet) momentum:
             per event ``(..., 4)`` for a dense layout, or per jet ``(num_jets, 4)`` with ``ptr`` for
-            a packed layout. Required when the ``preserve_variance`` flag is on, ignored otherwise.
+            a packed layout. Required when the ``preserve_variance`` or ``lightcone`` flag is on,
+            ignored otherwise.
         ptr: torch.tensor, optional
             Jet boundaries for a packed layout; maps the per-jet ``p_ref`` to each token.
         """
         self.frames = frames
         if not frames.is_global:
-            inv_gamma = None
-            if self.preserve_variance:
+            if self.preserve_variance or self.lightcone:
                 if p_ref is None:
-                    raise ValueError("preserve_variance requires `p_ref` in prepare_frames.")
-                gamma = self._compute_gamma(frames, p_ref, ptr=ptr)
-                # (..., 1, N, 1, 1): broadcasts over heads and the 4x4 matrix. Folded directly
-                # into the frame matrices (see _scale_frames) rather than applied per-channel
-                # to every q/k/v/output tensor in every layer, since a grade-n tensor transform
-                # applies the frame matrix n times: scaling the matrix by 1/gamma is equivalent
-                # to, but far cheaper than, dividing the post-transform tensor by gamma**grade.
-                inv_gamma = (1 / gamma)[..., None, :, None, None]
-
-            # insert frames head dimension
-            frames_out = frames.reshape(*frames.shape[:-3], 1, frames.shape[-3], 4, 4)
-            frames_out = frames_out.expand(
-                *frames.shape[:-3], self.num_heads, frames.shape[-3], 4, 4
-            )
+                    raise ValueError(
+                        "preserve_variance or lightcone requires `p_ref` in prepare_frames."
+                    )
+                p_ref = self._broadcast_p_ref(frames, p_ref, ptr=ptr)
 
             # create inv_frames and lower_inv_frames
-            inv_frames = InverseFrames(frames_out)
+            inv_frames = InverseFrames(frames)
             lower_inv_frames = LowerIndicesFrames(inv_frames)
 
+            if self.lightcone:
+                # T is orthogonal and cancels in the attention
+                T = get_lightcone_frame(p_ref.detach()).to(frames.dtype)
+                inv_frames = _to_lightcone(inv_frames, T)
+                lower_inv_frames = _to_lightcone(lower_inv_frames, T)
+            frames_out = InverseFrames(inv_frames)
+
             if self.preserve_variance:
-                # rescale the pre-attention (local->global) q/k/v transform
+                inv_gamma = (1 / self._compute_gamma(frames, p_ref))[..., None, None]
                 inv_frames = _scale_frames(inv_frames, inv_gamma)
                 lower_inv_frames = _scale_frames(lower_inv_frames, inv_gamma)
+                frames_out = _scale_frames(frames_out, inv_gamma)
+
+            # insert frames head dimension
+            shape = (*frames.shape[:-3], self.num_heads, frames.shape[-3], 4, 4)
+            inv_frames, lower_inv_frames, frames_out = (
+                f.reshape(*frames.shape[:-3], 1, frames.shape[-3], 4, 4).expand(*shape)
+                for f in (inv_frames, lower_inv_frames, frames_out)
+            )
 
             # qkv = (inv_frames, lower_inv_frames, inv_frames)
             # note that (lower_inv_frames, inv_frames, inv_frames) is equivalent
@@ -157,10 +188,6 @@ class LLoCaAttention(torch.nn.Module):
                 inv=torch.cat([inv_frames.inv, lower_inv_frames.inv, inv_frames.inv], dim=0),
             )
 
-            if self.preserve_variance:
-                # rescale the post-attention (global->local) output transform
-                frames_out = _scale_frames(frames_out, inv_gamma)
-
             # flatten frames (preparation for tensorreps_transform)
             self.frames_out = frames_out.reshape(-1, 4, 4)
             self.frames_qkv = self.frames_qkv.reshape(-1, 4, 4)
@@ -170,16 +197,16 @@ class LLoCaAttention(torch.nn.Module):
         assert k_local.shape == v_local.shape == q_local.shape  # has to match perfectly
         assert 3 * prod(k_local.shape[:-1]) == self.frames_qkv.shape[-3]
 
-        # transform q, k, v into global frame (preserve_variance rescaling, if enabled, is
-        # already folded into self.frames_qkv, see prepare_frames)
+        # transform q, k, v into global frame (preserve_variance and lightcone are folded into
+        # self.frames_qkv, see prepare_frames)
         qkv_local = torch.cat([q_local, k_local, v_local], dim=0)
         qkv_global = self.transform(qkv_local, self.frames_qkv)
         q_global, k_global, v_global = qkv_global.chunk(3, dim=0)
         return q_global, k_global, v_global
 
     def _global_to_local(self, out_global):
-        # transform result back into local frame (preserve_variance rescaling, if enabled,
-        # is already folded into self.frames_out, see prepare_frames)
+        # transform result back into local frame (preserve_variance and lightcone are folded into
+        # self.frames_out, see prepare_frames)
         return self.transform(out_global, self.frames_out)
 
     @staticmethod
@@ -242,25 +269,32 @@ def scaled_dot_product_attention(
     **attn_kwargs,
 ) -> Tensor:
     """Execute scaled dot-product attention.
-    The attention backend is determined dynamically
-    based on the ``**attn_kwargs``.
+
+    The attention backend is determined dynamically based on the ``attn_kwargs`` provided
+    (see :func:`lloca.backbone.attention_backends.get_attention_backend`). Under autocast,
+    non-float64 inputs are cast to the autocast dtype of their device.
 
     Parameters
     ----------
-    query : torch.Tensor
-        Tensor of shape (..., items_out, channels)
-    key : torch.Tensor
-        Tensor of shape (..., items_in, channels)
-    value : torch.Tensor
-        Tensor of shape (..., items_in, channels)
+    query
+        Tensor of shape ``(..., items_out, channels)``.
+    key
+        Tensor of shape ``(..., items_in, channels)``.
+    value
+        Tensor of shape ``(..., items_in, channels)``.
     **attn_kwargs
-        Optional keyword arguments passed to attention.
+        Optional keyword arguments forwarded to the attention backend.
 
     Returns
     -------
-    torch.Tensor
-        Tensor of shape (..., head, item_out, channels)
+    outputs
+        Tensor of shape ``(..., items_out, channels)``.
     """
     backend = attn_kwargs.pop("backend", None)
     attention_backend = get_attention_backend(backend=backend, **attn_kwargs)
+    device_type = query.device.type
+    if autocast_enabled(device_type) and query.dtype != torch.float64:
+        # non-torch backends ignore autocast
+        dtype = autocast_dtype(device_type)
+        query, key, value = query.to(dtype), key.to(dtype), value.to(dtype)
     return attention_backend(query, key, value, **attn_kwargs)

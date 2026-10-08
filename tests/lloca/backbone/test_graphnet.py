@@ -1,6 +1,5 @@
 import pytest
 import torch
-from torch_geometric.utils import dense_to_sparse
 
 from lloca.backbone.graphnet import EdgeConv, GraphNet
 from lloca.framesnet.frames import InverseFrames
@@ -40,7 +39,7 @@ def test_edgeconv_invariance_equivariance(
 ):
     dtype = torch.float64
 
-    edge_index = dense_to_sparse(torch.ones(batch_dims[0], batch_dims[0]))[0]
+    edge_index = torch.ones(batch_dims[0], batch_dims[0]).nonzero().t()
 
     assert len(batch_dims) == 1
     equivectors = equivectors_builder()
@@ -126,7 +125,7 @@ def test_graphnet_invariance_equivariance(
 ):
     dtype = torch.float64
 
-    edge_index = dense_to_sparse(torch.ones(batch_dims[0], batch_dims[0]))[0]
+    edge_index = torch.ones(batch_dims[0], batch_dims[0]).nonzero().t()
 
     assert len(batch_dims) == 1
     equivectors = equivectors_builder()
@@ -188,7 +187,7 @@ def test_message_passing_with_global_frames(predictor_factory, batch_dims):
     """
     dtype = torch.float64
     n = batch_dims[0]
-    edge_index = dense_to_sparse(torch.ones(n, n))[0]
+    edge_index = torch.ones(n, n).nonzero().t()
 
     reps = TensorReps("3x0n+1x1n")
     edgeconv = EdgeConv(reps, 1, 1).to(dtype=dtype)

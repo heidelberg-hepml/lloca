@@ -1,10 +1,12 @@
+import copy
+
 import pytest
 import torch
 
 from lloca.backbone.attention import LLoCaAttention
 from lloca.backbone.particletransformer import Block, ParticleTransformer, SequenceTrimmer
 from lloca.framesnet.equi_frames import LearnedPDFrames, LearnedRestFrames, LearnedSO13Frames
-from lloca.framesnet.frames import InverseFrames
+from lloca.framesnet.frames import Frames, InverseFrames
 from lloca.framesnet.nonequi_frames import IdentityFrames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
@@ -111,11 +113,12 @@ def test_block_invariance_equivariance(
 
 
 @pytest.mark.parametrize(
-    "FramesPredictor",
+    "FramesPredictor,lightcone",
     [
-        LearnedSO13Frames,
-        LearnedPDFrames,
-        LearnedRestFrames,
+        (LearnedSO13Frames, False),
+        (LearnedPDFrames, False),
+        (LearnedRestFrames, False),
+        (LearnedPDFrames, True),
     ],
 )
 @pytest.mark.parametrize("batch_dims", [[10]])
@@ -125,6 +128,7 @@ def test_ParT_invariance(
     batch_dims,
     logm2_std,
     logm2_mean,
+    lightcone,
 ):
     dtype = torch.float64
 
@@ -143,6 +147,7 @@ def test_ParT_invariance(
         num_classes=1,
         attn_reps="8x0n+2x1n",
         num_layers=2,
+        lightcone=lightcone,
     ).to(dtype=dtype)
     model.eval()  # turn off dropout
 
@@ -191,7 +196,6 @@ def test_ParT_invariance(
 # not a ParT argument but selects the module mode, which some options only take effect in.
 PART_OPTIONS = [
     dict(checkpoint_blocks=True),
-    dict(compile=True, compile_kwargs=dict(mode="default")),
     # pairwise interaction features, one entry per feature set and coordinate system
     dict(pair_input_type="ee"),
     dict(pair_input_type="xyzt"),
@@ -316,6 +320,36 @@ def test_ParT_shape(
         assert out.shape == (model.embed_dim, 1)  # pooled embedding, no classifier head
     else:
         assert out.shape == (1,)  # one score per jet
+
+
+def test_ParT_compile_dynamic():
+    # inductor issues with the class token only show up for a new sequence length in the
+    # backward pass, see ParticleTransformer.compile; mode is folded into the inductor options
+    torch.manual_seed(0)
+    model = ParticleTransformer(
+        input_dim=7,
+        num_classes=1,
+        attn_reps="4x0n+1x1n",
+        embed_dims=(16,),
+        pair_embed_dims=(8,),
+        num_heads=2,
+        num_layers=1,
+        num_cls_layers=2,
+    ).double()
+    model.eval()
+    eager = copy.deepcopy(model)
+    model.compile(mode="default", dynamic=True)
+    for num_particles in [5, 9]:
+        x = torch.randn(2, 7, num_particles, dtype=torch.float64)
+        v = torch.randn(2, 4, num_particles, dtype=torch.float64)
+        v[:, 3] = v[:, :3].norm(dim=1) + 1
+        mask = torch.ones(2, 1, num_particles, dtype=torch.float64)
+        frames = Frames(is_identity=True, device=x.device, dtype=x.dtype, shape=(2, num_particles))
+        for net in (model, eager):
+            net.zero_grad()
+            net(x=x, frames=frames, v=v, mask=mask).square().sum().backward()
+        for p, p_eager in zip(model.parameters(), eager.parameters(), strict=True):
+            torch.testing.assert_close(p.grad, p_eager.grad)
 
 
 @pytest.mark.parametrize(
