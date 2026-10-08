@@ -1,6 +1,5 @@
 """Baseline LLoCa-Transformer."""
 
-from collections.abc import Mapping
 from functools import partial
 
 import torch
@@ -8,7 +7,6 @@ from torch import nn
 from torch.utils.checkpoint import checkpoint
 
 from ..reps.tensorreps import TensorReps
-from ..utils.compile import compile_model
 from .attention import LLoCaAttention
 
 
@@ -331,12 +329,6 @@ class Transformer(nn.Module):
     lightcone : bool
         Compute the attention in the light-cone coordinates of ``p_ref``, which keeps it accurate in
         float16/bfloat16. Needs the reference momentum ``p_ref`` in :meth:`forward`.
-    compile : bool, optional
-        Whether to compile the model with torch.compile, by default False.
-    compile_kwargs : Mapping, optional
-        Dict forwarded verbatim to :func:`torch.compile` (via
-        :func:`lloca.utils.compile.compile_model`) when ``compile=True`` (e.g. ``mode``,
-        ``dynamic``, ``fullgraph``). Omitted keys fall back to torch's own defaults.
     """
 
     def __init__(
@@ -353,8 +345,6 @@ class Transformer(nn.Module):
         dropout_prob: float | None = None,
         preserve_variance: bool = True,
         lightcone: bool = False,
-        compile: bool = False,
-        compile_kwargs: Mapping | None = None,
     ) -> None:
         super().__init__()
         attn_reps = TensorReps(attn_reps)
@@ -383,9 +373,6 @@ class Transformer(nn.Module):
             ]
         )
         self.linear_out = nn.Linear(self.hidden_channels, out_channels)
-
-        if compile:
-            compile_model(self, compile_kwargs=compile_kwargs)
 
     def forward(
         self, inputs: torch.Tensor, frames, p_ref=None, ptr=None, **attn_kwargs

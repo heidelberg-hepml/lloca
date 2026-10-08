@@ -22,7 +22,8 @@ As in :doc:`transformer`, we pass ``preserve_variance=False`` to keep the diff m
 see :class:`~lloca.backbone.particletransformer.ParticleTransformer` for the variant that
 threads the reference four-momentum ``p_ref`` through ``forward``. That class also adds a few
 options beyond the diff below, for instance numerical clamps in ``to_ptrapphim``,
-``checkpoint_blocks`` and ``compile``; its module docstring lists them all.
+``checkpoint_blocks`` and a ``compile`` method that works around inductor issues with
+dynamic shapes; its module docstring lists them all.
 
 .. code-block:: diff
 

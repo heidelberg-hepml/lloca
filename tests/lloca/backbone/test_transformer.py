@@ -133,8 +133,9 @@ def test_transformer_shape(
         num_blocks=num_blocks,
         num_heads=num_heads,
         checkpoint_blocks=checkpoint_blocks,
-        compile=compile,
     )
+    if compile:
+        net.compile()
 
     # sample Lorentz vectors
     fm = sample_particle(batch_dims, logm2_std, logm2_mean)

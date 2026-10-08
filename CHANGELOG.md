@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improve xformers attention backend padding
 - Make `MLPVectors` compatible with `torch.compile`
 
+### Removed
+
+- `compile` and `compile_kwargs` arguments of the transformer and ParT backbones together with `lloca.utils.compile`; compile with `net.compile(...)` instead, which unlike the old per-instance `forward` override keeps working after `copy.deepcopy` and `torch.save` (`ParticleTransformer.compile` keeps the inductor workarounds for dynamic shapes)
+
 ### Fixed
 
 - Attention backends are imported together with `lloca` again instead of lazily on first use
