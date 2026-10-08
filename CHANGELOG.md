@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Improve xformers attention backend padding
+- Make `MLPVectors` compatible with `torch.compile`
 
 ### Fixed
 
