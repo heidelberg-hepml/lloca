@@ -1,7 +1,6 @@
 """Edge convolution with a simple MLP."""
 
 import torch
-from torch_geometric.utils import scatter, segment
 
 from ..backbone.mlp import MLP
 from ..utils.lorentz import lorentz_squarednorm
@@ -11,7 +10,7 @@ from ..utils.utils import (
     get_edge_index_from_ptr,
     get_edge_index_from_shape,
     get_node_to_edge_ptr_fully_connected,
-    get_ptr_from_batch,
+    scatter,
 )
 from .base import EquiVectors
 
@@ -155,7 +154,7 @@ class MLPVectors(EquiVectors):
             fm_rel_norm = lorentz_squarednorm(fm_rel).unsqueeze(-1)
             fm_rel = fm_rel / fm_rel_norm.abs().sqrt().clamp(min=1e-6)
         vecs = prefactor.unsqueeze(-1) * fm_rel.unsqueeze(-2)
-        vecs = scatter(vecs, row, dim=0, dim_size=fourmomenta.shape[0], reduce=self.aggr)
+        vecs = scatter(vecs, row, dim_size=fourmomenta.shape[0], reduce=self.aggr)
 
         # equivariant layer normalization
         if self.layer_norm:
@@ -179,10 +178,10 @@ def softmax(src, ptr):
         Tensor of shape (B+1,) where B is the number of batches.
     """
     count = ptr[1:] - ptr[:-1]
-    src_max = segment(src.detach(), ptr, reduce="max")
+    src_max = torch._segment_reduce(src.detach(), "amax", offsets=ptr)
     src_max = src_max.repeat_interleave(count, dim=0, output_size=src.shape[0])
     out = (src - src_max).exp()
-    out_sum = segment(out, ptr, reduce="sum") + 1e-16
+    out_sum = torch._segment_reduce(out, "sum", offsets=ptr) + 1e-16
     out_sum = out_sum.repeat_interleave(count, dim=0, output_size=src.shape[0])
     return out / out_sum
 
@@ -254,19 +253,23 @@ def get_nonlinearity(nonlinearity):
 
 
 def get_edge_index_and_batch(fourmomenta, ptr, remove_self_loops=True):
-    in_shape = fourmomenta.shape[:-1]
-    if len(in_shape) > 1:
-        assert ptr is None, "ptr only supported for sparse tensors"
-        edge_index, batch = get_edge_index_from_shape(
-            fourmomenta.shape, fourmomenta.device, remove_self_loops=remove_self_loops
+    if ptr is not None:
+        assert fourmomenta.dim() == 2, "ptr only supported for sparse tensors"
+        edge_index, batch = _get_edge_index_and_batch_from_ptr(
+            ptr, fourmomenta.shape, remove_self_loops
         )
-        ptr = get_ptr_from_batch(batch, num_graphs=in_shape[0])
     else:
-        if ptr is None:
-            # assume batch contains only one particle
-            ptr = torch.tensor([0, len(fourmomenta)], device=fourmomenta.device)
-        edge_index = get_edge_index_from_ptr(
-            ptr, shape=fourmomenta.shape, remove_self_loops=remove_self_loops
+        shape = fourmomenta.shape if fourmomenta.dim() > 2 else (1, *fourmomenta.shape)
+        edge_index, batch = get_edge_index_from_shape(
+            shape, fourmomenta.device, remove_self_loops=remove_self_loops
         )
-        batch = get_batch_from_ptr(ptr, num_items=fourmomenta.shape[0])
+        ptr = torch.arange(shape[0] + 1, device=fourmomenta.device) * shape[1]
     return edge_index, batch, ptr
+
+
+@torch.compiler.disable
+def _get_edge_index_and_batch_from_ptr(ptr, shape, remove_self_loops):
+    # inductor is slow or fails on the data-dependent number of edges
+    edge_index = get_edge_index_from_ptr(ptr, shape=shape, remove_self_loops=remove_self_loops)
+    batch = get_batch_from_ptr(ptr, num_items=shape[0])
+    return edge_index, batch

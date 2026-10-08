@@ -6,16 +6,15 @@ import torch
 from lgatr import embed_vector
 from lgatr.layers import EquiLayerNorm, SlimRMSNorm
 from lgatr.primitives.invariants import _load_inner_product_factors
-from torch_geometric.nn import MessagePassing
 
 from ..backbone.attention_backends.mask import get_sparse_attention_mask
 from ..utils.lorentz import lorentz_squarednorm
-from ..utils.utils import get_batch_from_ptr
+from ..utils.utils import get_batch_from_ptr, scatter
 from .base import EquiVectors
 from .mlp import get_edge_index_and_batch, get_nonlinearity, get_operation
 
 
-class _LGATrVectorsBase(EquiVectors, MessagePassing):
+class _LGATrVectorsBase(EquiVectors):
     """Shared machinery for L-GATr-based equivariant vector predictors.
 
     Subclasses set up ``self.net`` and ``self.lgatr_norm`` and implement ``_embed_input``
@@ -34,10 +33,11 @@ class _LGATrVectorsBase(EquiVectors, MessagePassing):
         attention_backend="xformers",
     ):
         # Note: fm_norm option not supported, because it would be unstable with remove_self_loops=False
-        super().__init__(aggr=aggr)
+        super().__init__()
         self.n_vectors = n_vectors
         self.operation = get_operation(operation)
         self.nonlinearity = get_nonlinearity(nonlinearity)
+        self.aggr = aggr
         self.layer_norm = layer_norm
         self.use_amp = use_amp
         self.attention_backend = attention_backend
@@ -61,17 +61,36 @@ class _LGATrVectorsBase(EquiVectors, MessagePassing):
         """Last chance to adapt the scalar stream to what ``self.net`` expects."""
         return scalars
 
-    def forward(self, fourmomenta, scalars=None, ptr=None, **kwargs):
+    def forward(self, fourmomenta, scalars=None, ptr=None, attn_kwargs=None, **kwargs):
+        """
+        Parameters
+        ----------
+        fourmomenta : torch.Tensor
+            Tensor of shape (..., 4) containing the fourmomenta of the particles.
+        scalars : torch.Tensor, optional
+            Tensor of shape (..., num_scalars) containing scalar features for each particle. If None, a tensor of zeros will be created.
+        ptr : torch.Tensor, optional
+            Pointer tensor indicating the start and end of each batch for sparse tensors.
+        attn_kwargs : dict, optional
+            Attention mask for ``self.net``, as returned by ``get_sparse_attention_mask``.
+            If None, it is built from ``ptr``.
+
+        Returns
+        -------
+        torch.Tensor
+            Tensor of shape (..., n_vectors, 4) containing the predicted vectors for each particle.
+        """
         in_shape = fourmomenta.shape[:-1]
         if scalars is None:
             scalars = torch.zeros_like(fourmomenta[..., []])
 
-        attn_kwargs = {}
-        if ptr is not None:
-            batch = get_batch_from_ptr(ptr, num_items=fourmomenta.shape[0])
-            attn_kwargs = get_sparse_attention_mask(
-                batch, attention_backend=self.attention_backend, dtype=scalars.dtype
-            )
+        if attn_kwargs is None:
+            attn_kwargs = {}
+            if ptr is not None:
+                batch = get_batch_from_ptr(ptr, num_items=fourmomenta.shape[0])
+                attn_kwargs = get_sparse_attention_mask(
+                    batch, attention_backend=self.attention_backend, dtype=scalars.dtype
+                )
         edge_index, batch, ptr = get_edge_index_and_batch(fourmomenta, ptr, remove_self_loops=False)
 
         fourmomenta = fourmomenta.unsqueeze(0)
@@ -84,7 +103,7 @@ class _LGATrVectorsBase(EquiVectors, MessagePassing):
         if self.lgatr_norm is not None:
             qk_v, qk_s = self._apply_lgatr_norm(qk_v, qk_s)
 
-        # flatten for message passing
+        # flatten
         fm_shape = fourmomenta.shape[:-1]
         fourmomenta = fourmomenta.reshape(math.prod(fm_shape), 4)
         qk_v = qk_v.reshape(math.prod(fm_shape), qk_v.shape[-2], qk_v.shape[-1])
@@ -102,15 +121,15 @@ class _LGATrVectorsBase(EquiVectors, MessagePassing):
 
         qk_product = self._get_qk_product(q_v, k_v, q_s, k_s, edge_index)
 
-        # message-passing
-        vecs = self.propagate(
-            edge_index,
-            fm=fourmomenta,
-            prefactor=qk_product,
-            batch=batch,
-            node_ptr=ptr,
+        row, col = edge_index
+        prefactor = self.nonlinearity(
+            qk_product, index=row, node_ptr=ptr, node_batch=batch, remove_self_loops=False
         )
-        vecs = vecs.reshape(fourmomenta.shape[0], -1, 4)
+
+        # aggregate relative fourmomenta
+        fm_rel = self.operation(fourmomenta[row], fourmomenta[col])
+        vecs = prefactor.unsqueeze(-1) * fm_rel.unsqueeze(-2)
+        vecs = scatter(vecs, row, dim_size=fourmomenta.shape[0], reduce=self.aggr)
 
         if self.layer_norm:
             norm = lorentz_squarednorm(vecs).sum(dim=-1, keepdim=True).unsqueeze(-1)
@@ -119,31 +138,6 @@ class _LGATrVectorsBase(EquiVectors, MessagePassing):
         # reshape result
         vecs = vecs.reshape(*in_shape, -1, 4)
         return vecs
-
-    def message(
-        self,
-        edge_index,
-        fm_i,
-        fm_j,
-        node_ptr,
-        batch,
-        prefactor,
-    ):
-        # prepare fourmomenta
-        fm_rel = self.operation(fm_i, fm_j)
-        fm_rel = fm_rel[:, None, :4]
-
-        prefactor = self.nonlinearity(
-            prefactor,
-            index=edge_index[0],
-            node_ptr=node_ptr,
-            node_batch=batch,
-            remove_self_loops=False,
-        )
-        prefactor = prefactor.unsqueeze(-1)
-        out = prefactor * fm_rel
-        out = out.reshape(out.shape[0], -1)
-        return out
 
     def _get_qk_product(self, q_v, k_v, q_s, k_s, edge_index):
         metric = self._get_qk_metric(device=q_v.device, dtype=q_v.dtype)
