@@ -1237,6 +1237,10 @@ class ParticleTransformer(nn.Module):
             #     in different passes per version (2.12 CantSplit / 2.11 coalescing assert),
             #     see https://github.com/pytorch/pytorch/issues/186426 (fixed on pytorch
             #     main in June 2026, but in no release as of 2.12.1 / the 2.13 branch cut);
+            #   - on 2.13, loop reordering after fusion fuses nodes that need the same
+            #     unprovable split of size 128*(s+1), e.g. for the global token's concat
+            #     (CantSplit: 128*s + 128 not divisible by s + 1; same upstream fix as above),
+            #     so it is turned off (no measurable throughput cost on 2.11 or 2.13);
             #   - a seqlen-strided saved activation trips a false-positive assert_size_stride
             #     in the compiled backward (the stride is only in the guard, not the compute;
             #     grads verified bit-identical to eager in float64; no upstream issue yet).
@@ -1257,8 +1261,9 @@ class ParticleTransformer(nn.Module):
                 for flag in ("mix_order_reduction", "coalesce_tiling_analysis"):
                     if hasattr(torch._inductor.config.triton, flag):
                         options[f"triton.{flag}"] = False
-                if hasattr(torch._inductor.config, "size_asserts"):
-                    options["size_asserts"] = False
+                for flag in ("loop_ordering_after_fusion", "size_asserts"):
+                    if hasattr(torch._inductor.config, flag):
+                        options[flag] = False
                 if options:
                     compile_kwargs["options"] = options
             compile_model(self, compile_kwargs=compile_kwargs)
