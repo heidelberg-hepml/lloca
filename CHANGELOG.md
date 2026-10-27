@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- ParT supports `include_global_token` (and thus `version=3.6`): the global token gets the identity frame by default (`prepend_global_frame`), or the caller passes frames for `1+seq_len` tokens with the global token's frame first
+- `use_plain_embed` option for ParT: a bare-linear input embedding without BatchNorm, LayerNorm or activation, pulled from weaver-core (commit `c8be988`)
+
 ## [2.0.0] - 07.09.2026
 
 ### Added

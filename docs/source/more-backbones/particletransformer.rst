@@ -18,6 +18,14 @@ sequence, but the local frames are prepared once in ``forward`` and are not perm
 so the two would silently go out of sync. We therefore default ``trim`` to ``False`` and
 reject ``trim=True``.
 
+The global token of ParT v3.6 (``include_global_token``) needs a local frame of its own.
+Following the LLoCa-Transformer in the tagging-guide, it gets the identity frame, i.e. its
+features live in the global frame, see
+:func:`~lloca.backbone.particletransformer.prepend_global_frame`. A constant global token in
+the global frame is not Lorentz-invariant once the attention heads carry vectors, so
+:class:`~lloca.backbone.particletransformer.ParticleTransformer` also accepts frames for
+``1+seq_len`` tokens, with the global token's frame first.
+
 As in :doc:`transformer`, we pass ``preserve_variance=False`` to keep the diff minimal;
 see :class:`~lloca.backbone.particletransformer.ParticleTransformer` for the variant that
 threads the reference four-momentum ``p_ref`` through ``forward``. That class also adds a few
@@ -1209,6 +1217,8 @@ options beyond the diff below, for instance numerical clamps in ``to_ptrapphim``
             # mask: (batch_size, 1, seq_len) -- real particle = 1, padded = 0
             # for pytorch: uu (batch_size, C', num_pairs), uu_idx (batch_size, 2, num_pairs)
             # for onnx: uu (batch_size, C', seq_len, seq_len), uu_idx=None
+    +       if self.include_global_token:
+    +           frames = prepend_global_frame(frames)
     +       self.attention.prepare_frames(frames)
 
             x, padding_mask = self._forward_encoder(x, v=v, mask=mask, uu=uu, uu_idx=uu_idx)

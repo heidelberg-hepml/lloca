@@ -2,9 +2,15 @@ import pytest
 import torch
 
 from lloca.backbone.attention import LLoCaAttention
-from lloca.backbone.particletransformer import Block, ParticleTransformer, SequenceTrimmer
+from lloca.backbone.particletransformer import (
+    Block,
+    Embed,
+    ParticleTransformer,
+    SequenceTrimmer,
+    prepend_global_frame,
+)
 from lloca.framesnet.equi_frames import LearnedPDFrames, LearnedRestFrames, LearnedSO13Frames
-from lloca.framesnet.frames import InverseFrames
+from lloca.framesnet.frames import Frames, InverseFrames
 from lloca.framesnet.nonequi_frames import IdentityFrames
 from lloca.reps.tensorreps import TensorReps
 from lloca.reps.tensorreps_transform import TensorRepsTransform
@@ -120,11 +126,13 @@ def test_block_invariance_equivariance(
 )
 @pytest.mark.parametrize("batch_dims", [[10]])
 @pytest.mark.parametrize("logm2_mean,logm2_std", LOGM2_MEAN_STD)
+@pytest.mark.parametrize("include_global_token", [False, True])
 def test_ParT_invariance(
     FramesPredictor,
     batch_dims,
     logm2_std,
     logm2_mean,
+    include_global_token,
 ):
     dtype = torch.float64
 
@@ -143,6 +151,8 @@ def test_ParT_invariance(
         num_classes=1,
         attn_reps="8x0n+2x1n",
         num_layers=2,
+        include_global_token=include_global_token,
+        num_cls_layers=0 if include_global_token else 2,
     ).to(dtype=dtype)
     model.eval()  # turn off dropout
 
@@ -157,6 +167,14 @@ def test_ParT_invariance(
         p_local = p_local.transpose(-1, -2).unsqueeze(0)
         mask = torch.ones_like(p_local[..., [0], :])
         frames = frames.reshape(1, *frames.shape)
+        if include_global_token:
+            # the default identity frame of the global token breaks the invariance, so hand
+            # in a frame that transforms along: a copy of the first particle's frame
+            frames = Frames(
+                matrices=torch.cat([frames.matrices[:, :1], frames.matrices], dim=1),
+                det=torch.cat([frames.det[:, :1], frames.det], dim=1),
+                inv=torch.cat([frames.inv[:, :1], frames.inv], dim=1),
+            )
         x = model(x=fts_local, v=p_local, frames=frames, mask=mask, p_ref=p_ref)
         x = x.transpose(-1, -2).squeeze(0)
         return x
@@ -209,6 +227,21 @@ PART_OPTIONS = [
     dict(version=2),
     dict(version=3),
     dict(version=3.5),
+    # global token instead of class attention: v3.6 turns it on, or ask for it explicitly
+    dict(version=3.6),
+    dict(include_global_token=True, num_cls_layers=0),
+    dict(include_global_token=True, num_cls_layers=0, for_segmentation=True),
+    dict(include_global_token=True, num_cls_layers=0, global_frame="explicit"),
+    dict(compile=True, include_global_token=True, num_cls_layers=0),
+    # bare-linear input embedding, alone and in the plain-transformer configuration
+    dict(use_plain_embed=True, embed_dims=(32,)),
+    dict(
+        use_plain_embed=True,
+        embed_dims=(32,),
+        include_global_token=True,
+        num_cls_layers=0,
+        version=3,
+    ),
     # block options that are inactive in eval mode or without an explicit request
     dict(
         train_mode=True,
@@ -251,6 +284,7 @@ def test_ParT_shape(
     assert len(batch_dims) == 1
     part_kwargs = dict(part_kwargs)
     train_mode = part_kwargs.pop("train_mode", False)
+    explicit_global_frame = part_kwargs.pop("global_frame", None) == "explicit"
     pair_extra_dim = part_kwargs.get("pair_extra_dim", 0)
 
     kwargs = {}
@@ -266,14 +300,18 @@ def test_ParT_shape(
     in_reps = TensorReps("1x1n")
     trafo = TensorRepsTransform(TensorReps(in_reps))
     model = ParticleTransformer(
-        input_dim=7,
-        num_classes=1,
-        attn_reps="8x0n+2x1n",
-        embed_dims=(32, 64, 32),
-        pair_embed_dims=(16, 16, 16),
-        num_heads=2,
-        num_layers=2,
-        **part_kwargs,
+        **{
+            **dict(
+                input_dim=7,
+                num_classes=1,
+                attn_reps="8x0n+2x1n",
+                embed_dims=(32, 64, 32),
+                pair_embed_dims=(16, 16, 16),
+                num_heads=2,
+                num_layers=2,
+            ),
+            **part_kwargs,  # an option may override the small base model, e.g. embed_dims
+        }
     )
     model.train(train_mode)  # eval turns off dropout, train exercises the stochastic paths
 
@@ -296,6 +334,8 @@ def test_ParT_shape(
         p_local = p_local.transpose(-1, -2).unsqueeze(0)
         mask = torch.ones_like(p_local[..., [0], :])
         frames = frames.reshape(1, *frames.shape)
+        if explicit_global_frame:
+            frames = prepend_global_frame(frames)
         uu, uu_idx = extra_pair_features(p_local.shape[-1])
         x = model(
             x=fts_local, v=p_local, frames=frames, mask=mask, uu=uu, uu_idx=uu_idx, p_ref=p_ref
@@ -321,7 +361,6 @@ def test_ParT_shape(
 @pytest.mark.parametrize(
     "kwargs,match",
     [
-        (dict(version=3.6), "include_global_token"),
         (dict(trim=True), "trim=True is not supported"),
         (dict(pair_input_type="nope", pair_input_dim=4), "Invalid value for"),
     ],
@@ -330,6 +369,41 @@ def test_ParT_rejects_unsupported_options(kwargs, match):
     """Options that ParT accepts upstream but that LLoCa cannot support must fail loudly."""
     with pytest.raises((NotImplementedError, AssertionError, RuntimeError), match=match):
         ParticleTransformer(input_dim=7, num_classes=1, attn_reps="4x0n", num_layers=1, **kwargs)
+
+
+@pytest.mark.parametrize("is_identity,is_global", [(False, False), (False, True), (True, True)])
+def test_prepend_global_frame(is_identity, is_global):
+    """The global token gets the identity frame, or the shared frame of global frames."""
+    if is_identity:
+        frames = Frames(is_identity=True, shape=(2, 5), device="cpu", dtype=torch.float64)
+    else:
+        matrices = rand_lorentz([2, 1 if is_global else 5], dtype=torch.float64)
+        frames = Frames(matrices.expand(2, 5, 4, 4), is_global=is_global)
+
+    out = prepend_global_frame(frames)
+    assert out.shape == (2, 6, 4, 4)
+    assert (out.is_identity, out.is_global) == (is_identity, is_global)
+    for attr in ("matrices", "inv", "det", "parity"):
+        torch.testing.assert_close(getattr(out, attr)[:, 1:], getattr(frames, attr))
+    expected = frames.matrices[:, :1] if is_global else torch.eye(4, dtype=torch.float64)
+    torch.testing.assert_close(out.matrices[:, :1], expected.expand(2, 1, 4, 4))
+    torch.testing.assert_close(
+        out.inv[:, 0] @ out.matrices[:, 0], torch.eye(4).double().expand(2, 4, 4)
+    )
+
+
+def test_plain_embed_is_a_single_linear():
+    """use_plain_embed reduces Embed to a bare Linear: no BatchNorm, LayerNorm or activation,
+    applied over the feature axis of the (batch, input_dim, seq_len) input."""
+    embed = Embed(7, [16], use_plain_embed=True).eval()
+    assert embed.input_bn is None
+    assert [type(m) for m in embed.embed] == [torch.nn.Linear]
+
+    x = torch.randn(3, 7, 10)
+    torch.testing.assert_close(embed(x), embed.embed[0](x.transpose(1, 2)))
+
+    with pytest.warns(UserWarning, match="collapses to a single one"):
+        Embed(7, [16, 16], use_plain_embed=True)
 
 
 def test_ParT_loads_legacy_attention_checkpoint():
