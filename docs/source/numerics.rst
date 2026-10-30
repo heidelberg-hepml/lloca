@@ -11,9 +11,8 @@ Regularizing input particles
 Most particles in an LHC setting can be considered massless as the typical energy scale is much larger than the mass of single particles.
 When operating on four-momenta, the particle masses are often assumed to be zero or can be modified due to numerical underflows,
 leading to particles with zero-norm four-momenta. Since zero-norm vectors can cause downstream instabilities in the `framesnet`, we enforce a minimal
-particle mass :math:`m_\epsilon` by increasing the energy of all input particles :math:`p_i` as
-$$E' = \\sqrt{m_{\\epsilon}^2 + E^2},$$
-hence :math:`m'^2 = m_\epsilon^2 + m^2`.
+particle mass :math:`m_\epsilon` by increasing the energy of all input particles :math:`p_i` with :math:`m_i<m_\epsilon` as
+$$E' = \\sqrt{m_{\\epsilon}^2 + E^2},$$ hence :math:`m'^2 = m_\epsilon^2 + m^2`.
 We use :math:`m_\epsilon=10^{-5}` and :math:`m_\epsilon=5\cdot 10^{-3}` for the amplitude regression and tagging experiments, respectively.
 In our tests, we observe a large plateau of stable :math:`m_\epsilon` values and we ultimately select the smallest viable value.
 Performance typically degrades for :math:`m_\epsilon\geq 1`. The units are in standardized space, meaning that the regularization is applied
@@ -116,6 +115,28 @@ and of the transformer backbones, where it is switched on by default. It require
 floor :math:`m_\text{ref} = \sqrt{\epsilon^2 + \langle p_\text{ref}, p_\text{ref}\rangle}` that keeps
 :math:`\gamma_i` finite for near-lightlike references. The :math:`\gamma_i` are detached, so the
 rescaling acts as a fixed normalization and does not propagate gradients into the Frames-Net.
+
+Light-cone coordinates for mixed precision
+------------------------------------------
+
+For boosted jets, the global-frame queries, keys and values :math:`L_i^{-1} q_i` are nearly
+collinear with the jet axis, so their Minkowski products and the frame-to-frame transformations
+:math:`L_i L_j^{-1}` in the attention lose accuracy in float16/bfloat16. The ``lightcone`` option
+of :class:`~lloca.backbone.attention.LLoCaAttention` and the transformer backbones represents the
+global frame in `light-cone coordinates <https://heidelberg-hepml.github.io/lgatr/efficiency.html#light-cone-coordinates>`_.
+Unlike in L-GATr, no inputs or outputs have to be mapped: the light-cone map :math:`T` of ``p_ref``
+is folded into the frame-to-frame transformations, :math:`L_i^{-1} \to T L_i^{-1}`, and cancels
+exactly if tokens that attend to each other share ``p_ref``. Global frames ignore the option.
+The Frames-Net should still run in full precision, outside the autocast region:
+
+.. code-block:: python
+
+    frames = framesnet(fourmomenta)  # full precision
+    features_local = ...  # invariant features in the local frames
+
+    net = Transformer(..., lightcone=True)
+    with torch.autocast("cuda", dtype=torch.bfloat16):
+        outputs = net(features_local, frames, p_ref=jet_momentum)
 
 Gram-Schimdt orthonormalization in 3D
 -------------------------------------

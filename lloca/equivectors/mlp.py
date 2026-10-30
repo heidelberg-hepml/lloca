@@ -1,10 +1,6 @@
 """Edge convolution with a simple MLP."""
 
-import math
-
 import torch
-from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import segment
 
 from ..backbone.mlp import MLP
 from ..utils.lorentz import lorentz_squarednorm
@@ -14,16 +10,17 @@ from ..utils.utils import (
     get_edge_index_from_ptr,
     get_edge_index_from_shape,
     get_node_to_edge_ptr_fully_connected,
-    get_ptr_from_batch,
+    scatter,
 )
 from .base import EquiVectors
 
 
-class EquiEdgeConv(MessagePassing):
+class MLPVectors(EquiVectors):
+    """Edge convolution with a simple MLP."""
+
     def __init__(
         self,
-        in_vectors,
-        out_vectors,
+        n_vectors,
         num_scalars,
         hidden_channels,
         num_layers_mlp,
@@ -36,7 +33,7 @@ class EquiEdgeConv(MessagePassing):
         dropout_prob=None,
         aggr="sum",
     ):
-        """Equivariant edge convolution, implemented using torch_geometric's MessagePassing class.
+        """Equivariant edge convolution on a fully connected graph.
 
         The choice of the parameters ``operation``, ``nonlinearity``, ``fm_norm``, ``aggr``, ``layer_norm`` is critical to the stability of the approach.
         Bad combinations initialize the ``framesnet`` to predict strongly boosted vectors, leading to strongly boosted frames and unstable training.
@@ -44,10 +41,10 @@ class EquiEdgeConv(MessagePassing):
 
         Parameters
         ----------
-        in_vectors : int
-            Number of input vectors.
-        out_vectors : int
-            Number of output vectors.
+        n_vectors : int
+            Number of output vectors per particle.
+            Different FramesPredictor's need different n_vectors,
+            so this parameter should be set dynamically.
         num_scalars : int
             Number of scalar features per particle.
         hidden_channels : int
@@ -69,9 +66,9 @@ class EquiEdgeConv(MessagePassing):
         dropout_prob : float
             Dropout probability for the MLP. If None, no dropout will be applied. Default is None.
         aggr : str
-            Aggregation method for message passing. Options are "add", "mean", or "max". Default is "sum".
+            Aggregation method for message passing. Options are "sum", "mean", or "max". Default is "sum".
         """
-        super().__init__(aggr=aggr, flow="target_to_source")
+        super().__init__()
         assert num_scalars > 0 or include_edges, (
             "Either num_scalars > 0 or include_edges==True, otherwise there are no inputs."
         )
@@ -84,12 +81,12 @@ class EquiEdgeConv(MessagePassing):
             "The setup operation=single and fm_norm==True is unstable"
         )
         self.use_amp = use_amp
+        self.aggr = aggr
 
-        in_edges = in_vectors if include_edges else 0
-        in_channels = 2 * num_scalars + in_edges
+        in_channels = 2 * num_scalars + int(include_edges)
         self.mlp = MLP(
             in_shape=[in_channels],
-            out_shape=out_vectors,
+            out_shape=n_vectors,
             hidden_channels=hidden_channels,
             hidden_layers=num_layers_mlp,
             dropout_prob=dropout_prob,
@@ -101,149 +98,14 @@ class EquiEdgeConv(MessagePassing):
             self.register_buffer("edge_std", torch.tensor(1.0))
             self._edge_inited_checked = False
 
-    def init_standardization(self, fourmomenta, edge_index):
+    def init_standardization(self, fourmomenta, ptr=None):
         if self.include_edges and not self.edge_inited:
-            fourmomenta = fourmomenta.reshape(-1, 1, 4)
-            edge_attr = get_edge_attr(fourmomenta, edge_index)
+            edge_index, _, _ = get_edge_index_and_batch(fourmomenta, ptr)
+            edge_attr = get_edge_attr(fourmomenta.reshape(-1, 4), edge_index)
             self.edge_mean = edge_attr.mean().detach()
             self.edge_std = edge_attr.std().clamp(min=1e-5).detach()
             self.edge_inited.fill_(True)
             self._edge_inited_checked = True
-
-    def forward(self, fourmomenta, scalars, edge_index, ptr, batch=None):
-        """
-        Parameters
-        ----------
-        fourmomenta : torch.Tensor
-            Tensor of shape (num_particles, in_vectors*4) containing the fourmomenta of the particles.
-        scalars : torch.Tensor
-            Tensor of shape (num_particles, num_scalars) containing scalar features for each particle.
-        edge_index : torch.Tensor
-            Edge index tensor containing the indices of the source and target nodes, shape (2, num_edges).
-        ptr : torch.Tensor
-            Pointer tensor indicating the start of each batch for sparse tensors, shape (num_batches+1,).
-        batch : torch.Tensor, optional
-            Batch tensor indicating the batch each particle belongs to. If None, all particles are assumed to belong to the same batch.
-
-        Returns
-        -------
-        torch.Tensor
-            Tensor of shape (num_particles, out_vectors*4) containing the predicted vectors for each edge.
-        """
-        # calculate and standardize edge attributes
-        fourmomenta = fourmomenta.reshape(-1, 1, 4)
-        if self.include_edges:
-            if not self._edge_inited_checked:
-                assert self.edge_inited
-                self._edge_inited_checked = True
-            edge_attr = get_edge_attr(fourmomenta, edge_index)
-            edge_attr = (edge_attr - self.edge_mean) / self.edge_std
-            edge_attr = edge_attr.reshape(edge_attr.shape[0], -1)
-
-            # related to fourmomenta_float64 option
-            edge_attr = edge_attr.to(scalars.dtype)
-        else:
-            edge_attr = None
-
-        # message-passing
-        fourmomenta = fourmomenta.reshape(-1, 4)
-        vecs = self.propagate(
-            edge_index,
-            s=scalars,
-            fm=fourmomenta,
-            edge_attr=edge_attr,
-            node_ptr=ptr,
-            node_batch=batch,
-        )
-        # equivariant layer normalization
-        if self.layer_norm:
-            norm = lorentz_squarednorm(vecs.reshape(fourmomenta.shape[0], -1, 4))
-            norm = norm.sum(dim=-1, keepdim=True)
-            vecs = vecs / norm.abs().sqrt().clamp(min=1e-5)
-        return vecs
-
-    def message(self, edge_index, s_i, s_j, fm_i, fm_j, node_ptr, node_batch, edge_attr=None):
-        """
-        Parameters
-        ----------
-        edge_index : torch.Tensor
-            Edge index tensor containing the indices of the source and target nodes, shape (2, num_edges).
-        s_i : torch.Tensor
-            Scalar features of the source nodes, shape (num_edges, num_scalars).
-        s_j : torch.Tensor
-            Scalar features of the target nodes, shape (num_edges, num_scalars).
-        fm_i : torch.Tensor
-            Fourmomentum of the source nodes, shape (num_edges, 4*in_vectors).
-        fm_j : torch.Tensor
-            Fourmomentum of the target nodes, shape (num_edges, 4*in_vectors).
-        node_ptr : torch.Tensor
-            Pointer tensor indicating the start of each batch for sparse tensors, shape (num_batches+1,).
-        edge_attr : torch.Tensor, optional
-            Edge attributes tensor. If None, no edge attributes will be used, shape (num_edges, num_edge_attributes).
-
-        Returns
-        -------
-        torch.Tensor
-            Tensor of shape (num_edges, out_vectors*4) containing the predicted vectors for each edge.
-        """
-        fm_rel = self.operation(fm_i, fm_j)
-        if self.fm_norm:
-            # should not be used with operation="single"
-            fm_rel_norm = lorentz_squarednorm(fm_rel).unsqueeze(-1)
-            fm_rel_norm = fm_rel_norm.abs().sqrt().clamp(min=1e-6)
-        else:
-            fm_rel_norm = 1.0
-
-        prefactor = torch.cat([s_i, s_j], dim=-1)
-        if edge_attr is not None:
-            prefactor = torch.cat([prefactor, edge_attr], dim=-1)
-        with torch.autocast(prefactor.device.type, enabled=self.use_amp):
-            prefactor = self.mlp(prefactor)
-        prefactor = self.nonlinearity(
-            prefactor, index=edge_index[0], node_ptr=node_ptr, node_batch=node_batch
-        )
-        fm_rel = (fm_rel / fm_rel_norm)[:, None, :4]
-        prefactor = prefactor.unsqueeze(-1)
-        out = prefactor * fm_rel
-        out = out.reshape(out.shape[0], -1)
-        return out
-
-
-class MLPVectors(EquiVectors):
-    """Edge convolution with a simple MLP."""
-
-    def __init__(
-        self,
-        n_vectors,
-        *args,
-        **kwargs,
-    ):
-        """
-        Parameters
-        ----------
-        n_vectors : int
-            Number of output vectors per particle.
-            Different FramesPredictor's need different n_vectors,
-            so this parameter should be set dynamically.
-        *args
-        **kwargs
-        """
-        super().__init__()
-
-        # This code was originally written to support multiple message-passing blocks.
-        # We found that having many blocks degrades numerical stability, so we now only support a single block.
-        in_vectors = 1
-        out_vectors = n_vectors
-        self.block = EquiEdgeConv(
-            *args,
-            in_vectors=in_vectors,
-            out_vectors=out_vectors,
-            **kwargs,
-        )
-
-    def init_standardization(self, fourmomenta, ptr=None):
-        edge_index, _, _ = get_edge_index_and_batch(fourmomenta, ptr)
-        self.block.init_standardization(fourmomenta, edge_index)
 
     def forward(self, fourmomenta, scalars=None, ptr=None, **kwargs):
         """
@@ -261,55 +123,86 @@ class MLPVectors(EquiVectors):
         torch.Tensor
             Tensor of shape (..., n_vectors, 4) containing the predicted vectors for each particle.
         """
-        # get edge_index and batch from ptr
+        # move to sparse tensors
         in_shape = fourmomenta.shape[:-1]
         if scalars is None:
             scalars = torch.zeros_like(fourmomenta[..., []])
         edge_index, batch, ptr = get_edge_index_and_batch(fourmomenta, ptr)
-        if len(in_shape) > 1:
-            scalars = scalars.reshape(math.prod(in_shape), scalars.shape[-1])
+        fourmomenta = fourmomenta.reshape(-1, 4)
+        scalars = scalars.reshape(fourmomenta.shape[0], scalars.shape[-1])
+        row, col = edge_index
 
-        # pass through block
-        fourmomenta = self.block(
-            fourmomenta,
-            scalars=scalars,
-            edge_index=edge_index,
-            batch=batch,
-            ptr=ptr,
-        )
-        fourmomenta = fourmomenta.reshape(*in_shape, -1, 4)
-        return fourmomenta
+        # MLP on the edges
+        prefactor = torch.cat([scalars[row], scalars[col]], dim=-1)
+        if self.include_edges:
+            if not self._edge_inited_checked:
+                assert self.edge_inited
+                self._edge_inited_checked = True
+            edge_attr = get_edge_attr(fourmomenta, edge_index)
+            edge_attr = (edge_attr - self.edge_mean) / self.edge_std
+
+            # fourmomenta may be float64
+            edge_attr = edge_attr.to(scalars.dtype)
+            prefactor = torch.cat([prefactor, edge_attr.unsqueeze(-1)], dim=-1)
+        with torch.autocast(prefactor.device.type, enabled=self.use_amp):
+            prefactor = self.mlp(prefactor)
+        prefactor = self.nonlinearity(prefactor, index=row, node_ptr=ptr, node_batch=batch)
+
+        # aggregate relative fourmomenta
+        fm_rel = self.operation(fourmomenta[row], fourmomenta[col])
+        if self.fm_norm:
+            fm_rel_norm = lorentz_squarednorm(fm_rel).unsqueeze(-1)
+            fm_rel = fm_rel / fm_rel_norm.abs().sqrt().clamp(min=1e-6)
+        vecs = prefactor.unsqueeze(-1) * fm_rel.unsqueeze(-2)
+        vecs = scatter(vecs, row, dim_size=fourmomenta.shape[0], reduce=self.aggr)
+
+        # equivariant layer normalization
+        if self.layer_norm:
+            norm = lorentz_squarednorm(vecs).sum(dim=-1, keepdim=True).unsqueeze(-1)
+            vecs = vecs / norm.abs().sqrt().clamp(min=1e-5)
+        return vecs.reshape(*in_shape, -1, 4)
 
 
-def softmax(src, index=None, ptr=None, dim=0):
+def softmax(src, ptr):
     r"""Adapted version of the torch_geometric softmax function
     https://pytorch-geometric.readthedocs.io/en/latest/_modules/torch_geometric/utils/_softmax.html.
-    Use the index argument in output_size of torch.repeat_interleave to avoid GPU/CPU sync.
+    Pass output_size to torch.repeat_interleave to avoid GPU/CPU sync.
 
     Parameters
     ----------
     src : torch.Tensor
-        Source tensor of shape (N,) where N is the number of elements.
-    index : torch.Tensor, optional
-        Index tensor indicating the batch index for each element.
-        Tensor of shape (N,) where N is the number of elements.
+        Source tensor of shape (N, ...) where N is the number of elements.
+        The softmax is applied along the first dimension.
     ptr : torch.Tensor
         Pointer tensor indicating the start of each batch.
         Tensor of shape (B+1,) where B is the number of batches.
-    dim : int, optional
-        Dimension along which to apply the softmax. Default is 0.
     """
-    dim = dim + src.dim() if dim < 0 else dim
-    size = ([1] * dim) + [-1]
     count = ptr[1:] - ptr[:-1]
-    ptr = ptr.view(size)
-    output_size = index.shape[dim] if index is not None else None
-    src_max = segment(src.detach(), ptr, reduce="max")
-    src_max = src_max.repeat_interleave(count, dim=dim, output_size=output_size)
+    src_max = torch._segment_reduce(src.detach(), "amax", offsets=ptr)
+    src_max = src_max.repeat_interleave(count, dim=0, output_size=src.shape[0])
     out = (src - src_max).exp()
-    out_sum = segment(out, ptr, reduce="sum") + 1e-16
-    out_sum = out_sum.repeat_interleave(count, dim=dim, output_size=output_size)
+    out_sum = torch._segment_reduce(out, "sum", offsets=ptr) + 1e-16
+    out_sum = out_sum.repeat_interleave(count, dim=0, output_size=src.shape[0])
     return out / out_sum
+
+
+def _single(fm_i, fm_j):
+    return fm_j
+
+
+def _exp(x, *args, **kwargs):
+    return torch.clamp(x, min=-10, max=10).exp()
+
+
+def _softplus(x, *args, **kwargs):
+    return torch.nn.functional.softplus(x)
+
+
+def _softmax_fully_connected(x, index, node_ptr, node_batch, remove_self_loops=True):
+    edge_ptr = get_node_to_edge_ptr_fully_connected(
+        node_ptr, node_batch, remove_self_loops=remove_self_loops
+    )
+    return softmax(x, ptr=edge_ptr)
 
 
 def get_operation(operation):
@@ -329,7 +222,7 @@ def get_operation(operation):
     elif operation == "add":
         return torch.add
     elif operation == "single":
-        return lambda fm_i, fm_j: fm_j
+        return _single
     else:
         raise ValueError(f"Invalid operation {operation}. Options are (add, diff, single).")
 
@@ -348,22 +241,11 @@ def get_nonlinearity(nonlinearity):
         A function that applies the specified nonlinearity to the input tensor.
     """
     if nonlinearity == "exp":
-        return lambda x, *args, **kwargs: torch.clamp(x, min=-10, max=10).exp()
+        return _exp
     elif nonlinearity == "softplus":
-        return lambda x, *args, **kwargs: torch.nn.functional.softplus(x)
+        return _softplus
     elif nonlinearity == "softmax":
-
-        def func(x, index, node_ptr, node_batch, remove_self_loops=True):
-            edge_ptr = get_node_to_edge_ptr_fully_connected(
-                node_ptr, node_batch, remove_self_loops=remove_self_loops
-            )
-            return softmax(
-                x,
-                ptr=edge_ptr,
-                index=index,
-            )
-
-        return func
+        return _softmax_fully_connected
     else:
         raise ValueError(
             f"Invalid nonlinearity {nonlinearity}. Options are (exp, softplus, softmax)."
@@ -371,19 +253,23 @@ def get_nonlinearity(nonlinearity):
 
 
 def get_edge_index_and_batch(fourmomenta, ptr, remove_self_loops=True):
-    in_shape = fourmomenta.shape[:-1]
-    if len(in_shape) > 1:
-        assert ptr is None, "ptr only supported for sparse tensors"
-        edge_index, batch = get_edge_index_from_shape(
-            fourmomenta.shape, fourmomenta.device, remove_self_loops=remove_self_loops
+    if ptr is not None:
+        assert fourmomenta.dim() == 2, "ptr only supported for sparse tensors"
+        edge_index, batch = _get_edge_index_and_batch_from_ptr(
+            ptr, fourmomenta.shape, remove_self_loops
         )
-        ptr = get_ptr_from_batch(batch, num_graphs=in_shape[0])
     else:
-        if ptr is None:
-            # assume batch contains only one particle
-            ptr = torch.tensor([0, len(fourmomenta)], device=fourmomenta.device)
-        edge_index = get_edge_index_from_ptr(
-            ptr, shape=fourmomenta.shape, remove_self_loops=remove_self_loops
+        shape = fourmomenta.shape if fourmomenta.dim() > 2 else (1, *fourmomenta.shape)
+        edge_index, batch = get_edge_index_from_shape(
+            shape, fourmomenta.device, remove_self_loops=remove_self_loops
         )
-        batch = get_batch_from_ptr(ptr, num_items=fourmomenta.shape[0])
+        ptr = torch.arange(shape[0] + 1, device=fourmomenta.device) * shape[1]
     return edge_index, batch, ptr
+
+
+@torch.compiler.disable
+def _get_edge_index_and_batch_from_ptr(ptr, shape, remove_self_loops):
+    # inductor is slow or fails on the data-dependent number of edges
+    edge_index = get_edge_index_from_ptr(ptr, shape=shape, remove_self_loops=remove_self_loops)
+    batch = get_batch_from_ptr(ptr, num_items=shape[0])
+    return edge_index, batch

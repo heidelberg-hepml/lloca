@@ -49,9 +49,8 @@ def get_ptr_from_batch(batch, num_graphs=None):
         Tensor of shape (B+1,) where B is the number of batches.
     """
     if num_graphs is not None:
-        return torch.searchsorted(
-            batch, torch.arange(num_graphs + 1, device=batch.device, dtype=batch.dtype)
-        )
+        counts = batch.new_zeros(num_graphs).scatter_add_(0, batch, torch.ones_like(batch))
+        return torch.cat([batch.new_zeros(1), counts.cumsum(0)])
     ptr = torch.cat(
         [
             torch.tensor([0], device=batch.device),
@@ -61,6 +60,19 @@ def get_ptr_from_batch(batch, num_graphs=None):
         0,
     )
     return ptr
+
+
+def scatter(src, index, dim_size, reduce="sum"):
+    shape = (-1, *(1,) * (src.dim() - 1))
+    out = src.new_zeros(dim_size, *src.shape[1:])
+    if reduce in ("sum", "mean"):
+        out = out.scatter_add_(0, index.view(shape).expand_as(src), src)
+        if reduce == "mean":
+            count = src.new_zeros(dim_size).scatter_add_(0, index, src.new_ones(index.shape))
+            out = out / count.clamp(min=1).view(shape)
+        return out
+    reduce = {"max": "amax", "min": "amin"}.get(reduce, reduce)
+    return out.scatter_reduce_(0, index.view(shape).expand_as(src), src, reduce, include_self=False)
 
 
 def get_node_to_edge_ptr_fully_connected(ptr, batch, remove_self_loops=True):

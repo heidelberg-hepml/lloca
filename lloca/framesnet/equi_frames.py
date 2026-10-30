@@ -1,12 +1,11 @@
 """Equivariant local frames for various symmetry groups."""
 
 import torch
-from torch_geometric.utils import scatter
 
 from ..utils.lorentz import lorentz_eye, lorentz_squarednorm
 from ..utils.orthogonalize_4d import orthogonalize_4d
 from ..utils.polar_decomposition import polar_decomposition
-from ..utils.utils import get_batch_from_ptr
+from ..utils.utils import get_batch_from_ptr, scatter
 from .frames import Frames
 from .nonequi_frames import FramesPredictor
 
@@ -519,7 +518,7 @@ def average_event(vecs, ptr=None):
         vecs = vecs.mean(dim=1, keepdim=True).expand_as(vecs)
     else:
         batch = get_batch_from_ptr(ptr, num_items=vecs.shape[0])
-        vecs = scatter(vecs, batch, dim=0, reduce="mean").index_select(0, batch)
+        vecs = scatter(vecs, batch, dim_size=len(ptr) - 1, reduce="mean").index_select(0, batch)
     return vecs
 
 

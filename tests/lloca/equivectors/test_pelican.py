@@ -86,7 +86,6 @@ def test_equivariance(
         layer_norm=layer_norm,
     ).to(dtype=dtype)
 
-    num_graphs = batch_dims[0]
     fm_test = sample_particle(batch_dims + [jet_size], logm2_std, logm2_mean, dtype=dtype)
     if sparse_mode:
         fm_test = fm_test.flatten(0, 1)
@@ -103,13 +102,11 @@ def test_equivariance(
     # path 1: global transform + predict vectors
     fm_prime = torch.einsum("...ij,...j->...i", random, fm)
     node_attr_prime = calc_node_attr(fm_prime)
-    vecs_prime1 = equivectors(
-        fourmomenta=fm_prime, scalars=node_attr_prime, ptr=ptr, num_graphs=num_graphs
-    )
+    vecs_prime1 = equivectors(fourmomenta=fm_prime, scalars=node_attr_prime, ptr=ptr)
 
     # path 2: predict vectors + global transform
     node_attr = calc_node_attr(fm)
-    vecs = equivectors(fourmomenta=fm, scalars=node_attr, ptr=ptr, num_graphs=num_graphs)
+    vecs = equivectors(fourmomenta=fm, scalars=node_attr, ptr=ptr)
     vecs_prime2 = torch.einsum("...ij,...kj->...ki", random, vecs)
 
     # test that vectors are predicted equivariantly
