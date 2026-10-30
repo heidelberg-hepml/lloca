@@ -21,8 +21,11 @@ Changes compared to the official version:
 - The Embed module is always created (maps input_dim to embed_dim also for embed_dims=[]).
 - trim defaults to False and trim=True is rejected: the SequenceTrimmer permutes and
   truncates the particle sequence, but the local frames are not permuted along.
-- include_global_token (ParT v3.6) raises NotImplementedError: the global token has no
-  associated local frame yet.
+- include_global_token (ParT v3.6): the global token gets the identity frame (or the
+  shared frame for global frames), see prepend_global_frame; pass frames for 1+seq_len
+  tokens to forward to choose it yourself.
+- use_plain_embed (a bare-linear input embedding) is pulled from the weaver-core
+  add-lgatr-slim branch (commit c8be988).
 - Removed the use_amp option (apply torch.autocast from outside instead), the compile_model
   option (use model.compile instead), the weaver logger, and the ParticleTransformerTagger*
   wrapper classes.
@@ -33,6 +36,7 @@ Changes compared to the official version:
 import math
 
 import copy
+import warnings
 from functools import partial
 from typing import Optional, Tuple, Any, Callable
 
@@ -41,6 +45,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
+from ..framesnet.frames import Frames
 from ..reps.tensorreps import TensorReps
 from .attention import LLoCaAttention
 
@@ -369,15 +374,37 @@ class SwiGLUFFN(nn.Module):
 
 
 class Embed(nn.Module):
+    """Per-particle input embedding.
+
+    By default each entry of `dims` adds a `LayerNorm` + `Linear` + activation, on top of an
+    input `BatchNorm1d`. `use_plain_embed` instead builds a bare stack of `Linear` layers with
+    no input BatchNorm, no LayerNorm and no activation; it overrides `normalize_input` and is
+    meant to be used with a single-entry `dims` (a plain stack of >1 linear layers is
+    mathematically equivalent to one, just with more parameters).
+    """
+
     def __init__(
-        self, input_dim, dims, normalize_input=True, activation="gelu", use_conv_embed=False
+        self,
+        input_dim,
+        dims,
+        normalize_input=True,
+        activation="gelu",
+        use_conv_embed=False,
+        use_plain_embed=False,
     ):
         super().__init__()
 
-        self.input_bn = nn.BatchNorm1d(input_dim) if normalize_input else None
+        if use_plain_embed and len(dims) > 1:
+            warnings.warn(
+                f"Embed: use_plain_embed=True with embed_dims={list(dims)} -- a stack of plain "
+                "linear layers collapses to a single one; consider a single-entry embed_dims."
+            )
+        self.input_bn = (
+            nn.BatchNorm1d(input_dim) if normalize_input and not use_plain_embed else None
+        )
         self.use_conv_embed = bool(use_conv_embed)
         if self.use_conv_embed:
-            assert normalize_input == True
+            assert normalize_input == True and not use_plain_embed
             module_list = []
             for dim in dims:
                 module_list.extend(
@@ -393,13 +420,16 @@ class Embed(nn.Module):
         else:
             module_list = []
             for dim in dims:
-                module_list.extend(
-                    [
-                        nn.LayerNorm(input_dim),
-                        nn.Linear(input_dim, dim),
-                        nn.GELU() if activation == "gelu" else nn.ReLU(),
-                    ]
-                )
+                if use_plain_embed:
+                    module_list.append(nn.Linear(input_dim, dim))
+                else:
+                    module_list.extend(
+                        [
+                            nn.LayerNorm(input_dim),
+                            nn.Linear(input_dim, dim),
+                            nn.GELU() if activation == "gelu" else nn.ReLU(),
+                        ]
+                    )
                 input_dim = dim
             self.conv_embed = nn.Identity()
             self.embed = nn.Sequential(*module_list)
@@ -408,7 +438,8 @@ class Embed(nn.Module):
         # x: (batch, input_dim, seq_len)
         if self.input_bn is not None:
             x = self.input_bn(x)
-            x = self.conv_embed(x)
+        # `conv_embed` is `Identity` unless `use_conv_embed`, which requires `normalize_input`
+        x = self.conv_embed(x)
         x = x.transpose(1, 2).contiguous()
         # x: (batch, seq_len, embed_dim)
         return self.embed(x)
@@ -943,6 +974,36 @@ class Block(nn.Module):
         return x
 
 
+def prepend_global_frame(frames: Frames) -> Frames:
+    """Prepend the local frame of the global token to frames of shape (..., seq_len, 4, 4).
+
+    The global token gets the identity frame, i.e. its features live in the global frame, as
+    for the global token of the LLoCa-Transformer in the tagging-guide. Global frames (one
+    shared frame for all particles) are extended with that shared frame instead, so that they
+    stay global. Pass frames for 1+seq_len tokens to ParticleTransformer.forward to choose the
+    frame of the global token yourself.
+    """
+    shape = (*frames.shape[:-3], frames.shape[-3] + 1)
+    if frames.is_identity:
+        return Frames(is_identity=True, shape=shape, device=frames.device, dtype=frames.dtype)
+    if frames.is_global:
+        # a copy of the shared frame, (..., 1, 4, 4) for the matrices and (..., 1) for the rest
+        first = (frames.matrices[..., :1, :, :], frames.inv[..., :1, :, :])
+        first_det, first_parity = frames.det[..., :1], frames.parity[..., :1]
+    else:
+        eye = torch.eye(4, device=frames.device, dtype=frames.dtype)
+        eye = eye.expand(*shape[:-1], 1, 4, 4)
+        first = (eye, eye)
+        first_det = first_parity = frames.det.new_ones(*shape[:-1], 1)
+    return Frames(
+        matrices=torch.cat([first[0], frames.matrices], dim=-3),
+        is_global=frames.is_global,
+        det=torch.cat([first_det, frames.det], dim=-1),
+        inv=torch.cat([first[1], frames.inv], dim=-3),
+        parity=torch.cat([first_parity, frames.parity], dim=-1),
+    )
+
+
 class ParticleTransformer(nn.Module):
     def __init__(
         self,
@@ -956,6 +1017,7 @@ class ParticleTransformer(nn.Module):
         remove_self_pair=False,
         use_pre_activation_pair=True,
         use_conv_embed=False,
+        use_plain_embed=False,
         normalize_input=True,
         embed_dims=(128, 512, 128),
         ffn_ratio=4,
@@ -1070,6 +1132,7 @@ class ParticleTransformer(nn.Module):
             normalize_input=normalize_input,
             activation=activation,
             use_conv_embed=use_conv_embed,
+            use_plain_embed=use_plain_embed,
         )
 
         if pair_input_dim is None:
@@ -1139,11 +1202,6 @@ class ParticleTransformer(nn.Module):
 
         assert not (include_global_token and num_cls_layers > 0)
         self.include_global_token = include_global_token
-        if include_global_token:
-            raise NotImplementedError(
-                "include_global_token (ParT v3.6) is not supported with LLoCa yet: "
-                "the global token has no associated local frame."
-            )
 
         # cls tokens
         if self.include_global_token or (not self.for_segmentation and num_cls_layers > 0):
@@ -1180,6 +1238,7 @@ class ParticleTransformer(nn.Module):
         # Work around inductor issues with the seqlen-dependent shapes of the class-token concat:
         #   - tiling passes can't prove that s*(n+1) is divisible by s and crash codegen
         #     (torch>=2.11, https://github.com/pytorch/pytorch/issues/186426);
+        #   - on torch 2.13, loop reordering after fusion hits the same split for the global token;
         #   - a saved activation with a seqlen-dependent stride trips a false-positive
         #     assert_size_stride in the compiled backward on the next seqlen.
         # torch.compile forbids passing both mode and options, so mode is folded into options.
@@ -1193,6 +1252,8 @@ class ParticleTransformer(nn.Module):
             for flag in ("mix_order_reduction", "coalesce_tiling_analysis"):
                 if hasattr(config.triton, flag):
                     options.setdefault(f"triton.{flag}", False)
+            if hasattr(config, "loop_ordering_after_fusion"):
+                options.setdefault("loop_ordering_after_fusion", False)
             options.setdefault("size_asserts", False)
             kwargs["options"] = options
         super().compile(**kwargs)
@@ -1291,6 +1352,14 @@ class ParticleTransformer(nn.Module):
         # for onnx: uu (batch_size, C', seq_len, seq_len), uu_idx=None
         # p_ref: reference (jet) 4-momentum in the global frame (batch_size, 4), required when
         # preserve_variance or lightcone is on
+        # with include_global_token, frames may also be of shape (batch_size, 1+seq_len, 4, 4),
+        # with the global token's frame first; otherwise it gets one from prepend_global_frame
+        if self.include_global_token and frames.shape[-3] == x.size(-1):
+            frames = prepend_global_frame(frames)
+        num_tokens = x.size(-1) + (1 if self.include_global_token else 0)
+        assert frames.shape[-3] == num_tokens, (
+            f"expecting frames for {num_tokens} tokens, but got {frames.shape[-3]}"
+        )
         self.attention.prepare_frames(frames, p_ref=p_ref)
 
         x, padding_mask = self._forward_encoder(x, v=v, mask=mask, uu=uu, uu_idx=uu_idx)

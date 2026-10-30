@@ -79,6 +79,7 @@ For :class:`~lloca.backbone.particlenet.ParticleNet` and :class:`~lloca.backbone
     lloca.backbone.transformer_v2.Transformer
     lloca.backbone.particlenet.ParticleNet
     lloca.backbone.particletransformer.ParticleTransformer
+    lloca.backbone.particletransformer.prepend_global_frame
 
 Attention in the global frame is dispatched to one of several backends, selected from the
 keyword arguments passed to :class:`~lloca.backbone.attention.LLoCaAttention`.
