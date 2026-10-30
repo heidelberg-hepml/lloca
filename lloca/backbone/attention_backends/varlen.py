@@ -55,7 +55,7 @@ def attention(
     query, key, value = reshape(query), reshape(key), reshape(value)
 
     head_dim = query.shape[-1]
-    pad = -head_dim % 8
+    pad = (8 - head_dim % 8) % 8  # -head_dim % 8 breaks inductor for a symbolic head_dim
     scale = kwargs.pop("scale", None)
     if pad:
         # varlen_attn requires head_dim to be a multiple of 8; the zero-padding leaves the
@@ -70,6 +70,6 @@ def attention(
         query = query * (scale * query.shape[-1] ** 0.5)
     out = varlen_attn(query, key, value, **kwargs)
     if pad:
-        out = out[..., :head_dim]
+        out = out.narrow(-1, 0, head_dim)
     out = out.transpose(0, 1).unsqueeze(0).contiguous()
     return out

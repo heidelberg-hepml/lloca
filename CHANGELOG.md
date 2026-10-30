@@ -14,7 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- ParT's `compile` option also disables inductor's `loop_ordering_after_fusion`, which crashes torch 2.13 with the global token (`CantSplit`)
+- Improve xformers attention backend padding
+- Equivectors use plain torch instead of `torch_geometric`
+- `ParticleTransformer.compile` also disables inductor's `loop_ordering_after_fusion`, which crashes torch 2.13 with the global token (`CantSplit`)
+
+### Removed
+
+- `compile` and `compile_kwargs` arguments of the transformer and ParT backbones; compile with `net.compile(...)` instead, which unlike the old per-instance `forward` override keeps working after `copy.deepcopy` and `torch.save`
+
+### Fixed
+
+- Attention backends are imported together with `lloca` again instead of lazily on first use
+- `copy.deepcopy` and `torch.save` of whole models, also after a training step
+- Equivectors work with `torch.compile`
 
 ## [2.0.0] - 07.09.2026
 

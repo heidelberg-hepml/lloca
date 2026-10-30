@@ -3,7 +3,6 @@
 import torch
 
 from ..framesnet.frames import Frames
-from ..utils.autocast import minimum_autocast_precision
 from .tensorreps import TensorReps
 
 
@@ -45,7 +44,6 @@ class TensorRepsTransform(torch.nn.Module):
         self.register_buffer("parity_odd", parity_odd.unsqueeze(0))
         self.no_parity_odd = not parity_odd.any().item()
 
-    @minimum_autocast_precision(torch.float32)
     def forward(self, tensor: torch.Tensor, frames: Frames):
         """Apply a transformation to a tensor of a given representation.
 
@@ -91,7 +89,9 @@ class TensorRepsTransform(torch.nn.Module):
 
             # contract the leading index of (N, C, 4, R) with the frames and merge it into C
             out = out.unflatten(-1, (4, 4 ** (order - 1)))
-            out = (matrices[:, None, :, :, None] * out[:, :, None]).sum(-2).flatten(-3, -2)
+            # explicit dtype, else autocast runs the sum in float32
+            out = (matrices[:, None, :, :, None] * out[:, :, None]).sum(-2, dtype=out.dtype)
+            out = out.flatten(-3, -2)
 
         out = out.flatten(-2, -1)
         if self.dim_scalars == 0:

@@ -1,1 +1,1 @@
-"""Internal utilities (Minkowski algebra, orthogonalization, autocast, torch.compile)."""
+"""Internal utilities (Minkowski algebra, orthogonalization, autocast)."""

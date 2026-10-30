@@ -3,7 +3,7 @@ import importlib.util
 import pytest
 import torch
 
-from lloca.backbone.attention_backends import _resolve_backend
+from lloca.backbone.attention_backends import _REGISTRY
 from lloca.equivectors.mlp import MLPVectors
 from lloca.utils.lorentz import lorentz_metric
 
@@ -30,7 +30,7 @@ def skip_if_backend_unavailable(attention_backend):
         return
     if not _BACKEND_AVAILABLE.get(attention_backend, False):
         pytest.skip(f"attention backend {attention_backend!r} is not available here")
-    if _resolve_backend(attention_backend) is None:
+    if attention_backend not in _REGISTRY:
         pytest.skip(f"attention backend {attention_backend!r} could not be loaded")
 
 

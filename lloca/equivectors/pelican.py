@@ -3,15 +3,14 @@
 import math
 
 import torch
-from torch_geometric.nn import MessagePassing
 
 from ..utils.lorentz import lorentz_squarednorm
-from ..utils.utils import get_edge_attr
+from ..utils.utils import get_edge_attr, scatter
 from .base import EquiVectors
 from .mlp import get_edge_index_and_batch, get_nonlinearity, get_operation
 
 
-class PELICANVectors(EquiVectors, MessagePassing):
+class PELICANVectors(EquiVectors):
     def __init__(
         self,
         n_vectors,
@@ -24,7 +23,7 @@ class PELICANVectors(EquiVectors, MessagePassing):
         layer_norm=False,
         use_amp=False,
     ):
-        super().__init__(aggr=aggr)
+        super().__init__()
         self.net = net(in_channels_rank1=num_scalars, out_channels=n_vectors)
 
         self.register_buffer("edge_inited", torch.tensor(False, dtype=torch.bool))
@@ -33,6 +32,7 @@ class PELICANVectors(EquiVectors, MessagePassing):
 
         self.operation = get_operation(operation)
         self.nonlinearity = get_nonlinearity(nonlinearity)
+        self.aggr = aggr
         self.fm_norm = fm_norm
         self.layer_norm = layer_norm
         self.use_amp = use_amp
@@ -47,7 +47,7 @@ class PELICANVectors(EquiVectors, MessagePassing):
             self.edge_std = edge_attr.std().clamp(min=1e-5).detach()
             self.edge_inited.fill_(True)
 
-    def forward(self, fourmomenta, scalars=None, ptr=None, num_graphs=None, **kwargs):
+    def forward(self, fourmomenta, scalars=None, ptr=None, **kwargs):
         # move to sparse tensors
         in_shape = fourmomenta.shape[:-1]
         if scalars is None:
@@ -60,17 +60,26 @@ class PELICANVectors(EquiVectors, MessagePassing):
         # compute prefactors
         edge_attr = self.get_edge_attr(fourmomenta, edge_index).to(scalars.dtype)
 
-        # message-passing
-        vecs = self.propagate(
-            edge_index,
-            fm=fourmomenta,
-            s=scalars,
-            edge_attr=edge_attr,
-            batch=batch,
-            node_ptr=ptr,
-            num_graphs=num_graphs,
+        with torch.autocast(fourmomenta.device.type, enabled=self.use_amp):
+            prefactor = self.net(
+                in_rank2=edge_attr,
+                in_rank1=scalars,
+                edge_index=edge_index,
+                batch=batch,
+                num_graphs=ptr.shape[0] - 1,
+            )
+        row, col = edge_index
+        prefactor = self.nonlinearity(
+            prefactor, index=row, node_ptr=ptr, node_batch=batch, remove_self_loops=False
         )
-        vecs = vecs.reshape(fourmomenta.shape[0], -1, 4)
+
+        # aggregate relative fourmomenta
+        fm_rel = self.operation(fourmomenta[row], fourmomenta[col])
+        if self.fm_norm:
+            fm_rel_norm = lorentz_squarednorm(fm_rel).unsqueeze(-1)
+            fm_rel = fm_rel / fm_rel_norm.abs().sqrt().clamp(min=1e-6)
+        vecs = prefactor.unsqueeze(-1) * fm_rel.unsqueeze(-2)
+        vecs = scatter(vecs, row, dim_size=fourmomenta.shape[0], reduce=self.aggr)
 
         if self.layer_norm:
             norm = lorentz_squarednorm(vecs).sum(dim=-1, keepdim=True).unsqueeze(-1)
@@ -79,49 +88,6 @@ class PELICANVectors(EquiVectors, MessagePassing):
         # reshape result
         vecs = vecs.reshape(*in_shape, -1, 4)
         return vecs
-
-    def message(
-        self,
-        edge_index,
-        fm_i,
-        fm_j,
-        s_i,
-        s_j,
-        node_ptr,
-        batch,
-        edge_attr,
-        num_graphs=None,
-    ):
-        assert num_graphs is not None
-        # prepare fourmomenta
-        fm_rel = self.operation(fm_i, fm_j)
-        if self.fm_norm:
-            fm_rel_norm = lorentz_squarednorm(fm_rel).unsqueeze(-1)
-            fm_rel_norm = fm_rel_norm.abs().sqrt().clamp(min=1e-6)
-        else:
-            fm_rel_norm = 1.0
-        fm_rel = (fm_rel / fm_rel_norm)[:, None, :4]
-
-        # message-passing
-        with torch.autocast(fm_rel.device.type, enabled=self.use_amp):
-            prefactor = self.net(
-                in_rank2=edge_attr,
-                in_rank1=s_i,
-                edge_index=edge_index,
-                batch=batch,
-                num_graphs=num_graphs,
-            )
-        prefactor = self.nonlinearity(
-            prefactor,
-            index=edge_index[0],
-            node_ptr=node_ptr,
-            node_batch=batch,
-            remove_self_loops=False,
-        )
-        prefactor = prefactor.unsqueeze(-1)
-        out = prefactor * fm_rel
-        out = out.reshape(out.shape[0], -1)
-        return out
 
     def get_edge_attr(self, fourmomenta, edge_index):
         edge_attr = get_edge_attr(fourmomenta, edge_index)

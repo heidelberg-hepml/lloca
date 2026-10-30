@@ -40,6 +40,12 @@ class LLoCaMessagePassing(MessagePassing):
         self.register_propagate_forward_pre_hook(self.pre_propagate_hook)
         self.register_message_forward_pre_hook(self.pre_message_hook)
 
+    def __getstate__(self):
+        state = super().__getstate__()
+        state.pop("_frames", None)
+        state.pop("_edge_index", None)
+        return state
+
     def pre_propagate_hook(self, module: Any, inputs: tuple) -> tuple:
         """A hook method called before propagating messages in the message passing algorithm. We
         save the frames in the class variable and remove it from the inputs dictionary.
