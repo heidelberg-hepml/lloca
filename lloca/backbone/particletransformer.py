@@ -26,6 +26,11 @@ Changes compared to the official version:
   tokens to forward to choose it yourself.
 - use_plain_embed (a bare-linear input embedding) is pulled from the weaver-core
   add-lgatr-slim branch (commit c8be988).
+- pair_embed_masked: a static-shape pair embedding with the numerics of the sparse one (pair
+  features of all pairs of the padded sequence, BatchNorm statistics over the valid pairs only).
+  The sparse path's data-dependent shapes make torch.compile fail in training; weaver instead
+  switches to the dense path when compiled, which also counts padded pairs in the BatchNorm
+  statistics (harmless with its wrap padding, not with zero padding).
 - Removed the use_amp option (apply torch.autocast from outside instead), the compile_model
   option (use model.compile instead), the weaver logger, and the ParticleTransformerTagger*
   wrapper classes.
@@ -445,6 +450,32 @@ class Embed(nn.Module):
         return self.embed(x)
 
 
+def _masked_batch_norm(bn: nn.BatchNorm1d, x: torch.Tensor, valid: torch.Tensor) -> torch.Tensor:
+    """`bn` applied to x of shape (batch, channels, num_pairs), with the training statistics taken over the
+    valid pairs only (valid: (batch, 1, num_pairs) bool). In training this matches running `bn` on the
+    valid pairs alone (as `PairEmbed._forward_sparse` does), including the running-statistics update;
+    in eval it is plain `bn`, which is elementwise anyway. Computed in at least float32, like BatchNorm
+    under autocast."""
+    if not (bn.training or bn.running_mean is None):
+        return bn(x)
+    x = x.to(torch.promote_types(x.dtype, torch.float32))
+    w = valid.to(x.dtype)
+    n = w.sum()
+    mean = (x * w).sum(dim=(0, 2)) / n
+    var = ((x - mean[:, None]).square() * w).sum(dim=(0, 2)) / n
+    if bn.training and bn.track_running_stats:
+        with torch.no_grad():
+            bn.num_batches_tracked.add_(1)
+            momentum = 1.0 / bn.num_batches_tracked.item() if bn.momentum is None else bn.momentum
+            bn.running_mean.lerp_(mean.detach().to(bn.running_mean.dtype), momentum)
+            unbiased = var.detach() * n / (n - 1).clamp(min=1)
+            bn.running_var.lerp_(unbiased.to(bn.running_var.dtype), momentum)
+    y = (x - mean[:, None]) * torch.rsqrt(var[:, None] + bn.eps)
+    if bn.affine:
+        y = y * bn.weight[:, None].to(y.dtype) + bn.bias[:, None].to(y.dtype)
+    return y
+
+
 class PairEmbed(nn.Module):
     def __init__(
         self,
@@ -460,6 +491,7 @@ class PairEmbed(nn.Module):
         eps=1e-8,
         for_onnx=False,
         sparse_eval=None,
+        masked=False,
     ):
         super().__init__()
 
@@ -468,6 +500,8 @@ class PairEmbed(nn.Module):
         self.remove_self_pair = remove_self_pair
         self.for_onnx = for_onnx
         self.sparse_eval = (not for_onnx) if sparse_eval is None else sparse_eval
+        # static-shape alternative to the sparse path (see _forward_masked); compiles with dynamic seq_len
+        self.masked = masked and not for_onnx
         self.tril_indices_fn = tril_indices if self.for_onnx else torch.tril_indices
         self.out_dim = dims[-1]
 
@@ -608,7 +642,68 @@ class PairEmbed(nn.Module):
 
         return y
 
+    def _embed_masked(self, seq, h, valid):
+        """Run `seq` (an embed Sequential) with BatchNorm statistics over the valid pairs only."""
+        for module in seq:
+            h = (
+                _masked_batch_norm(module, h, valid)
+                if isinstance(module, nn.BatchNorm1d)
+                else module(h)
+            )
+        return h
+
+    def _forward_masked(self, x, uu=None, mask=None):
+        """Same result as `_forward_sparse` (pair features of the valid pairs, BatchNorm statistics over
+        them, zeros elsewhere), but evaluated on all (tril) pairs of the padded sequence, so all shapes
+        are static given seq_len and the module compiles without data-dependent shapes."""
+        # x: (batch, v_dim, seq_len)
+        # uu: (batch, v_dim, seq_len, seq_len)
+        if x is not None:
+            batch_size, _, seq_len = x.size()
+        else:
+            batch_size, _, seq_len, _ = uu.size()
+        device = (x if x is not None else uu).device
+        pair_mask = (mask.unsqueeze(-1) * mask.unsqueeze(-2)).bool()  # (batch, 1, seq_len, seq_len)
+
+        if self.is_symmetric:
+            offset = -1 if self.remove_self_pair else 0
+            i, j = torch.tril_indices(seq_len, seq_len, offset=offset, device=device)
+            valid = pair_mask[:, :, i, j]  # (batch, 1, num_tril_pairs)
+            if x is not None:
+                x = self.pairwise_lv_fts(x[:, :, i], x[:, :, j])  # (batch, dim, num_tril_pairs)
+            if uu is not None:
+                uu = uu[:, :, i, j]
+        else:
+            valid = pair_mask.reshape(batch_size, 1, seq_len * seq_len)
+            if x is not None:
+                x = self.pairwise_lv_fts(x.unsqueeze(-1), x.unsqueeze(-2))
+                x = x.reshape(batch_size, self.pairwise_lv_dim, seq_len * seq_len)
+            if uu is not None:
+                uu = uu.reshape(batch_size, self.pairwise_input_dim, seq_len * seq_len)
+
+        # padded pairs can give non-finite pair features; zero them so they cannot leak into the
+        # statistics (they are masked out of every reduction and of the output)
+        elements = None
+        if x is not None:
+            x = torch.where(valid, x, 0.0)
+            elements = self._embed_masked(self.embed, x, valid)
+        if uu is not None:
+            uu = torch.where(valid, uu, 0.0)
+            fts = self._embed_masked(self.fts_embed, uu, valid)
+            elements = fts if elements is None else elements + fts
+        elements = torch.where(valid, elements, 0.0)
+
+        if self.is_symmetric:
+            y = elements.new_zeros(batch_size, self.out_dim, seq_len, seq_len)
+            y[:, :, i, j] = elements
+            y[:, :, j, i] = elements
+        else:
+            y = elements.reshape(batch_size, self.out_dim, seq_len, seq_len)
+        return y
+
     def forward(self, x, uu=None, mask=None):
+        if self.masked and mask is not None:
+            return self._forward_masked(x, uu=uu, mask=mask)
         if self.sparse_eval and mask is not None:
             return self._forward_sparse(x, uu=uu, mask=mask)
         else:
@@ -1022,6 +1117,7 @@ class ParticleTransformer(nn.Module):
         embed_dims=(128, 512, 128),
         ffn_ratio=4,
         pair_embed_dims=(64, 64, 64),
+        pair_embed_masked=False,
         num_heads=8,
         num_layers=8,
         block_params=None,
@@ -1154,6 +1250,7 @@ class ParticleTransformer(nn.Module):
                 normalize_input=normalize_input,
                 use_bias=default_cfg["use_bias"],
                 for_onnx=for_inference,
+                masked=pair_embed_masked,
             )
             if pair_embed_dims is not None and pair_input_dim + pair_extra_dim > 0
             else None

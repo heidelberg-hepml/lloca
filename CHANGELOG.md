@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - ParT supports `include_global_token` (and thus `version=3.6`): the global token gets the identity frame by default (`prepend_global_frame`), or the caller passes frames for `1+seq_len` tokens with the global token's frame first
 - `use_plain_embed` option for ParT: a bare-linear input embedding without BatchNorm, LayerNorm or activation, pulled from weaver-core (commit `c8be988`)
+- `pair_embed_masked` option for ParT: a static-shape pair embedding with the sparse one's numerics (all pairs of the padded sequence, BatchNorm statistics over the valid pairs only), so ParT compiles in training; the sparse path's data-dependent shapes make `torch.compile` fail
 
 ### Changed
 
