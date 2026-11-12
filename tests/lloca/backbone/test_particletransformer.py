@@ -477,3 +477,86 @@ def test_sequence_trimmer_drops_padding_only(training):
     assert v_out.shape[-1] == mask_out.shape[-1] == seq_len
     assert uu_out.shape[-2:] == (seq_len, seq_len)
     assert mask_out.sum() == mask.sum()  # no real particle was dropped
+
+
+def _padded_jets(batch_size, num_particles, seed):
+    """Zero-padded jets of random length (the first one full), as the tagging-guide wrappers pass them."""
+    gen = torch.Generator().manual_seed(seed)
+    n = torch.randint(1, num_particles + 1, (batch_size,), generator=gen)
+    n[0] = num_particles
+    mask = (torch.arange(num_particles)[None] < n[:, None]).unsqueeze(1).double()
+    pt = torch.exp(torch.randn(batch_size, num_particles, generator=gen, dtype=torch.float64)) * 5
+    eta = 0.2 * torch.randn(batch_size, num_particles, generator=gen, dtype=torch.float64)
+    phi = 0.2 * torch.randn(batch_size, num_particles, generator=gen, dtype=torch.float64)
+    px, py, pz = pt * phi.cos(), pt * phi.sin(), pt * eta.sinh()
+    energy = (px**2 + py**2 + pz**2 + 0.14**2).sqrt()
+    v = torch.stack([px, py, pz, energy], 1) * mask
+    x = torch.randn(batch_size, 7, num_particles, generator=gen, dtype=torch.float64) * mask
+    return x, v, mask
+
+
+def _masked_and_sparse_part(**kwargs):
+    kwargs = dict(
+        input_dim=7,
+        num_classes=4,
+        attn_reps="4x0n+1x1n",
+        embed_dims=[],
+        use_plain_embed=True,
+        pair_input_dim=4,
+        pair_embed_dims=(8, 8),
+        use_pre_activation_pair=False,
+        num_heads=2,
+        num_layers=2,
+        num_cls_layers=0,
+        include_global_token=True,
+        version=3,
+        block_params={"drop_path_rate": 0},
+        **kwargs,
+    )
+    torch.manual_seed(0)
+    sparse = ParticleTransformer(**kwargs).double()
+    masked = ParticleTransformer(pair_embed_masked=True, **kwargs).double()
+    masked.load_state_dict(sparse.state_dict())
+    assert masked.pair_embed.masked and not sparse.pair_embed.masked
+    return masked, sparse
+
+
+@pytest.mark.parametrize("remove_self_pair", [False, True])
+def test_ParT_masked_pair_embed_matches_sparse(remove_self_pair):
+    # the masked (static-shape) pair embedding must reproduce the sparse one exactly in training,
+    # including the BatchNorm statistics over valid pairs only and the running-statistics update
+    masked, sparse = _masked_and_sparse_part(remove_self_pair=remove_self_pair)
+    for step, num_particles in enumerate([9, 6]):
+        x, v, mask = _padded_jets(8, num_particles, seed=step)
+        frames = Frames(is_identity=True, device=x.device, dtype=x.dtype, shape=(8, num_particles))
+        outs = []
+        for net in (masked, sparse):
+            net.zero_grad()
+            out = net(x=x, frames=frames, v=v, mask=mask)
+            out.square().sum().backward()
+            outs.append(out)
+        torch.testing.assert_close(outs[0], outs[1])
+        for (name, p), p_sparse in zip(masked.named_parameters(), sparse.parameters(), strict=True):
+            torch.testing.assert_close(p.grad, p_sparse.grad, msg=name)
+    for b, b_sparse in zip(masked.buffers(), sparse.buffers(), strict=True):
+        torch.testing.assert_close(b.double(), b_sparse.double())
+    masked.eval()
+    sparse.eval()
+    torch.testing.assert_close(
+        masked(x=x, frames=frames, v=v, mask=mask), sparse(x=x, frames=frames, v=v, mask=mask)
+    )
+
+
+def test_ParT_compile_masked_pair_embed():
+    # with the masked pair embedding, ParT compiles in training mode on zero-padded jets of varying
+    # length (the sparse path's data-dependent shapes do not), and gives the sparse eager gradients
+    masked, sparse = _masked_and_sparse_part()
+    masked.compile(mode="default", dynamic=True)
+    for step, num_particles in enumerate([9, 6, 11]):
+        x, v, mask = _padded_jets(4, num_particles, seed=step)
+        frames = Frames(is_identity=True, device=x.device, dtype=x.dtype, shape=(4, num_particles))
+        for net in (masked, sparse):
+            net.zero_grad()
+            net(x=x, frames=frames, v=v, mask=mask).square().sum().backward()
+        for p, p_sparse in zip(masked.parameters(), sparse.parameters(), strict=True):
+            torch.testing.assert_close(p.grad, p_sparse.grad)
